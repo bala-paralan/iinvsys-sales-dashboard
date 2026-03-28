@@ -37,7 +37,15 @@
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL --prod --yes)",
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL logs https://iinvsys-sales.vercel.app --since 5m)",
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL logs https://iinvsys-sales.vercel.app)",
-      "Bash($VERCEL inspect:*)"
+      "Bash($VERCEL inspect:*)",
+      "Bash(node -e \":*)",
+      "Bash(MONGO_URI=\"mongodb+srv://iinvsys:lNWQHeHAvk95Ufti@cluster0.u4ptdno.mongodb.net/iinvsys?retryWrites=true&w=majority&appName=Cluster0\" node src/utils/seed.js)",
+      "Bash(curl -s -X POST https://iinvsys-sales.vercel.app/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"admin@iinvsys.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"Admin@123\"\"\"\"}')",
+      "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env ls production)",
+      "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env rm NODE_ENV production --yes)",
+      "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel echo \"development\")",
+      "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env pull /tmp/prod_env.env --environment production --yes)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }
