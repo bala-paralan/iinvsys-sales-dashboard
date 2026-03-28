@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/api.js",
+      "use": "@vercel/node",
+      "config": { "maxLambdaSize": "20mb" }
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/backend/api.js" },
+    { "src": "/styles.css", "dest": "/styles.css" },
+    { "src": "/app.js",    "dest": "/app.js"    },
+    { "src": "/(.*)",      "dest": "/index.html" }
+  ]
+}

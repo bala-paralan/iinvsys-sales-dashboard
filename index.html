@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IINVSYS — Sales Command Centre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.cdnfonts.com/css/gilroy-free" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- ═══════════════════ LOGIN PAGE ═══════════════════ -->
+<div id="loginPage" class="login-page">
+  <div class="login-bg-decor"></div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">II</div>
+      <div>
+        <div class="login-logo-name">IINVSYS</div>
+        <div class="login-logo-sub">SALES OS v1.0</div>
+      </div>
+    </div>
+    <div class="login-title-group">
+      <h1 class="login-title">Welcome <em>Back</em></h1>
+      <p class="login-sub">Sign in to your Sales Command Centre</p>
+    </div>
+    <form id="loginForm" class="login-form">
+      <div id="loginError" class="login-error hidden">⚠ Invalid credentials. Try again.</div>
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" id="loginEmail" class="form-input" placeholder="you@iinvsys.com" value="admin@iinvsys.com"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="pwd-wrap">
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" value="Admin@123"/>
+          <button type="button" class="pwd-toggle" id="pwdToggle">👁</button>
+        </div>
+      </div>
+      <button type="submit" class="neo-btn yellow full-w">Sign In →</button>
+    </form>
+    <div class="demo-creds">
+      <div class="demo-creds-label">// DEMO CREDENTIALS</div>
+      <div class="demo-cred-row" data-email="admin@iinvsys.com" data-pass="Admin@123">
+        <span class="demo-dot" style="background:var(--gold)"></span>
+        <div class="demo-info">
+          <span class="demo-role">Super Admin</span>
+          <span class="demo-email">admin@iinvsys.com</span>
+        </div>
+        <span class="demo-pass">Admin@123</span>
+        <button class="demo-fill-btn">Use</button>
+      </div>
+      <div class="demo-cred-row" data-email="rahul@iinvsys.com" data-pass="Agent@123">
+        <span class="demo-dot" style="background:var(--emerald)"></span>
+        <div class="demo-info">
+          <span class="demo-role">Sales Agent</span>
+          <span class="demo-email">rahul@iinvsys.com</span>
+        </div>
+        <span class="demo-pass">Agent@123</span>
+        <button class="demo-fill-btn">Use</button>
+      </div>
+      <div class="demo-cred-row" data-email="priya@iinvsys.com" data-pass="Agent@123">
+        <span class="demo-dot" style="background:var(--azure)"></span>
+        <div class="demo-info">
+          <span class="demo-role">Sales Agent</span>
+          <span class="demo-email">priya@iinvsys.com</span>
+        </div>
+        <span class="demo-pass">Agent@123</span>
+        <button class="demo-fill-btn">Use</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MAIN APP ═══════════════════ -->
+<div id="app" class="hidden">
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <span>II</span>
+      <div class="logo-pulse"></div>
+    </div>
+    <div class="logo-text-group">
+      <span class="logo-name">IINVSYS</span>
+      <span class="logo-tagline">Sales OS</span>
+    </div>
+  </div>
+
+  <div class="sidebar-role-pill" id="rolePill">
+    <span class="role-dot yellow" id="roleDot"></span>
+    <span id="roleLabel">Super Admin</span>
+    <span class="role-chevron">▾</span>
+  </div>
+
+  <!-- ADMIN NAV -->
+  <nav class="sidebar-nav" id="adminNav">
+    <a class="nav-item active" data-page="overview" href="#">
+      <span class="nav-icon">◈</span><span>Overview</span>
+      <span class="nav-badge">Live</span>
+    </a>
+    <a class="nav-item" data-page="leads" href="#">
+      <span class="nav-icon">◉</span><span>Leads</span>
+      <span class="nav-count" id="navLeadCount">0</span>
+    </a>
+    <a class="nav-item" data-page="agents" href="#">
+      <span class="nav-icon">◎</span><span>Agents</span>
+      <span class="nav-count">6</span>
+    </a>
+    <a class="nav-item" data-page="products" href="#">
+      <span class="nav-icon">◧</span><span>Products</span>
+      <span class="nav-count" id="navProductCount">0</span>
+    </a>
+    <a class="nav-item" data-page="expos" href="#">
+      <span class="nav-icon">◇</span><span>Expos</span>
+      <span class="nav-count">3</span>
+    </a>
+    <a class="nav-item" data-page="analytics" href="#">
+      <span class="nav-icon">◌</span><span>Analytics</span>
+    </a>
+  </nav>
+
+  <!-- AGENT NAV (hidden by default) -->
+  <nav class="sidebar-nav hidden" id="agentNav">
+    <a class="nav-item active" data-page="myLeads" href="#">
+      <span class="nav-icon">◉</span><span>My Leads</span>
+      <span class="nav-count" id="navMyLeadCount">0</span>
+    </a>
+    <a class="nav-item" data-page="myStats" href="#">
+      <span class="nav-icon">◈</span><span>My Performance</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-user" id="sidebarUser">
+      <div class="user-avatar" id="sidebarAvatar">AK</div>
+      <div class="user-info">
+        <span class="user-name" id="sidebarName">Arjun Kapoor</span>
+        <span class="user-role" id="sidebarRole">Super Admin</span>
+      </div>
+    </div>
+    <button class="logout-btn" id="logoutBtn">⏻ Logout</button>
+    <div class="sidebar-version">v1.0</div>
+  </div>
+</aside>
+
+<button class="mobile-nav-toggle" id="mobileToggle">☰</button>
+
+<!-- MAIN CONTENT -->
+<main class="main" id="main">
+
+  <!-- TOP HEADER -->
+  <header class="top-header">
+    <div class="header-left">
+      <div class="page-title-group">
+        <span class="page-eyebrow" id="pageEyebrow">// COMMAND CENTRE</span>
+        <h1 class="page-title" id="pageTitle">Sales <em>Overview</em></h1>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="date-chip">
+        <span class="date-dot"></span>
+        <span id="liveDate">—</span>
+      </div>
+      <button class="header-btn neo-btn yellow" id="addLeadBtn">+ New Lead</button>
+      <div class="notif-btn">
+        <span>🔔</span>
+        <span class="notif-dot"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════ PAGE: OVERVIEW ══════════ -->
+  <div class="page active" id="page-overview">
+    <section class="kpi-strip" id="kpiStrip">
+      <div class="kpi-card yellow" style="--delay:0ms">
+        <div class="kpi-label">Total Leads</div>
+        <div class="kpi-value" id="kpiTotalLeads">0</div>
+        <div class="kpi-sub" id="kpiLeadsSub">Loading…</div>
+        <div class="kpi-spark"><svg viewBox="0 0 80 30" fill="none"><polyline points="0,28 12,20 24,22 36,14 48,16 60,8 72,10 80,4" stroke="currentColor" stroke-width="2" fill="none" opacity="0.6"/></svg></div>
+      </div>
+      <div class="kpi-card green" style="--delay:80ms">
+        <div class="kpi-label">Conversion Rate</div>
+        <div class="kpi-value" id="kpiConvRate">0%</div>
+        <div class="kpi-sub">Won / Total Leads</div>
+        <div class="kpi-spark"><svg viewBox="0 0 80 30" fill="none"><polyline points="0,26 12,22 24,18 36,20 48,12 60,14 72,8 80,6" stroke="currentColor" stroke-width="2" fill="none" opacity="0.6"/></svg></div>
+      </div>
+      <div class="kpi-card blue" style="--delay:160ms">
+        <div class="kpi-label">Pipeline Value</div>
+        <div class="kpi-value" id="kpiPipeline">₹0</div>
+        <div class="kpi-sub">Weighted forecast</div>
+        <div class="kpi-spark"><svg viewBox="0 0 80 30" fill="none"><polyline points="0,24 12,20 24,16 36,18 48,10 60,12 72,6 80,8" stroke="currentColor" stroke-width="2" fill="none" opacity="0.6"/></svg></div>
+      </div>
+      <div class="kpi-card orange" style="--delay:240ms">
+        <div class="kpi-label">Follow-up Rate</div>
+        <div class="kpi-value" id="kpiFollowup">0%</div>
+        <div class="kpi-sub">Leads with ≥1 FU</div>
+        <div class="kpi-spark"><svg viewBox="0 0 80 30" fill="none"><polyline points="0,22 12,18 24,20 36,12 48,14 60,8 72,10 80,5" stroke="currentColor" stroke-width="2" fill="none" opacity="0.6"/></svg></div>
+      </div>
+      <div class="kpi-card purple" style="--delay:320ms">
+        <div class="kpi-label">Avg Deal Size</div>
+        <div class="kpi-value" id="kpiAvgDeal">₹0</div>
+        <div class="kpi-sub">Closed Won avg</div>
+        <div class="kpi-spark"><svg viewBox="0 0 80 30" fill="none"><polyline points="0,26 12,24 24,18 36,16 48,14 60,10 72,8 80,5" stroke="currentColor" stroke-width="2" fill="none" opacity="0.6"/></svg></div>
+      </div>
+      <div class="kpi-card red" style="--delay:400ms">
+        <div class="kpi-label">Overdue Follow-ups</div>
+        <div class="kpi-value" id="kpiOverdue">0</div>
+        <div class="kpi-sub">⚠ Needs attention</div>
+        <div class="kpi-spark"><svg viewBox="0 0 80 30" fill="none"><polyline points="0,10 12,14 24,12 36,18 48,16 60,22 72,20 80,24" stroke="currentColor" stroke-width="2" fill="none" opacity="0.6"/></svg></div>
+      </div>
+    </section>
+
+    <div class="overview-grid">
+      <section class="card funnel-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// PIPELINE</span>
+            <h2 class="card-title">Lead <em>Funnel</em></h2>
+          </div>
+          <div class="card-filter-tabs" id="funnelTabs">
+            <button class="tab-btn active" data-filter="all">All</button>
+            <button class="tab-btn" data-filter="expo">Expo</button>
+            <button class="tab-btn" data-filter="direct">Direct</button>
+          </div>
+        </div>
+        <div class="funnel-body" id="funnelBody"><!-- rendered by JS --></div>
+      </section>
+
+      <section class="card leaderboard-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// TOP PERFORMERS</span>
+            <h2 class="card-title">Agent <em>Board</em></h2>
+          </div>
+          <div class="card-filter-tabs" id="lbTabs">
+            <button class="tab-btn active" data-period="month">Month</button>
+            <button class="tab-btn" data-period="week">Week</button>
+            <button class="tab-btn" data-period="all">All</button>
+          </div>
+        </div>
+        <div class="leaderboard-list" id="leaderboardList"><!-- rendered by JS --></div>
+      </section>
+
+      <section class="card source-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// ACQUISITION</span>
+            <h2 class="card-title">Lead <em>Sources</em></h2>
+          </div>
+        </div>
+        <div class="source-chart-wrap"><canvas id="sourceChart" height="200"></canvas></div>
+        <div class="source-legend" id="sourceLegend"><!-- rendered by JS --></div>
+      </section>
+
+      <section class="card activity-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// LIVE FEED</span>
+            <h2 class="card-title">Activity <em>Stream</em></h2>
+          </div>
+          <span class="live-badge">● LIVE</span>
+        </div>
+        <div class="activity-list" id="activityList"><!-- rendered by JS --></div>
+      </section>
+
+      <section class="card trend-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// 12 MONTH TREND</span>
+            <h2 class="card-title">Leads vs <em>Conversions</em></h2>
+          </div>
+        </div>
+        <div class="trend-chart-wrap"><canvas id="trendChart" height="160"></canvas></div>
+      </section>
+
+      <section class="card expo-preview-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// UPCOMING</span>
+            <h2 class="card-title">Active <em>Expos</em></h2>
+          </div>
+          <button class="text-link" data-page="expos">View All →</button>
+        </div>
+        <div class="expo-mini-list" id="expoMiniList"><!-- rendered by JS --></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: LEADS ══════════ -->
+  <div class="page" id="page-leads">
+    <div class="leads-toolbar">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="leadSearch" placeholder="Search by name, phone, source…" class="search-input"/>
+      </div>
+      <div class="toolbar-filters">
+        <select class="filter-select" id="filterStage">
+          <option value="">All Stages</option>
+          <option value="new">New</option>
+          <option value="contacted">Contacted</option>
+          <option value="interested">Interested</option>
+          <option value="proposal">Proposal</option>
+          <option value="negotiation">Negotiation</option>
+          <option value="won">Won</option>
+          <option value="lost">Lost</option>
+        </select>
+        <select class="filter-select" id="filterSource">
+          <option value="">All Sources</option>
+          <option value="expo">Expo</option>
+          <option value="referral">Referral</option>
+          <option value="direct">Direct</option>
+          <option value="digital">Digital</option>
+        </select>
+        <select class="filter-select admin-only" id="filterAgent">
+          <option value="">All Agents</option>
+        </select>
+      </div>
+      <button class="neo-btn outline" id="bulkImportBtn">⬆ Bulk Import</button>
+      <button class="neo-btn yellow" id="newLeadBtn">+ New Lead</button>
+    </div>
+    <div class="kanban-board" id="kanbanBoard"><!-- rendered by JS --></div>
+  </div>
+
+  <!-- ══════════ PAGE: AGENTS ══════════ -->
+  <div class="page admin-only-page" id="page-agents">
+    <div class="agents-header-actions">
+      <button class="neo-btn yellow" id="addAgentBtn">+ Add Agent</button>
+      <button class="neo-btn outline">⬆ Bulk Import CSV</button>
+    </div>
+    <div class="agents-grid" id="agentsGrid"><!-- rendered by JS --></div>
+  </div>
+
+  <!-- ══════════ PAGE: PRODUCTS ══════════ -->
+  <div class="page admin-only-page" id="page-products">
+    <div class="products-toolbar">
+      <div class="search-box" style="max-width:320px">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="productSearch" placeholder="Search products…" class="search-input"/>
+      </div>
+      <select class="filter-select" id="filterProductCat">
+        <option value="">All Categories</option>
+        <option value="hardware">Hardware</option>
+        <option value="software">Software</option>
+        <option value="service">Service</option>
+        <option value="bundle">Bundle</option>
+      </select>
+      <button class="neo-btn yellow" id="addProductBtn">+ Add Product</button>
+    </div>
+    <div class="products-table-wrap">
+      <table class="products-table" id="productsTable">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Product Name</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Interested Leads</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="productsTableBody"><!-- rendered by JS --></tbody>
+      </table>
+      <div class="empty-state hidden" id="productsEmpty">
+        <div class="empty-icon">◧</div>
+        <div class="empty-title">No Products Yet</div>
+        <div class="empty-sub">Add your first product to start tracking lead interest</div>
+        <button class="neo-btn yellow" onclick="openProductModal()">+ Add Product</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: EXPOS ══════════ -->
+  <div class="page admin-only-page" id="page-expos">
+    <div class="expo-header-actions">
+      <button class="neo-btn yellow">+ Create Expo</button>
+    </div>
+    <div class="expo-grid" id="expoGrid"><!-- rendered by JS --></div>
+  </div>
+
+  <!-- ══════════ PAGE: ANALYTICS ══════════ -->
+  <div class="page admin-only-page" id="page-analytics">
+    <div class="analytics-grid">
+      <section class="card analytics-chart-card span-2">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// MONTHLY PERFORMANCE</span>
+            <h2 class="card-title">Lead Volume &amp; <em>Revenue</em></h2>
+          </div>
+          <div class="card-filter-tabs">
+            <button class="tab-btn active">2025</button>
+            <button class="tab-btn">2024</button>
+          </div>
+        </div>
+        <canvas id="analyticsMainChart" height="200"></canvas>
+      </section>
+      <section class="card analytics-chart-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// BY PRODUCT</span>
+            <h2 class="card-title">Product <em>Demand</em></h2>
+          </div>
+        </div>
+        <canvas id="productChart" height="220"></canvas>
+      </section>
+      <section class="card analytics-chart-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// WIN/LOSS</span>
+            <h2 class="card-title">Lost <em>Reasons</em></h2>
+          </div>
+        </div>
+        <canvas id="lostReasonsChart" height="220"></canvas>
+      </section>
+      <section class="card forecast-card span-2">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-eyebrow">// WEIGHTED PIPELINE FORECAST</span>
+            <h2 class="card-title">Next 90 Day <em>Forecast</em></h2>
+          </div>
+        </div>
+        <div class="forecast-row">
+          <div class="forecast-bucket">
+            <div class="fb-label">30 DAYS</div>
+            <div class="fb-value" style="color:var(--gold)">₹18.4L</div>
+            <div class="fb-sub">84 deals in play</div>
+            <div class="fb-bar-wrap"><div class="fb-bar" style="--pct:62%;--col:var(--gold)"></div></div>
+          </div>
+          <div class="forecast-bucket">
+            <div class="fb-label">60 DAYS</div>
+            <div class="fb-value" style="color:var(--azure)">₹31.2L</div>
+            <div class="fb-sub">142 deals in play</div>
+            <div class="fb-bar-wrap"><div class="fb-bar" style="--pct:78%;--col:var(--azure)"></div></div>
+          </div>
+          <div class="forecast-bucket">
+            <div class="fb-label">90 DAYS</div>
+            <div class="fb-value" style="color:var(--emerald)">₹52.7L</div>
+            <div class="fb-sub">237 deals in play</div>
+            <div class="fb-bar-wrap"><div class="fb-bar" style="--pct:92%;--col:var(--emerald)"></div></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ══════════ PAGE: MY LEADS (Agent) ══════════ -->
+  <div class="page" id="page-myLeads">
+    <div class="leads-toolbar">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="myLeadSearch" placeholder="Search your leads…" class="search-input"/>
+      </div>
+      <select class="filter-select" id="myFilterStage">
+        <option value="">All Stages</option>
+        <option value="new">New</option>
+        <option value="contacted">Contacted</option>
+        <option value="interested">Interested</option>
+        <option value="proposal">Proposal</option>
+        <option value="negotiation">Negotiation</option>
+        <option value="won">Won</option>
+        <option value="lost">Lost</option>
+      </select>
+      <button class="neo-btn yellow" id="agentNewLeadBtn">+ New Lead</button>
+    </div>
+    <div class="kanban-board" id="myKanbanBoard"><!-- rendered by JS --></div>
+  </div>
+
+  <!-- ══════════ PAGE: MY STATS (Agent) ══════════ -->
+  <div class="page" id="page-myStats">
+    <div class="my-stats-grid" id="myStatsGrid"><!-- rendered by JS --></div>
+  </div>
+
+</main>
+</div><!-- /app -->
+
+
+<!-- ═══════════════════ MODAL: NEW / EDIT LEAD ═══════════════════ -->
+<div class="modal-overlay" id="leadModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow" id="leadModalEyebrow">// QUICK CAPTURE</span>
+        <h2 class="modal-title" id="leadModalTitle">New <em>Lead</em></h2>
+      </div>
+      <div class="modal-header-actions">
+        <button class="neo-btn outline sm danger-btn hidden" id="deleteLeadBtn">🗑 Delete</button>
+        <button class="modal-close" id="leadModalClose">✕</button>
+      </div>
+    </div>
+    <form class="lead-form" id="leadForm">
+      <input type="hidden" id="leadIdInput"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name <span class="req">*</span></label>
+          <input type="text" id="leadName" class="form-input" placeholder="e.g. Rajesh Sharma"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone <span class="req">*</span></label>
+          <input type="tel" id="leadPhone" class="form-input" placeholder="+91 98200 00000"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Email <span class="opt">(optional)</span></label>
+          <input type="email" id="leadEmail" class="form-input" placeholder="email@example.com"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stage <span class="req">*</span></label>
+          <select id="leadStage" class="form-input">
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="interested">Interested</option>
+            <option value="proposal">Proposal</option>
+            <option value="negotiation">Negotiation</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row admin-only-field">
+        <div class="form-group">
+          <label class="form-label">Source <span class="req">*</span></label>
+          <select id="leadSource" class="form-input">
+            <option value="">— Select —</option>
+            <option value="expo">Expo</option>
+            <option value="referral">Referral</option>
+            <option value="direct">Direct</option>
+            <option value="digital">Digital</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expo / Event <span class="opt">(optional)</span></label>
+          <select id="leadExpo" class="form-input">
+            <option value="">— Select Expo —</option>
+            <option value="Pune Realty Expo 2025">Pune Realty Expo 2025</option>
+            <option value="Mumbai Invest Summit 2025">Mumbai Invest Summit 2025</option>
+            <option value="Bangalore Tech Expo 2025">Bangalore Tech Expo 2025</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row admin-only-field">
+        <div class="form-group">
+          <label class="form-label">Assign Agent</label>
+          <select id="leadAgent" class="form-input">
+            <option value="">— Auto-assign —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Potential Value (₹)</label>
+          <input type="number" id="leadValue" class="form-input" placeholder="e.g. 250000"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Product Interest <span class="opt">(optional)</span></label>
+        <div class="product-tags-select" id="leadProductTags"><!-- rendered by JS --></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes <span class="opt">(optional)</span></label>
+        <textarea id="leadNotes" class="form-input" rows="2" placeholder="Any additional context…"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="neo-btn outline" id="leadModalCancel">Cancel</button>
+        <button type="submit" class="neo-btn yellow" id="leadSubmitBtn">Capture Lead →</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: BULK IMPORT ═══════════════════ -->
+<div class="modal-overlay" id="bulkImportModal">
+  <div class="modal-box wide-modal">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow">// CSV UPLOAD</span>
+        <h2 class="modal-title">Bulk <em>Import</em></h2>
+      </div>
+      <button class="modal-close" id="bulkImportClose">✕</button>
+    </div>
+
+    <!-- STEP INDICATORS -->
+    <div class="wizard-steps">
+      <div class="wz-step active" id="wz1">
+        <span class="wz-num">01</span><span class="wz-label">Instructions</span>
+      </div>
+      <div class="wz-sep"></div>
+      <div class="wz-step" id="wz2">
+        <span class="wz-num">02</span><span class="wz-label">Upload</span>
+      </div>
+      <div class="wz-sep"></div>
+      <div class="wz-step" id="wz3">
+        <span class="wz-num">03</span><span class="wz-label">Preview</span>
+      </div>
+      <div class="wz-sep"></div>
+      <div class="wz-step" id="wz4">
+        <span class="wz-num">04</span><span class="wz-label">Confirm</span>
+      </div>
+    </div>
+
+    <!-- Step 1: Instructions -->
+    <div class="wizard-panel" id="wzPanel1">
+      <div class="wz-intro">
+        <div class="wz-intro-icon">📋</div>
+        <div>
+          <div class="wz-intro-title">Prepare your CSV file</div>
+          <div class="wz-intro-sub">Your file must have these columns in this exact order:</div>
+        </div>
+      </div>
+      <div class="csv-cols-table">
+        <div class="csv-col-row header">
+          <span>Column</span><span>Type</span><span>Required</span><span>Example</span>
+        </div>
+        <div class="csv-col-row"><span class="col-name">name</span><span>Text</span><span class="req">Yes</span><span>Rajesh Sharma</span></div>
+        <div class="csv-col-row"><span class="col-name">phone</span><span>Text</span><span class="req">Yes</span><span>+91 98200 00000</span></div>
+        <div class="csv-col-row"><span class="col-name">email</span><span>Email</span><span class="opt">No</span><span>raj@example.com</span></div>
+        <div class="csv-col-row"><span class="col-name">source</span><span>expo/referral/direct/digital</span><span class="req">Yes</span><span>expo</span></div>
+        <div class="csv-col-row"><span class="col-name">expo</span><span>Text</span><span class="opt">No</span><span>Pune Realty Expo 2025</span></div>
+        <div class="csv-col-row"><span class="col-name">products</span><span>Pipe-separated SKUs</span><span class="opt">No</span><span>PRD-001|PRD-002</span></div>
+        <div class="csv-col-row"><span class="col-name">value</span><span>Number (₹)</span><span class="opt">No</span><span>250000</span></div>
+        <div class="csv-col-row"><span class="col-name">notes</span><span>Text</span><span class="opt">No</span><span>Met at booth #14</span></div>
+      </div>
+      <div class="wz-rules">
+        <div class="wz-rule">⚠ First row must be the header row (column names exactly as above)</div>
+        <div class="wz-rule">⚠ Duplicate phone numbers will be flagged — you can skip or update</div>
+        <div class="wz-rule">✓ Max 500 rows per import</div>
+        <div class="wz-rule">✓ File encoding must be UTF-8</div>
+      </div>
+      <div class="form-actions">
+        <button class="neo-btn outline" id="downloadTemplateBtn">⬇ Download Template CSV</button>
+        <button class="neo-btn yellow" onclick="goWizardStep(2)">Next: Upload →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Upload -->
+    <div class="wizard-panel hidden" id="wzPanel2">
+      <div class="csv-drop-zone" id="csvDropZone">
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none"/>
+        <div class="drop-icon">📂</div>
+        <div class="drop-title">Drag & drop your CSV here</div>
+        <div class="drop-sub">or</div>
+        <button class="neo-btn outline" onclick="document.getElementById('csvFileInput').click()">Browse File</button>
+      </div>
+      <div class="csv-or-sep">— OR PASTE CSV TEXT —</div>
+      <textarea id="csvPasteArea" class="form-input csv-paste" placeholder="Paste CSV content here (including header row)…" rows="8"></textarea>
+      <div id="csvUploadError" class="login-error hidden"></div>
+      <div class="form-actions">
+        <button class="neo-btn outline" onclick="goWizardStep(1)">← Back</button>
+        <button class="neo-btn yellow" id="parseCSVBtn">Parse & Preview →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Preview -->
+    <div class="wizard-panel hidden" id="wzPanel3">
+      <div class="preview-summary" id="previewSummary"></div>
+      <div class="preview-table-wrap">
+        <table class="products-table" id="csvPreviewTable">
+          <thead id="csvPreviewHead"></thead>
+          <tbody id="csvPreviewBody"></tbody>
+        </table>
+      </div>
+      <div class="form-actions">
+        <button class="neo-btn outline" onclick="goWizardStep(2)">← Back</button>
+        <button class="neo-btn yellow" id="confirmImportBtn">Import All Rows →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Results -->
+    <div class="wizard-panel hidden" id="wzPanel4">
+      <div class="import-results" id="importResults"></div>
+      <div class="form-actions">
+        <button class="neo-btn yellow" id="doneImportBtn">Done ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: PRODUCT CRUD ═══════════════════ -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow" id="productModalEyebrow">// ADD</span>
+        <h2 class="modal-title" id="productModalTitle">New <em>Product</em></h2>
+      </div>
+      <button class="modal-close" id="productModalClose">✕</button>
+    </div>
+    <form class="lead-form" id="productForm">
+      <input type="hidden" id="productIdInput"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Product Name <span class="req">*</span></label>
+          <input type="text" id="productName" class="form-input" placeholder="e.g. IINVSYS Core Suite"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">SKU <span class="req">*</span></label>
+          <input type="text" id="productSKU" class="form-input" placeholder="e.g. PRD-001"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Category <span class="req">*</span></label>
+          <select id="productCategory" class="form-input">
+            <option value="">— Select —</option>
+            <option value="hardware">Hardware</option>
+            <option value="software">Software</option>
+            <option value="service">Service</option>
+            <option value="bundle">Bundle</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Price (₹) <span class="req">*</span></label>
+          <input type="number" id="productPrice" class="form-input" placeholder="e.g. 45000"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description <span class="opt">(optional)</span></label>
+        <textarea id="productDesc" class="form-input" rows="2" placeholder="Brief product description…"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="neo-btn outline" id="productModalCancel">Cancel</button>
+        <button type="submit" class="neo-btn yellow" id="productSubmitBtn">Save Product →</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: CONFIRM DELETE ═══════════════════ -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box confirm-box">
+    <div class="confirm-icon">⚠</div>
+    <div class="confirm-title" id="confirmTitle">Delete this lead?</div>
+    <div class="confirm-sub" id="confirmSub">This action cannot be undone.</div>
+    <div class="form-actions" style="justify-content:center;gap:12px">
+      <button class="neo-btn outline" id="confirmCancel">Cancel</button>
+      <button class="neo-btn" id="confirmOk" style="background:var(--coral);border-color:#000;color:#fff;box-shadow:4px 4px 0 #000">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

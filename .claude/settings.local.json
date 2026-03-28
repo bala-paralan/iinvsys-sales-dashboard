@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install:*)",
+      "Bash(sudo chown:*)",
+      "Bash(npm test:*)",
+      "Bash(ls /Users/mac_user_01/Desktop/Sales_Dashboard/backend/.env*)",
+      "Bash(node src/utils/seed.js)",
+      "Bash(brew services:*)",
+      "Bash(/usr/local/bin/brew services:*)",
+      "Bash(node -e \"console.log\\(require\\(''crypto''\\).randomBytes\\(64\\).toString\\(''hex''\\)\\)\")",
+      "Bash(docker run:*)",
+      "Bash(lsof -ti:5000)",
+      "Bash(xargs kill:*)",
+      "Bash(ps -p 8445 -o pid,command)",
+      "Bash(curl -s http://localhost:5001/api/health)",
+      "Bash(python3 -m json.tool)",
+      "Bash(docker ps:*)",
+      "Bash(open -a Docker)",
+      "Bash(docker start:*)",
+      "Bash(npm --version)",
+      "Bash(git -C /Users/mac_user_01/Desktop/Sales_Dashboard status)",
+      "Bash(sudo npm:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
