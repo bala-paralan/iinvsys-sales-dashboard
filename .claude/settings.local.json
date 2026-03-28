@@ -45,7 +45,9 @@
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env rm NODE_ENV production --yes)",
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel echo \"development\")",
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env pull /tmp/prod_env.env --environment production --yes)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env pull /tmp/prod_env2.env --environment production --yes)",
+      "Bash(grep \"Added\" __NEW_LINE_20763aa14d7da633__ git add -A)"
     ]
   }
 }
