@@ -5,7 +5,10 @@
       "src": "backend/api.js",
       "use": "@vercel/node",
       "config": { "maxLambdaSize": "20mb" }
-    }
+    },
+    { "src": "index.html",  "use": "@vercel/static" },
+    { "src": "styles.css",  "use": "@vercel/static" },
+    { "src": "app.js",      "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/backend/api.js" },

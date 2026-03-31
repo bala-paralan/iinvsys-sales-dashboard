@@ -99,8 +99,10 @@ const S = {
 
 /* ═══════════ HELPERS ═══════════ */
 function uid() { return 'x' + Math.random().toString(36).slice(2,9); }
-function isAdmin()  { return S.session?.role === 'superadmin' || S.session?.role === 'manager'; }
-function isAgent()  { return S.session?.role === 'agent'; }
+function isAdmin()      { return S.session?.role === 'superadmin' || S.session?.role === 'manager'; }
+function isAgent()      { return S.session?.role === 'agent'; }
+function isSuperAdmin() { return S.session?.role === 'superadmin'; }
+function isReferrer()   { return S.session?.role === 'referrer'; }
 function agentById(id)   { return S.agents.find(a => a.id === id); }
 function productById(id) { return S.products.find(p => p.id === id); }
 function fmtValue(v) {
@@ -185,10 +187,22 @@ async function loadAllData() {
   S.expos    = exposRes.data.map(e => normalizeExpo(e, S.leads));
 }
 
+async function loadReferrerData() {
+  /* Referrers can only read expos — they cannot list leads/agents */
+  try {
+    const exposRes = await api('GET', '/expos');
+    S.expos = exposRes.data.map(e => normalizeExpo(e));
+  } catch(e) { /* non-fatal */ }
+}
+
 /* ═══════════ APP INIT ═══════════ */
 async function initApp() {
   try {
-    await loadAllData();
+    if (isReferrer()) {
+      await loadReferrerData();
+    } else {
+      await loadAllData();
+    }
   } catch (err) {
     flash('Failed to load data. Check server connection.', 'error');
     return;
@@ -196,11 +210,15 @@ async function initApp() {
   applyRole();
   updateSidebarUser();
   updateDate();
-  populateAgentDropdowns();
-  if (isAdmin()) {
+  if (isReferrer()) {
+    renderReferrerView();
+    goToPage('referrer');
+  } else if (isAdmin()) {
+    populateAgentDropdowns();
     renderOverview();
     goToPage('overview');
   } else {
+    populateAgentDropdowns();
     renderMyLeads();
     goToPage('myLeads');
   }
@@ -208,21 +226,29 @@ async function initApp() {
 }
 
 function applyRole() {
+  const ref = isReferrer();
+  const agt = isAgent();
   const adminOnly = document.querySelectorAll('.admin-only, .admin-only-page, .admin-only-field');
-  adminOnly.forEach(el => el.classList.toggle('hidden', isAgent()));
-  document.getElementById('adminNav').classList.toggle('hidden', isAgent());
-  document.getElementById('agentNav').classList.toggle('hidden', isAdmin());
-  document.getElementById('addLeadBtn').classList.toggle('hidden', false);
+  adminOnly.forEach(el => el.classList.toggle('hidden', agt || ref));
+  document.getElementById('adminNav').classList.toggle('hidden', agt || ref);
+  document.getElementById('agentNav').classList.toggle('hidden', isAdmin() || ref);
+  document.getElementById('addLeadBtn').classList.toggle('hidden', ref);
+  // Show camera scan button on mobile or any device with camera access
+  if ('mediaDevices' in navigator) {
+    document.getElementById('cameraScanBtn')?.classList.remove('hidden');
+  }
 }
 
 function updateSidebarUser() {
   const u = S.session;
+  const roleMap = { superadmin:'Super Admin', manager:'Manager', agent:'Sales Agent', referrer:'Referrer', readonly:'Viewer' };
+  const roleColors = { superadmin:'var(--gold)', manager:'var(--amber)', agent:'var(--emerald)', referrer:'var(--violet)', readonly:'var(--text-3)' };
   document.getElementById('sidebarAvatar').textContent = u.initials || u.name?.charAt(0) || '?';
   document.getElementById('sidebarName').textContent   = u.name;
-  document.getElementById('sidebarRole').textContent   = isAdmin() ? 'Super Admin' : 'Sales Agent';
-  document.getElementById('roleLabel').textContent     = isAdmin() ? 'Super Admin' : 'Sales Agent';
+  document.getElementById('sidebarRole').textContent   = roleMap[u.role] || u.role;
+  document.getElementById('roleLabel').textContent     = roleMap[u.role] || u.role;
   const dot = document.getElementById('roleDot');
-  dot.style.background = isAdmin() ? 'var(--gold)' : 'var(--emerald)';
+  dot.style.background = roleColors[u.role] || 'var(--text-3)';
 }
 
 function updateDate() {
@@ -271,6 +297,8 @@ const PAGE_META = {
   analytics: { eyebrow:'// INSIGHTS',        title:'Sales <em>Analytics</em>' },
   myLeads:   { eyebrow:'// MY PIPELINE',     title:'My <em>Leads</em>' },
   myStats:   { eyebrow:'// MY PERFORMANCE',  title:'My <em>Stats</em>' },
+  settings:  { eyebrow:'// CONFIGURATION',   title:'System <em>Settings</em>' },
+  referrer:  { eyebrow:'// LEAD CAPTURE',    title:'Add <em>Lead</em>' },
 };
 
 function goToPage(pageId) {
@@ -288,6 +316,8 @@ function goToPage(pageId) {
   if (pageId === 'analytics') initAnalyticsCharts();
   if (pageId === 'myLeads')   renderMyLeads();
   if (pageId === 'myStats')   renderMyStats();
+  if (pageId === 'settings')  renderSettings();
+  if (pageId === 'referrer')  renderReferrerView();
 }
 
 document.querySelectorAll('.nav-item[data-page]').forEach(item => {
@@ -804,6 +834,7 @@ function renderAgentsGrid() {
           ? `<button class="agent-btn danger" onclick="toggleAgent('${a.id}','inactive')">Deactivate</button>`
           : `<button class="agent-btn success" onclick="toggleAgent('${a.id}','active')">Reactivate</button>`}
         <button class="agent-btn" onclick="resetCreds('${a.id}')">Reset Creds</button>
+        ${isSuperAdmin() ? `<button class="agent-btn danger hard-del-btn" onclick="hardDeleteAgent('${a.id}','${a.name.replace(/'/g,"\\'")}')">⚠ Hard Delete</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -981,6 +1012,7 @@ function renderExpos() {
         ${e.status === 'live' ? `<button class="neo-btn yellow sm">Live Dashboard</button><button class="neo-btn outline sm">QR Mode</button>` : ''}
         ${e.status === 'upcoming' ? `<button class="neo-btn yellow sm">Edit Event</button><button class="neo-btn outline sm">Assign Agents</button>` : ''}
         ${e.status === 'past' ? `<button class="neo-btn outline sm">📄 Report</button><button class="neo-btn outline sm">📊 Compare</button>` : ''}
+        <button class="neo-btn outline sm" onclick="openReferrerModal('${e.id}','${e.name.replace(/'/g,"\\'")}')">👥 Referrers</button>
       </div>
     </div>`;
   }).join('');
@@ -1266,7 +1298,7 @@ document.addEventListener('keydown', e => {
 });
 
 function closeAllModals() {
-  ['leadModal','bulkImportModal','productModal','confirmModal'].forEach(id => {
+  ['leadModal','bulkImportModal','productModal','confirmModal','referrerModal'].forEach(id => {
     document.getElementById(id)?.classList.remove('open');
   });
 }
@@ -1286,6 +1318,325 @@ function closeAllModals() {
     localStorage.removeItem('ii_token');
   }
 })();
+
+/* ═══════════ SETTINGS PAGE ═══════════ */
+async function renderSettings() {
+  const wrap = document.getElementById('settingsGroups');
+  if (!wrap) return;
+  wrap.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);padding:24px 0">Loading settings…</div>`;
+  try {
+    const res = await api('GET', '/settings');
+    const settings = res.data || [];
+
+    const groups = {};
+    settings.forEach(s => {
+      if (!groups[s.group]) groups[s.group] = [];
+      groups[s.group].push(s);
+    });
+
+    const groupLabels = { general:'General', company:'Company', lead:'Lead Pipeline', product:'Products', agent:'Agents', expo:'Expos', system:'System' };
+
+    wrap.innerHTML = Object.entries(groups).map(([grp, items]) => `
+      <section class="settings-group">
+        <div class="settings-group-header">// ${(groupLabels[grp] || grp).toUpperCase()}</div>
+        ${items.map(s => `
+        <div class="settings-row" data-key="${s.key}">
+          <div class="settings-label-col">
+            <div class="settings-key">${s.label || s.key}</div>
+            ${s.description ? `<div class="settings-desc">${s.description}</div>` : ''}
+          </div>
+          <div class="settings-val-col">
+            ${renderSettingInput(s)}
+          </div>
+          ${isSuperAdmin() ? `<button class="agent-btn" onclick="saveSetting('${s.key}',this)">Save</button>` : ''}
+        </div>`).join('')}
+      </section>`).join('');
+  } catch (err) {
+    wrap.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--coral);padding:24px">Failed to load settings: ${err.message}</div>`;
+  }
+}
+
+function renderSettingInput(s) {
+  const readonly = !isSuperAdmin() ? 'readonly disabled style="opacity:0.5"' : '';
+  const val = Array.isArray(s.value) ? s.value.join(', ') : s.value;
+  if (s.type === 'boolean') {
+    return `<label class="settings-toggle">
+      <input type="checkbox" data-key="${s.key}" ${s.value ? 'checked' : ''} ${readonly ? 'disabled' : ''} onchange="if(!${isSuperAdmin()})return;"/>
+      <span class="toggle-track"></span>
+    </label>`;
+  }
+  if (s.type === 'array') {
+    return `<input type="text" class="form-input settings-input" data-key="${s.key}" value="${val}" placeholder="Comma-separated values" ${readonly}/>`;
+  }
+  return `<input type="${s.type === 'number' ? 'number' : 'text'}" class="form-input settings-input" data-key="${s.key}" value="${val}" ${readonly}/>`;
+}
+
+window.saveSetting = async function(key, btn) {
+  const row   = btn.closest('.settings-row');
+  const input = row.querySelector(`[data-key="${key}"]`);
+  if (!input) return;
+  let value = input.type === 'checkbox' ? input.checked : input.value;
+  // Convert comma-separated strings back to array if needed
+  const originalType = input.dataset.type;
+  if (typeof value === 'string' && value.includes(',') && !value.startsWith('{')) {
+    value = value.split(',').map(s => s.trim()).filter(Boolean);
+  } else if (input.type === 'number') {
+    value = Number(value);
+  }
+  btn.disabled = true;
+  try {
+    await api('PUT', '/settings', { updates: [{ key, value }] });
+    flash(`Setting "${key}" saved`);
+  } catch(err) {
+    flash(err.message || 'Failed to save setting', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+/* ═══════════ REFERRER VIEW ═══════════ */
+function renderReferrerView() {
+  const wrap = document.getElementById('referrerView');
+  if (!wrap) return;
+
+  const expoName = S.session?.expoId
+    ? (S.expos.find(e => e.id === S.session?.expoId)?.name || 'Your Expo')
+    : 'Your Expo';
+
+  wrap.innerHTML = `
+    <div class="referrer-hero">
+      <div class="referrer-expo-badge">◇ ${expoName}</div>
+      <div class="referrer-welcome">Ready to capture leads?</div>
+    </div>
+    <div class="referrer-form-card">
+      <form id="referrerLeadForm">
+        <div class="referrer-camera-row">
+          <button type="button" class="neo-btn outline full-w" id="refCameraBtn">📷 Scan Business Card</button>
+          <input type="file" id="refCardInput" accept="image/*" capture="environment" style="display:none"/>
+        </div>
+        <div class="ref-divider">— or enter manually —</div>
+        <div class="form-group">
+          <label class="form-label">Full Name <span class="req">*</span></label>
+          <input type="text" id="refLeadName" class="form-input" placeholder="e.g. Rajesh Sharma" autocomplete="name"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone <span class="req">*</span></label>
+          <input type="tel" id="refLeadPhone" class="form-input" placeholder="+91 98200 00000" autocomplete="tel"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email <span class="opt">(optional)</span></label>
+          <input type="email" id="refLeadEmail" class="form-input" placeholder="email@example.com" autocomplete="email"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Company <span class="opt">(optional)</span></label>
+          <input type="text" id="refLeadCompany" class="form-input" placeholder="Company name"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notes <span class="opt">(optional)</span></label>
+          <textarea id="refLeadNotes" class="form-input" rows="2" placeholder="Product interest, booth interaction…"></textarea>
+        </div>
+        <button type="submit" class="neo-btn yellow full-w" id="refLeadSubmit" style="padding:16px;font-size:14px;margin-top:8px">
+          Capture Lead →
+        </button>
+      </form>
+      <div id="refTodayCount" class="ref-today-count"><!-- rendered after submit --></div>
+    </div>`;
+
+  /* Camera / OCR for referrer form */
+  document.getElementById('refCameraBtn')?.addEventListener('click', () => {
+    document.getElementById('refCardInput').click();
+  });
+  document.getElementById('refCardInput')?.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) processCardImage(file, { name:'refLeadName', phone:'refLeadPhone', email:'refLeadEmail', notes:'refLeadNotes' });
+  });
+
+  document.getElementById('referrerLeadForm')?.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const name  = document.getElementById('refLeadName').value.trim();
+    const phone = document.getElementById('refLeadPhone').value.trim();
+    if (!name || !phone) { flash('Name and phone are required', 'error'); return; }
+
+    const company = document.getElementById('refLeadCompany').value.trim();
+    const notes   = document.getElementById('refLeadNotes').value.trim();
+    const payload = {
+      name, phone,
+      email:  document.getElementById('refLeadEmail').value.trim(),
+      stage:  'new',
+      source: 'expo',
+      notes:  company ? `[${company}] ${notes}` : notes,
+    };
+    const btn = document.getElementById('refLeadSubmit');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await api('POST', '/leads', payload);
+      /* Reset form */
+      document.getElementById('referrerLeadForm').reset();
+      flash('Lead captured!');
+      /* Update today's count */
+      S._refCount = (S._refCount || 0) + 1;
+      const countEl = document.getElementById('refTodayCount');
+      if (countEl) countEl.innerHTML = `<span class="ref-count-badge">${S._refCount} lead${S._refCount > 1 ? 's' : ''} captured today ✓</span>`;
+    } catch (err) {
+      flash(err.message || 'Failed to save lead', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Capture Lead →';
+    }
+  });
+}
+
+/* ═══════════ REFERRER MANAGEMENT MODAL ═══════════ */
+let _currentReferrerExpoId = null;
+
+window.openReferrerModal = async function(expoId, expoName) {
+  _currentReferrerExpoId = expoId;
+  document.getElementById('referrerModalTitle').innerHTML = `<em>${expoName}</em> Referrers`;
+  document.getElementById('refName').value     = '';
+  document.getElementById('refPassword').value = '';
+  document.getElementById('refCredsBanner').classList.add('hidden');
+  document.getElementById('referrerModal').classList.add('open');
+  await loadReferrerList(expoId);
+};
+
+async function loadReferrerList(expoId) {
+  const list = document.getElementById('referrerList');
+  if (!list) return;
+  list.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);padding:12px 0">Loading…</div>`;
+  try {
+    const res = await api('GET', `/expos/${expoId}/referrers`);
+    const referrers = res.data || [];
+    if (referrers.length === 0) {
+      list.innerHTML = `<div class="referrer-empty">No referrers yet. Create one above.</div>`;
+      return;
+    }
+    list.innerHTML = referrers.map(r => {
+      const exp = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
+      const active = !r.expiresAt || new Date() < new Date(r.expiresAt);
+      return `<div class="referrer-item">
+        <div class="referrer-item-info">
+          <span class="referrer-item-name">${r.name}</span>
+          <span class="referrer-item-meta">${r.email}</span>
+          <span class="referrer-item-meta">Expires: ${exp} · ${r.leadCount || 0} leads · <span style="color:${active?'var(--emerald)':'var(--coral)'}">${active?'Active':'Expired'}</span></span>
+        </div>
+        <button class="agent-btn danger" onclick="deleteReferrer('${expoId}','${r._id}')">Delete</button>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--coral);padding:12px">${err.message}</div>`;
+  }
+}
+
+document.getElementById('createReferrerBtn')?.addEventListener('click', async () => {
+  const name = document.getElementById('refName').value.trim();
+  const pass = document.getElementById('refPassword').value.trim();
+  if (!name || !pass) { flash('Name and password are required', 'error'); return; }
+  const btn = document.getElementById('createReferrerBtn');
+  btn.disabled = true;
+  try {
+    const res = await api('POST', `/expos/${_currentReferrerExpoId}/referrers`, { name, password: pass });
+    const creds = res.data;
+    document.getElementById('refCredsEmail').textContent = creds.email;
+    document.getElementById('refCredsPass').textContent  = creds.password;
+    document.getElementById('refCredsBanner').classList.remove('hidden');
+    document.getElementById('refName').value     = '';
+    document.getElementById('refPassword').value = '';
+    await loadReferrerList(_currentReferrerExpoId);
+    flash('Referrer account created');
+  } catch (err) {
+    flash(err.message || 'Failed to create referrer', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('copyEmailBtn')?.addEventListener('click', () => {
+  navigator.clipboard?.writeText(document.getElementById('refCredsEmail').textContent).then(() => flash('Email copied'));
+});
+document.getElementById('copyPassBtn')?.addEventListener('click', () => {
+  navigator.clipboard?.writeText(document.getElementById('refCredsPass').textContent).then(() => flash('Password copied'));
+});
+
+window.deleteReferrer = async function(expoId, uid) {
+  if (!confirm('Delete this referrer account permanently?')) return;
+  try {
+    await api('DELETE', `/expos/${expoId}/referrers/${uid}`);
+    await loadReferrerList(expoId);
+    flash('Referrer deleted', 'warn');
+  } catch (err) {
+    flash(err.message || 'Delete failed', 'error');
+  }
+};
+
+document.getElementById('referrerModalClose')?.addEventListener('click', () => document.getElementById('referrerModal').classList.remove('open'));
+document.getElementById('referrerModal')?.addEventListener('click', e => { if (e.target === document.getElementById('referrerModal')) document.getElementById('referrerModal').classList.remove('open'); });
+
+/* ═══════════ AGENT HARD DELETE ═══════════ */
+window.hardDeleteAgent = function(agentId, agentName) {
+  const modal = document.getElementById('confirmModal');
+  document.getElementById('confirmTitle').textContent = `Hard delete "${agentName}"?`;
+  document.getElementById('confirmSub').textContent   = 'This permanently removes the agent, their user account, and unassigns all their leads. This CANNOT be undone.';
+  modal.classList.add('open');
+
+  const okBtn  = document.getElementById('confirmOk');
+  const newOk  = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+
+  newOk.addEventListener('click', async () => {
+    newOk.disabled = true;
+    try {
+      await api('DELETE', `/agents/${agentId}/hard`);
+      await loadAllData();
+      updateNavCounts();
+      modal.classList.remove('open');
+      renderAgentsGrid();
+      flash(`Agent "${agentName}" permanently deleted`, 'warn');
+    } catch (err) {
+      flash(err.message || 'Delete failed', 'error');
+      newOk.disabled = false;
+    }
+  });
+};
+
+/* ═══════════ CAMERA / OCR ═══════════ */
+async function processCardImage(file, fieldMap) {
+  flash('Scanning card… this may take a moment');
+  try {
+    const result = await Tesseract.recognize(file, 'eng', { logger: () => {} });
+    const text = result.data.text;
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+    /* Extract fields with regex */
+    const phoneMatch = text.match(/(?:\+91[-\s]?)?[6-9]\d{9}/);
+    const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+
+    /* Name: first non-empty line that isn't phone/email/URL */
+    const nameLine = lines.find(l => l.length > 2 && l.length < 50 && !l.match(/[@\d\/\\]/) && !l.toLowerCase().includes('www'));
+    /* Company: line with Ltd/Pvt/Inc/Corp or second substantial line */
+    const companyLine = lines.find(l => /ltd|pvt|inc|corp|llp|solutions|technologies|services|group/i.test(l));
+
+    if (fieldMap.name && nameLine)              document.getElementById(fieldMap.name).value  = nameLine;
+    if (fieldMap.phone && phoneMatch)           document.getElementById(fieldMap.phone).value = phoneMatch[0];
+    if (fieldMap.email && emailMatch)           document.getElementById(fieldMap.email).value = emailMatch[0];
+    if (fieldMap.company && companyLine)        document.getElementById(fieldMap.company).value = companyLine;
+    if (fieldMap.notes && !fieldMap.company)    document.getElementById(fieldMap.notes).value  = text.substring(0, 200);
+
+    flash('Card scanned — review and confirm the details');
+  } catch (err) {
+    flash('Could not read card — please fill in manually', 'error');
+  }
+}
+
+/* Wire up the lead modal camera button */
+document.getElementById('cameraScanBtn')?.addEventListener('click', () => {
+  document.getElementById('cardCameraInput').click();
+});
+document.getElementById('cardCameraInput')?.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail' });
+  e.target.value = ''; // reset so same file can re-trigger
+});
 
 console.log('%c IINVSYS Sales OS v2.0 ', 'background:#F0BE18;color:#000;font-weight:bold;padding:4px 12px;letter-spacing:2px');
 console.log('%c API: http://localhost:5001/api  ·  MongoDB: live', 'color:#00DFA2;font-size:11px');

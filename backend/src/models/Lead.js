@@ -17,7 +17,7 @@ const LeadSchema = new mongoose.Schema({
   source:        { type: String, enum: ['expo','referral','direct','digital'], required: true },
   expo:          { type: mongoose.Schema.Types.ObjectId, ref: 'Expo', default: null },
   stage:         { type: String, enum: ['new','contacted','interested','proposal','negotiation','won','lost'], default: 'new' },
-  assignedAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', required: true },
+  assignedAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', default: null },
   products:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
   value:         { type: Number, default: 0, min: 0 },
   score:         { type: Number, default: 50, min: 0, max: 100 },

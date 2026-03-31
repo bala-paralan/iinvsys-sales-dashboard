@@ -84,6 +84,12 @@ async function createLead(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
+    /* Referrers: auto-tag expo and source, no agent assignment */
+    if (req.referrerExpoId) {
+      req.body.expo   = req.referrerExpoId;
+      req.body.source = 'expo';
+    }
+
     /* Agents can only create leads assigned to themselves */
     if (req.agentScope) req.body.assignedAgent = req.agentScope;
 

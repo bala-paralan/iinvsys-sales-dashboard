@@ -2,7 +2,8 @@
 const { validationResult } = require('express-validator');
 const Agent = require('../models/Agent');
 const Lead  = require('../models/Lead');
-const { ok, created, notFound, unprocessable, paginated } = require('../utils/response');
+const User  = require('../models/User');
+const { ok, created, notFound, unprocessable, paginated, badRequest } = require('../utils/response');
 
 /* ── GET /api/agents ─────────────────────────────────────────────── */
 
@@ -67,17 +68,47 @@ async function updateAgent(req, res, next) {
   }
 }
 
-/* ── DELETE /api/agents/:id ──────────────────────────────────────── */
+/* ── DELETE /api/agents/:id ─ soft deactivate ────────────────────── */
 
 async function deleteAgent(req, res, next) {
   try {
     const agent = await Agent.findById(req.params.id);
     if (!agent) return notFound(res, 'Agent not found');
 
-    /* Soft-delete: mark inactive */
     agent.status = 'inactive';
     await agent.save();
     return ok(res, {}, 'Agent deactivated');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── DELETE /api/agents/:id/hard ─ permanent removal ─────────────── */
+
+async function hardDeleteAgent(req, res, next) {
+  try {
+    const agent = await Agent.findById(req.params.id);
+    if (!agent) return notFound(res, 'Agent not found');
+
+    /* Prevent deleting yourself */
+    if (agent.userId && agent.userId.toString() === req.user._id.toString()) {
+      return badRequest(res, 'You cannot delete your own account');
+    }
+
+    const agentId = agent._id;
+
+    /* Nullify assignedAgent on all their leads (keeps lead history) */
+    await Lead.updateMany({ assignedAgent: agentId }, { $set: { assignedAgent: null } });
+
+    /* Delete linked User account if present */
+    if (agent.userId) {
+      await User.findByIdAndDelete(agent.userId);
+    }
+
+    /* Hard-delete the Agent record */
+    await Agent.findByIdAndDelete(agentId);
+
+    return ok(res, { leadCount: (await Lead.countDocuments({ assignedAgent: null })) }, 'Agent account permanently deleted');
   } catch (err) {
     next(err);
   }
@@ -122,4 +153,4 @@ async function getAgentStats(req, res, next) {
   }
 }
 
-module.exports = { listAgents, getAgent, createAgent, updateAgent, deleteAgent, getAgentStats };
+module.exports = { listAgents, getAgent, createAgent, updateAgent, deleteAgent, hardDeleteAgent, getAgentStats };

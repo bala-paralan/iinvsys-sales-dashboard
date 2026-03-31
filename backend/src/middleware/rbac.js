@@ -1,8 +1,8 @@
 'use strict';
 const { forbidden } = require('../utils/response');
 
-/* Role hierarchy: superadmin > manager > agent > readonly */
-const ROLE_LEVEL = { superadmin: 4, manager: 3, agent: 2, readonly: 1 };
+/* Role hierarchy: superadmin > manager > agent > referrer > readonly */
+const ROLE_LEVEL = { superadmin: 4, manager: 3, agent: 2, referrer: 1, readonly: 1 };
 
 /**
  * requireRole(...roles) — allow only listed roles
@@ -44,4 +44,18 @@ function scopeToAgent(req, res, next) {
   next();
 }
 
-module.exports = { requireRole, requireMinRole, scopeToAgent };
+/**
+ * allowReferrer — extends agent-level routes to also accept referrer role.
+ * Referrers can only POST leads (not list/update/delete).
+ * Sets req.referrerExpoId so the controller can auto-tag the expo.
+ */
+function allowReferrer(req, res, next) {
+  if (req.user.role === 'referrer') {
+    req.agentScope = null;
+    req.referrerExpoId = req.user.expoId;
+    return next();
+  }
+  next();
+}
+
+module.exports = { requireRole, requireMinRole, scopeToAgent, allowReferrer };

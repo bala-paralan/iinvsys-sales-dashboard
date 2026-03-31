@@ -3,9 +3,15 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const ctrl = require('../controllers/leadController');
 const { authenticate }    = require('../middleware/auth');
-const { requireMinRole, scopeToAgent } = require('../middleware/rbac');
+const { requireMinRole, scopeToAgent, allowReferrer } = require('../middleware/rbac');
 
 const auth = [authenticate, requireMinRole('agent'), scopeToAgent];
+
+/* Referrer auth: only POST /api/leads allowed, auto-scoped to their expo */
+const referrerAuth = [authenticate, (req, res, next) => {
+  if (req.user.role === 'referrer') return allowReferrer(req, res, next);
+  requireMinRole('agent')(req, res, () => scopeToAgent(req, res, next));
+}];
 
 const createValidation = [
   body('name').trim().notEmpty(),
@@ -29,7 +35,7 @@ router.post('/bulk',
 );
 
 router.get('/',   ...auth, ctrl.listLeads);
-router.post('/',  ...auth, createValidation, ctrl.createLead);
+router.post('/',  ...referrerAuth, createValidation, ctrl.createLead);
 
 router.get('/:id',    ...auth, ctrl.getLead);
 router.put('/:id',    ...auth, updateValidation, ctrl.updateLead);

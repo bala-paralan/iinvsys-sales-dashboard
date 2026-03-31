@@ -6,10 +6,14 @@ const UserSchema = new mongoose.Schema({
   name:     { type: String, required: true, trim: true },
   email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, minlength: 6, select: false },
-  role:     { type: String, enum: ['superadmin','manager','agent','readonly'], default: 'agent' },
-  agentId:  { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', default: null },
-  isActive: { type: Boolean, default: true },
-  lastLogin:{ type: Date },
+  role:        { type: String, enum: ['superadmin','manager','agent','referrer','readonly'], default: 'agent' },
+  agentId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', default: null },
+  /* Referrer-specific */
+  expoId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Expo', default: null },
+  expiresAt:   { type: Date, default: null },   // null = never expires
+  isTemporary: { type: Boolean, default: false },
+  isActive:    { type: Boolean, default: true },
+  lastLogin:   { type: Date },
 }, { timestamps: true });
 
 /* Indexes */

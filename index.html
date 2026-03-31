@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,600&display=swap" rel="stylesheet"/>
 <link href="https://fonts.cdnfonts.com/css/gilroy-free" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -122,6 +123,9 @@
     </a>
     <a class="nav-item" data-page="analytics" href="#">
       <span class="nav-icon">◌</span><span>Analytics</span>
+    </a>
+    <a class="nav-item" data-page="settings" href="#">
+      <span class="nav-icon">⚙</span><span>Settings</span>
     </a>
   </nav>
 
@@ -475,6 +479,19 @@
     <div class="my-stats-grid" id="myStatsGrid"><!-- rendered by JS --></div>
   </div>
 
+  <!-- ══════════ PAGE: SETTINGS (Superadmin) ══════════ -->
+  <div class="page admin-only-page" id="page-settings">
+    <div class="settings-intro-bar">
+      <p class="settings-intro-text">All settings take effect immediately. Only superadmins can edit.</p>
+    </div>
+    <div class="settings-groups" id="settingsGroups"><!-- rendered by JS --></div>
+  </div>
+
+  <!-- ══════════ PAGE: REFERRER CAPTURE (mobile) ══════════ -->
+  <div class="page" id="page-referrer">
+    <div class="referrer-view" id="referrerView"><!-- rendered by JS --></div>
+  </div>
+
 </main>
 </div><!-- /app -->
 
@@ -488,6 +505,8 @@
         <h2 class="modal-title" id="leadModalTitle">New <em>Lead</em></h2>
       </div>
       <div class="modal-header-actions">
+        <button type="button" class="neo-btn outline sm hidden" id="cameraScanBtn">📷 Scan Card</button>
+        <input type="file" id="cardCameraInput" accept="image/*" capture="environment" style="display:none"/>
         <button class="neo-btn outline sm danger-btn hidden" id="deleteLeadBtn">🗑 Delete</button>
         <button class="modal-close" id="leadModalClose">✕</button>
       </div>
@@ -725,6 +744,47 @@
         <button type="submit" class="neo-btn yellow" id="productSubmitBtn">Save Product →</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL: REFERRER MANAGEMENT ═══════════════════ -->
+<div class="modal-overlay" id="referrerModal">
+  <div class="modal-box wide-modal">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow">// EXPO REFERRERS</span>
+        <h2 class="modal-title" id="referrerModalTitle">Manage <em>Referrers</em></h2>
+      </div>
+      <button class="modal-close" id="referrerModalClose">✕</button>
+    </div>
+    <div class="referrer-create-section">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Referrer Name <span class="req">*</span></label>
+          <input type="text" id="refName" class="form-input" placeholder="e.g. Sunita Patil"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Temp Password <span class="req">*</span></label>
+          <input type="text" id="refPassword" class="form-input" placeholder="e.g. Expo@2025"/>
+        </div>
+      </div>
+      <button class="neo-btn yellow" id="createReferrerBtn">+ Create Referrer Account</button>
+    </div>
+    <div class="ref-creds-banner hidden" id="refCredsBanner">
+      <div class="ref-creds-title">✓ Account Created — Share these credentials once:</div>
+      <div class="ref-creds-row">
+        <span class="ref-creds-label">Email:</span>
+        <code class="ref-creds-val" id="refCredsEmail"></code>
+        <button class="copy-btn" id="copyEmailBtn">Copy</button>
+      </div>
+      <div class="ref-creds-row">
+        <span class="ref-creds-label">Password:</span>
+        <code class="ref-creds-val" id="refCredsPass"></code>
+        <button class="copy-btn" id="copyPassBtn">Copy</button>
+      </div>
+    </div>
+    <div class="referrer-list-label">// ACTIVE REFERRERS</div>
+    <div class="referrer-list" id="referrerList"><!-- rendered by JS --></div>
   </div>
 </div>
 

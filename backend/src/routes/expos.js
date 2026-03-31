@@ -18,6 +18,11 @@ router.post('/',   authenticate, requireMinRole('manager'),  expoValidation, ctr
 
 router.get('/:id',    authenticate, requireMinRole('readonly'), ctrl.getExpo);
 router.put('/:id',    authenticate, requireMinRole('manager'),  expoValidation, ctrl.updateExpo);
-router.delete('/:id', authenticate, requireMinRole('manager'),  ctrl.deleteExpo);
+router.delete('/:id', authenticate, requireMinRole('manager'), ctrl.deleteExpo);
+
+/* Referrer sub-resource */
+router.get   ('/:id/referrers',      authenticate, requireMinRole('manager'), ctrl.listReferrers);
+router.post  ('/:id/referrers',      authenticate, requireMinRole('manager'), ctrl.createReferrer);
+router.delete('/:id/referrers/:uid', authenticate, requireMinRole('manager'), ctrl.deleteReferrer);
 
 module.exports = router;

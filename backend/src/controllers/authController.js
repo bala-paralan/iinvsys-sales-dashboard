@@ -28,6 +28,11 @@ async function login(req, res, next) {
     }
     if (!user.isActive) return unauthorized(res, 'Account is deactivated');
 
+    /* Referrer expiry check */
+    if (user.role === 'referrer' && user.expiresAt && new Date() > new Date(user.expiresAt)) {
+      return unauthorized(res, 'This referrer account has expired');
+    }
+
     user.lastLogin = new Date();
     await user.save();
 

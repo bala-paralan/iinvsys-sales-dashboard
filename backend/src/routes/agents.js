@@ -3,7 +3,7 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const ctrl = require('../controllers/agentController');
 const { authenticate }  = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/rbac');
+const { requireMinRole, requireRole } = require('../middleware/rbac');
 
 const agentValidation = [
   body('name').trim().notEmpty(),
@@ -18,6 +18,7 @@ router.post('/',   authenticate, requireMinRole('manager'),  agentValidation, ct
 router.get('/:id',       authenticate, requireMinRole('readonly'), ctrl.getAgent);
 router.get('/:id/stats', authenticate, requireMinRole('readonly'), ctrl.getAgentStats);
 router.put('/:id',       authenticate, requireMinRole('manager'),  agentValidation, ctrl.updateAgent);
-router.delete('/:id',    authenticate, requireMinRole('superadmin'), ctrl.deleteAgent);
+router.delete('/:id',      authenticate, requireMinRole('superadmin'), ctrl.deleteAgent);
+router.delete('/:id/hard', authenticate, requireRole('superadmin'),    ctrl.hardDeleteAgent);
 
 module.exports = router;
