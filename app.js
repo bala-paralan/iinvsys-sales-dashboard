@@ -1740,30 +1740,50 @@ async function processCardImage(file, fieldMap) {
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
     /* Extract fields with regex */
-    /* Phone: match 10-digit Indian mobile with optional +91 prefix and spaces/dashes */
-    const phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[\s\-]?\d){8,9}/);
-    const phone    = phoneRaw ? phoneRaw[0].replace(/[\s\-]/g, '') : null;
+    /* Email */
     const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
 
-    /* Name: first non-empty, non-company line without email/URL chars */
-    const companyLine = lines.find(l => /ltd|pvt|inc|corp|llp|solutions|technologies|services|group/i.test(l));
-    const nameLine = lines.find(l =>
-      l.length > 2 && l.length < 50 &&
-      !l.match(/[@\/\\]/) &&
+    /* Phone: Indian mobile (with optional +91, spaces, dashes) OR any 10-digit sequence per line */
+    let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
+    if (!phoneRaw) {
+      for (const ln of lines) {
+        const m = ln.match(/\b\d[\d \-]{8,11}\d\b/);
+        if (m) { phoneRaw = m; break; }
+      }
+    }
+    const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g, '') : null;
+    const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
+
+    /* Company: line with common business suffixes */
+    const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
+
+    /* Name: strategy 1 — two consecutive ALL-CAPS words (e.g. TIM MARGO) */
+    const allCapsMatch = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
+    /* Name: strategy 2 — first readable line that isn't a phone/email/URL/company */
+    const fallbackName = lines.find(l =>
+      l.length > 2 && l.length < 60 &&
+      !l.match(/^\//) &&                       // skip lines starting with OCR slash artifact
+      !l.match(/[@\\]/) &&
       !l.toLowerCase().includes('www') &&
-      !/^\+?[\d\s\-()]+$/.test(l) &&          // skip pure phone lines
+      !/^\+?[\d\s\-().]+$/.test(l) &&          // skip pure phone/digit lines
       l !== companyLine
     );
+    const nameLine = allCapsMatch ? (allCapsMatch[1] + ' ' + allCapsMatch[2]) : fallbackName;
 
-    const setField = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    const setField = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = String(val).trim(); };
     setField(fieldMap.name,    nameLine);
     setField(fieldMap.phone,   phone);
     setField(fieldMap.email,   emailMatch?.[0]);
     setField(fieldMap.company, companyLine);
-    /* Always put raw OCR text in notes so user can verify — only if no company field in this form */
-    if (fieldMap.notes && !fieldMap.company) setField(fieldMap.notes, text.substring(0, 300));
+    /* Always dump raw OCR text into notes so user can verify / correct */
+    if (fieldMap.notes && !fieldMap.company) setField(fieldMap.notes, text.trim().substring(0, 400));
 
-    flash('Card scanned — review and confirm the details');
+    const filled = [nameLine, phone, emailMatch?.[0]].filter(Boolean).length;
+    if (filled > 0) {
+      flash(`Card scanned — ${filled} field${filled > 1 ? 's' : ''} filled. Review before saving.`);
+    } else {
+      flash('Card text unclear — raw text saved to Notes. Fill fields manually.', 'warn');
+    }
   } catch (err) {
     flash('Could not read card — please fill in manually', 'error');
   } finally {
