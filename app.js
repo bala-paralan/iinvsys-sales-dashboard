@@ -409,6 +409,8 @@ function renderKPIs() {
   animateCounter('kpiConvRate',   convPct, '',   '%');
   animateCounter('kpiFollowup',   fuPct,   '',   '%');
   animateCounter('kpiOverdue',    overdue, '',   '');
+  const sub = document.getElementById('kpiLeadsSub');
+  if (sub) sub.textContent = total === 0 ? 'No leads yet' : `${S.leads.filter(l => !['won','lost'].includes(l.stage)).length} active`;
   const pip = document.getElementById('kpiPipeline');
   const avg = document.getElementById('kpiAvgDeal');
   if (pip) { setTimeout(() => { pip.textContent = fmtValue(pipeline); }, 200); }
@@ -487,7 +489,7 @@ function renderLeaderboard(period) {
       <div class="lb-avatar" style="--ac:${a.color}">${a.initials}</div>
       <div class="lb-info">
         <span class="lb-name">${a.name}</span>
-        <span class="lb-territory">${a.territory}</span>
+        <span class="lb-territory">${a.territory || ''}</span>
       </div>
       <div class="lb-stats">
         <div class="lb-stat"><span class="lb-stat-val green-text">${a.won}</span><span class="lb-stat-label">Won</span></div>
@@ -584,7 +586,7 @@ function renderExpoMini() {
       <div class="expo-mini-dot ${dot}"></div>
       <div class="expo-mini-info">
         <span class="expo-mini-name">${e.name}</span>
-        <span class="expo-mini-sub">${e.dates} · ${e.agents.length} agents</span>
+        <span class="expo-mini-sub">${e.dates || ''} · ${(e.agents||[]).length} agents</span>
       </div>
       <div class="expo-mini-stats">
         <span class="expo-mini-count">${e.leadCount || '—'} <small>leads</small></span>
@@ -863,9 +865,9 @@ function renderAgentsGrid() {
         <div class="agent-meta">
           <span class="agent-full-name">${a.name}</span>
           <span class="agent-designation">${a.designation}</span>
-          <span class="agent-territory">📍 ${a.territory}</span>
+          ${a.territory ? `<span class="agent-territory">📍 ${a.territory}</span>` : ''}
         </div>
-        <div class="agent-status-pill ${a.status === 'active'?'active':'inactive'}">${a.status.toUpperCase()}</div>
+        <div class="agent-status-pill ${a.status === 'active'?'active':'inactive'}">${(a.status||'inactive').toUpperCase()}</div>
       </div>
       <div class="agent-kpis">
         <div class="ak"><span class="ak-val ${inactive?'dim':''}">${aLeads.length}</span><span class="ak-label">Total Leads</span></div>
@@ -917,6 +919,69 @@ window.resetCreds = function(agentId) {
   const a = S.agents.find(x => x.id === agentId);
   if (a) flash(`Password reset link sent to: ${a.name}`);
 };
+
+/* ── Agent modal open/close ── */
+function openAgentModal(agentId) {
+  const modal = document.getElementById('agentModal');
+  const isNew = !agentId;
+  document.getElementById('agentModalEyebrow').textContent = isNew ? '// ADD' : '// EDIT';
+  document.getElementById('agentModalTitle').innerHTML = isNew ? 'New <em>Agent</em>' : 'Edit <em>Agent</em>';
+  document.getElementById('agentSubmitBtn').textContent = isNew ? 'Save Agent →' : 'Update Agent →';
+  document.getElementById('agentIdInput').value = agentId || '';
+  if (isNew) {
+    document.getElementById('agentForm').reset();
+  } else {
+    const a = S.agents.find(x => x.id === agentId);
+    if (!a) return;
+    document.getElementById('agentName').value        = a.name;
+    document.getElementById('agentEmail').value       = a.email;
+    document.getElementById('agentPhone').value       = a.phone || '';
+    document.getElementById('agentTerritory').value   = a.territory || '';
+    document.getElementById('agentDesignation').value = a.designation || '';
+    document.getElementById('agentTarget').value      = a.target || '';
+    document.getElementById('agentColor').value       = a.color || '#00DFA2';
+  }
+  modal.classList.add('open');
+}
+document.getElementById('addAgentBtn')?.addEventListener('click', () => openAgentModal(null));
+document.getElementById('agentModalClose')?.addEventListener('click',  () => document.getElementById('agentModal').classList.remove('open'));
+document.getElementById('agentModalCancel')?.addEventListener('click', () => document.getElementById('agentModal').classList.remove('open'));
+document.getElementById('agentModal')?.addEventListener('click', e => { if (e.target === document.getElementById('agentModal')) document.getElementById('agentModal').classList.remove('open'); });
+
+document.getElementById('agentForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const id   = document.getElementById('agentIdInput').value;
+  const name = document.getElementById('agentName').value.trim();
+  const email = document.getElementById('agentEmail').value.trim();
+  const phone = document.getElementById('agentPhone').value.trim();
+  const territory = document.getElementById('agentTerritory').value.trim();
+  if (!name || !email || !phone || !territory) { flash('Name, email, phone and territory are required', 'error'); return; }
+  const payload = {
+    name, email, phone, territory,
+    designation: document.getElementById('agentDesignation').value.trim() || 'Sales Agent',
+    target:      parseInt(document.getElementById('agentTarget').value) || 0,
+    color:       document.getElementById('agentColor').value,
+  };
+  const btn = document.getElementById('agentSubmitBtn');
+  btnLoad(btn, true, id ? 'Updating…' : 'Creating…');
+  try {
+    if (id) {
+      await api('PUT', `/agents/${id}`, payload);
+      flash('Agent updated');
+    } else {
+      await api('POST', '/agents', payload);
+      flash('Agent created — credentials sent to their email');
+    }
+    await loadAllData(true);
+    renderAgentsGrid();
+    populateAgentDropdowns();
+    document.getElementById('agentModal').classList.remove('open');
+  } catch (err) {
+    flash(err.message || 'Failed to save agent', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+});
 
 /* ═══════════ PRODUCTS ═══════════ */
 function renderProductsTable() {
@@ -1044,10 +1109,11 @@ function renderExpos() {
   grid.innerHTML = S.expos.map(e => {
     const cls  = e.status === 'live' ? 'live-expo' : e.status === 'upcoming' ? 'upcoming-expo' : 'past-expo';
     const chip = e.status === 'live' ? `<div class="expo-status-chip live-chip">● LIVE NOW</div>` : e.status === 'upcoming' ? `<div class="expo-status-chip upcoming-chip">◌ UPCOMING</div>` : `<div class="expo-status-chip past-chip">✓ COMPLETED</div>`;
-    const agentChips = e.agents.slice(0,4).map(aid => {
+    const agentList  = e.agents || [];
+    const agentChips = agentList.slice(0,4).map(aid => {
       const a = agentById(aid);
       return a ? `<span class="expo-agent-chip" style="--ac:${a.color}">${a.initials}</span>` : '';
-    }).join('') + (e.agents.length > 4 ? `<span class="expo-agent-chip" style="--ac:#888">+${e.agents.length-4}</span>` : '');
+    }).join('') + (agentList.length > 4 ? `<span class="expo-agent-chip" style="--ac:#888">+${agentList.length-4}</span>` : '');
     const liveChart = e.status === 'live' ? `<div class="expo-hourly-label">Leads captured per hour (Today)</div><div class="expo-hourly-chart"><canvas id="expo_${e.id}_chart" height="80"></canvas></div>` : '';
     return `
     <div class="expo-card ${cls}">
@@ -1057,8 +1123,8 @@ function renderExpos() {
       <div class="expo-kpi-row">
         <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--gold)">${e.leadCount||'—'}</span><span class="exp-kpi-lbl">Leads</span></div>
         <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--emerald)">${e.converted||'—'}</span><span class="exp-kpi-lbl">Converted</span></div>
-        <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--azure)">${e.agents.length}</span><span class="exp-kpi-lbl">Agents</span></div>
-        ${e.leadCount > 0 ? `<div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--amber)">${((e.converted/e.leadCount)*100).toFixed(1)}%</span><span class="exp-kpi-lbl">Conv.</span></div>` : ''}
+        <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--azure)">${agentList.length}</span><span class="exp-kpi-lbl">Agents</span></div>
+        ${e.leadCount > 0 ? `<div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--amber)">${Math.min(100,(((e.converted||0)/e.leadCount)*100)).toFixed(1)}%</span><span class="exp-kpi-lbl">Conv.</span></div>` : ''}
       </div>
       ${liveChart}
       <div class="expo-agents-row">${agentChips}</div>
@@ -1352,7 +1418,7 @@ document.addEventListener('keydown', e => {
 });
 
 function closeAllModals() {
-  ['leadModal','bulkImportModal','productModal','confirmModal','referrerModal'].forEach(id => {
+  ['leadModal','bulkImportModal','productModal','agentModal','confirmModal','referrerModal'].forEach(id => {
     document.getElementById(id)?.classList.remove('open');
   });
 }
@@ -1689,11 +1755,13 @@ async function processCardImage(file, fieldMap) {
       l !== companyLine
     );
 
-    if (fieldMap.name && nameLine)           document.getElementById(fieldMap.name).value    = nameLine;
-    if (fieldMap.phone && phone)             document.getElementById(fieldMap.phone).value   = phone;
-    if (fieldMap.email && emailMatch)        document.getElementById(fieldMap.email).value   = emailMatch[0];
-    if (fieldMap.company && companyLine)     document.getElementById(fieldMap.company).value = companyLine;
-    if (fieldMap.notes && !fieldMap.company) document.getElementById(fieldMap.notes).value   = text.substring(0, 200);
+    const setField = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+    setField(fieldMap.name,    nameLine);
+    setField(fieldMap.phone,   phone);
+    setField(fieldMap.email,   emailMatch?.[0]);
+    setField(fieldMap.company, companyLine);
+    /* Always put raw OCR text in notes so user can verify — only if no company field in this form */
+    if (fieldMap.notes && !fieldMap.company) setField(fieldMap.notes, text.substring(0, 300));
 
     flash('Card scanned — review and confirm the details');
   } catch (err) {
@@ -1710,7 +1778,7 @@ document.getElementById('cameraScanBtn')?.addEventListener('click', () => {
 });
 document.getElementById('cardCameraInput')?.addEventListener('change', e => {
   const file = e.target.files[0];
-  if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail' });
+  if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail', notes:'leadNotes' });
   e.target.value = ''; // reset so same file can re-trigger
 });
 

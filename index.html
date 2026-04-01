@@ -765,6 +765,68 @@
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL: ADD / EDIT AGENT ═══════════════════ -->
+<div class="modal-overlay" id="agentModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow" id="agentModalEyebrow">// ADD</span>
+        <h2 class="modal-title" id="agentModalTitle">New <em>Agent</em></h2>
+      </div>
+      <button class="modal-close" id="agentModalClose">✕</button>
+    </div>
+    <form class="lead-form" id="agentForm">
+      <input type="hidden" id="agentIdInput"/>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Full Name <span class="req">*</span></label>
+          <input type="text" id="agentName" class="form-input" placeholder="e.g. Rahul Verma"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email <span class="req">*</span></label>
+          <input type="email" id="agentEmail" class="form-input" placeholder="rahul@iinvsys.com"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone <span class="req">*</span></label>
+          <input type="tel" id="agentPhone" class="form-input" placeholder="+91 98200 00000"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Territory <span class="req">*</span></label>
+          <input type="text" id="agentTerritory" class="form-input" placeholder="e.g. Pune West"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Designation</label>
+          <input type="text" id="agentDesignation" class="form-input" placeholder="e.g. Sales Manager"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monthly Target (₹)</label>
+          <input type="number" id="agentTarget" class="form-input" placeholder="e.g. 1000000"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Avatar Colour</label>
+        <select id="agentColor" class="form-input">
+          <option value="#00DFA2">Emerald</option>
+          <option value="#F0BE18">Gold</option>
+          <option value="#FF6B35">Amber</option>
+          <option value="#4ECDC4">Teal</option>
+          <option value="#45B7D1">Azure</option>
+          <option value="#96CEB4">Sage</option>
+          <option value="#DDA0DD">Violet</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="neo-btn outline" id="agentModalCancel">Cancel</button>
+        <button type="submit" class="neo-btn yellow" id="agentSubmitBtn">Save Agent →</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL: REFERRER MANAGEMENT ═══════════════════ -->
 <div class="modal-overlay" id="referrerModal">
   <div class="modal-box wide-modal">
