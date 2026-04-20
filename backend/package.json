@@ -16,6 +16,7 @@
     "cors": "^2.8.5",
     "csv-parse": "^5.5.3",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^4.18.3",
     "express-rate-limit": "^7.3.1",
     "express-validator": "^7.1.0",
@@ -23,7 +24,10 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.3.4",
     "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.4",
+    "resend": "^6.10.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
@@ -37,7 +41,9 @@
     "globalSetup": "./tests/helpers/globalSetup.js",
     "globalTeardown": "./tests/helpers/globalTeardown.js",
     "setupFilesAfterEnv": [],
-    "testMatch": ["**/tests/**/*.test.js"]
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
   },
   "engines": {
     "node": ">=18.0.0"

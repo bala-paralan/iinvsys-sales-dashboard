@@ -846,6 +846,8 @@ function confirmDelete(type, id, cb) {
 
 document.getElementById('confirmCancel').addEventListener('click', () => document.getElementById('confirmModal').classList.remove('open'));
 document.getElementById('confirmModal').addEventListener('click', e => { if (e.target === document.getElementById('confirmModal')) document.getElementById('confirmModal').classList.remove('open'); });
+document.getElementById('infoModalClose')?.addEventListener('click', () => document.getElementById('infoModal').classList.remove('open'));
+document.getElementById('infoModal')?.addEventListener('click', e => { if (e.target === document.getElementById('infoModal')) document.getElementById('infoModal').classList.remove('open'); });
 
 /* ═══════════ AGENTS ═══════════ */
 function renderAgentsGrid() {
@@ -1476,6 +1478,208 @@ async function renderSettings() {
   } catch (err) {
     wrap.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--coral);padding:24px">Failed to load settings: ${err.message}</div>`;
   }
+
+  // Email Reports section — superadmin only
+  if (isSuperAdmin()) renderEmailReports();
+}
+
+/* ─── Email Reports Config ──────────────────────────────────────── */
+async function renderEmailReports() {
+  const sec = document.getElementById('emailReportsSection');
+  if (!sec) return;
+  sec.style.display = 'block';
+  sec.innerHTML = contentSpinner('Loading email config…');
+
+  try {
+    const res = await api('GET', '/reports/config');
+    const cfg = res.data || {};
+    const recipients = (cfg.recipients || []).join(', ');
+    const lastSent = cfg.lastSentAt
+      ? new Date(cfg.lastSentAt).toLocaleString('en-IN')
+      : 'Never';
+
+    sec.innerHTML = `
+      <section class="settings-group" style="margin-top:24px">
+        <div class="settings-group-header">// EMAIL REPORTS</div>
+
+        <div class="settings-row">
+          <div class="settings-label-col">
+            <div class="settings-key">Recipients</div>
+            <div class="settings-desc">Comma-separated email addresses that receive the report</div>
+          </div>
+          <div class="settings-val-col">
+            <input type="text" id="erRecipients" class="form-input settings-input"
+              value="${recipients}" placeholder="a@co.com, b@co.com"/>
+          </div>
+          <button class="agent-btn" onclick="saveEmailRecipients(this)">Save</button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label-col">
+            <div class="settings-key">Periodicity</div>
+            <div class="settings-desc">How often should the report be sent automatically</div>
+          </div>
+          <div class="settings-val-col">
+            <select id="erPeriodicity" class="form-input settings-input">
+              ${['disabled','daily','weekly','monthly'].map(p =>
+                `<option value="${p}" ${cfg.periodicity === p ? 'selected' : ''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <button class="agent-btn" onclick="saveEmailPeriodicity(this)">Save</button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label-col">
+            <div class="settings-key">Send Time (IST)</div>
+            <div class="settings-desc">Time of day to send the scheduled report (HH:MM, 24-hour)</div>
+          </div>
+          <div class="settings-val-col">
+            <input type="time" id="erSendTime" class="form-input settings-input"
+              value="${cfg.sendTime || '08:00'}"/>
+          </div>
+          <button class="agent-btn" onclick="saveEmailSendTime(this)">Save</button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-label-col">
+            <div class="settings-key">Email Subject Template</div>
+            <div class="settings-desc">Use {{date}} and {{period}} as placeholders</div>
+          </div>
+          <div class="settings-val-col">
+            <input type="text" id="erSubject" class="form-input settings-input"
+              value="${(cfg.template && cfg.template.subject) || ''}" placeholder="IINVSYS Sales Report – {{date}}"/>
+          </div>
+          <button class="agent-btn" onclick="saveEmailTemplate(this)">Save</button>
+        </div>
+
+        <div class="settings-row" style="align-items:flex-start">
+          <div class="settings-label-col">
+            <div class="settings-key">Email Body Template</div>
+            <div class="settings-desc">Use {{date}} and {{period}} as placeholders</div>
+          </div>
+          <div class="settings-val-col">
+            <textarea id="erBody" class="form-input settings-input" rows="5"
+              style="resize:vertical">${(cfg.template && cfg.template.body) || ''}</textarea>
+          </div>
+          <button class="agent-btn" onclick="saveEmailBodyTemplate(this)">Save</button>
+        </div>
+
+        <div class="settings-row" style="background:var(--bg-2);border-radius:6px;padding:12px 16px;gap:12px;flex-wrap:wrap">
+          <div class="settings-label-col">
+            <div class="settings-key">Last Sent</div>
+            <div class="settings-desc" id="erLastSent">${lastSent}</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="neo-btn" onclick="sendReportNow(this)">Send Now</button>
+            <button class="neo-btn outline" onclick="previewReport()">Preview Data</button>
+          </div>
+        </div>
+      </section>`;
+  } catch (err) {
+    sec.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--coral);padding:24px">Failed to load email config: ${err.message}</div>`;
+  }
+}
+
+window.saveEmailRecipients = async function(btn) {
+  const raw = document.getElementById('erRecipients').value;
+  const recipients = raw.split(',').map(e => e.trim()).filter(Boolean);
+  btnLoad(btn, true, '…');
+  try {
+    await api('PUT', '/reports/config', { recipients });
+    flash('Recipients saved');
+  } catch(e) { flash(e.message || 'Failed', 'error'); }
+  finally { btnLoad(btn, false); }
+};
+
+window.saveEmailPeriodicity = async function(btn) {
+  const periodicity = document.getElementById('erPeriodicity').value;
+  btnLoad(btn, true, '…');
+  try {
+    await api('PUT', '/reports/config', { periodicity });
+    flash(`Periodicity set to ${periodicity}`);
+  } catch(e) { flash(e.message || 'Failed', 'error'); }
+  finally { btnLoad(btn, false); }
+};
+
+window.saveEmailSendTime = async function(btn) {
+  const sendTime = document.getElementById('erSendTime').value;
+  btnLoad(btn, true, '…');
+  try {
+    await api('PUT', '/reports/config', { sendTime });
+    flash('Send time saved');
+  } catch(e) { flash(e.message || 'Failed', 'error'); }
+  finally { btnLoad(btn, false); }
+};
+
+window.saveEmailTemplate = async function(btn) {
+  const subject = document.getElementById('erSubject').value;
+  btnLoad(btn, true, '…');
+  try {
+    await api('PUT', '/reports/config', { template: { subject } });
+    flash('Subject template saved');
+  } catch(e) { flash(e.message || 'Failed', 'error'); }
+  finally { btnLoad(btn, false); }
+};
+
+window.saveEmailBodyTemplate = async function(btn) {
+  const body = document.getElementById('erBody').value;
+  btnLoad(btn, true, '…');
+  try {
+    await api('PUT', '/reports/config', { template: { body } });
+    flash('Body template saved');
+  } catch(e) { flash(e.message || 'Failed', 'error'); }
+  finally { btnLoad(btn, false); }
+};
+
+window.sendReportNow = async function(btn) {
+  btnLoad(btn, true, 'Sending…');
+  try {
+    const res = await api('POST', '/reports/send');
+    flash(`Report sent to ${res.data.recipients} recipient(s)`);
+    const el = document.getElementById('erLastSent');
+    if (el) el.textContent = new Date(res.data.sentAt).toLocaleString('en-IN');
+  } catch(e) { flash(e.message || 'Failed to send', 'error'); }
+  finally { btnLoad(btn, false); }
+};
+
+window.previewReport = async function() {
+  try {
+    const res = await api('GET', '/reports/preview');
+    const d = res.data;
+    const rows = (d.agentStats || []).map(a =>
+      `<tr><td>${a.name}</td><td>${a.territory||'—'}</td><td>${a.totalLeads}</td><td>${a.won}</td><td>₹${Number(a.wonValue).toLocaleString('en-IN')}</td><td>${a.convRate}%</td></tr>`
+    ).join('');
+    const funnelRows = (d.funnel || []).map(f =>
+      `<tr><td>${f.stage}</td><td>${f.count}</td><td>₹${Number(f.value).toLocaleString('en-IN')}</td><td>${f.pct}%</td></tr>`
+    ).join('');
+
+    const html = `
+      <div style="max-height:70vh;overflow-y:auto;font-size:12px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--gold)">Agent Performance</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+          <thead><tr style="background:var(--bg-2)">
+            <th style="padding:6px;text-align:left">Agent</th><th>Territory</th><th>Leads</th><th>Won</th><th>Won Value</th><th>Conv%</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--gold)">Conversion Funnel</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--bg-2)">
+            <th style="padding:6px;text-align:left">Stage</th><th>Count</th><th>Value</th><th>%</th>
+          </tr></thead>
+          <tbody>${funnelRows}</tbody>
+        </table>
+        <div style="margin-top:12px;font-size:11px;color:var(--text-3)">Generated: ${new Date(d.generatedAt).toLocaleString('en-IN')} · Total leads: ${d.totalLeads}</div>
+      </div>`;
+    openInfoModal('Report Preview', html);
+  } catch(e) { flash(e.message || 'Failed to load preview', 'error'); }
+};
+
+function openInfoModal(title, bodyHtml) {
+  document.getElementById('infoModalTitle').textContent = title;
+  document.getElementById('infoModalBody').innerHTML = bodyHtml;
+  document.getElementById('infoModal').classList.add('open');
 }
 
 function renderSettingInput(s) {

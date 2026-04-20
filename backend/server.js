@@ -7,6 +7,13 @@ const PORT = process.env.PORT || 5000;
 
 async function start() {
   await connectDB();
+
+  // Start email report scheduler (skip in test env)
+  if (process.env.NODE_ENV !== 'test') {
+    const { initScheduler } = require('./src/utils/scheduler');
+    await initScheduler();
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`\n🚀  IINVSYS API running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     console.log(`📋  Health: http://localhost:${PORT}/api/health\n`);

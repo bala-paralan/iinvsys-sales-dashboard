@@ -10,6 +10,9 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+/* ── Trust proxy — required on Vercel/cloud so rate-limiter reads real client IP ── */
+app.set('trust proxy', 1);
+
 /* ── Security & Transport ── */
 app.use(helmet());
 app.use(compression());

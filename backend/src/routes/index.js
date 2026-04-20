@@ -8,5 +8,6 @@ router.use('/products',  require('./products'));
 router.use('/expos',     require('./expos'));
 router.use('/analytics', require('./analytics'));
 router.use('/settings',  require('./settings'));
+router.use('/reports',   require('./reports'));
 
 module.exports = router;

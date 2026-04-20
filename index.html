@@ -503,6 +503,7 @@
       <p class="settings-intro-text">All settings take effect immediately. Only superadmins can edit.</p>
     </div>
     <div class="settings-groups" id="settingsGroups"><!-- rendered by JS --></div>
+    <div id="emailReportsSection" style="display:none"><!-- rendered by JS --></div>
   </div>
 
   <!-- ══════════ PAGE: REFERRER CAPTURE (mobile) ══════════ -->
@@ -878,6 +879,20 @@
       <button class="neo-btn outline" id="confirmCancel">Cancel</button>
       <button class="neo-btn" id="confirmOk" style="background:var(--coral);border-color:#000;color:#fff;box-shadow:4px 4px 0 #000">Delete</button>
     </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL: INFO / PREVIEW (generic) ══════ -->
+<div class="modal-overlay" id="infoModal">
+  <div class="modal-box" style="max-width:680px;width:90vw">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow" id="infoModalEyebrow">// INFO</div>
+        <h2 class="modal-title" id="infoModalTitle">Preview</h2>
+      </div>
+      <button class="modal-close" id="infoModalClose">✕</button>
+    </div>
+    <div class="modal-body" id="infoModalBody" style="padding:16px 24px 24px"></div>
   </div>
 </div>
 
