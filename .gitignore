@@ -19,3 +19,7 @@ Thumbs.db
 # Vercel
 .vercel/
 .vercel
+.vercel-cli/
+
+# Claude / Cowork working state
+.claude/worktrees/
