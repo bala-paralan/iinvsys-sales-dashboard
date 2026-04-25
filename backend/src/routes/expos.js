@@ -18,6 +18,7 @@ router.post('/',   authenticate, requireMinRole('manager'),  expoValidation, ctr
 
 router.get('/:id',    authenticate, requireMinRole('readonly'), ctrl.getExpo);
 router.put('/:id',    authenticate, requireMinRole('manager'),  expoValidation, ctrl.updateExpo);
+router.put('/:id/products', authenticate, requireMinRole('manager'), ctrl.updateExpoProducts);
 router.delete('/:id', authenticate, requireMinRole('manager'), ctrl.deleteExpo);
 
 /* Referrer sub-resource */

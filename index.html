@@ -370,9 +370,130 @@
   <!-- ══════════ PAGE: EXPOS ══════════ -->
   <div class="page admin-only-page" id="page-expos">
     <div class="expo-header-actions">
-      <button class="neo-btn yellow">+ Create Expo</button>
+      <button class="neo-btn yellow" id="createExpoBtn">+ Create Expo</button>
     </div>
     <div class="expo-grid" id="expoGrid"><!-- rendered by JS --></div>
+  </div>
+
+  <!-- ══════════ MODAL: CREATE / EDIT EXPO ══════════ -->
+  <div class="modal-overlay" id="expoModal">
+    <div class="modal-box" style="max-width:660px">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="card-eyebrow">// EXPO MANAGEMENT</span>
+          <h2 class="modal-title" id="expoModalTitle">Create <em>Expo</em></h2>
+        </div>
+        <div class="modal-header-actions">
+          <button class="modal-close" id="expoModalClose">✕</button>
+        </div>
+      </div>
+      <form id="expoForm" class="lead-form">
+        <input type="hidden" id="expoIdInput"/>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Event Name <span class="req">*</span></label>
+            <input type="text" id="expoName" class="form-input" placeholder="e.g. Pune Realty Expo 2025"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">City <span class="req">*</span></label>
+            <input type="text" id="expoCity" class="form-input" placeholder="e.g. Pune"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Venue <span class="req">*</span></label>
+          <input type="text" id="expoVenue" class="form-input" placeholder="e.g. Bombay Exhibition Centre, Hall 3"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Start Date <span class="req">*</span></label>
+            <input type="date" id="expoStartDate" class="form-input"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Date <span class="req">*</span></label>
+            <input type="date" id="expoEndDate" class="form-input"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target Leads <span class="opt">(optional)</span></label>
+          <input type="number" id="expoTargetLeads" class="form-input" placeholder="100" min="0"/>
+        </div>
+
+        <!-- ── Assign Agents ── -->
+        <div class="form-group">
+          <label class="form-label">Assign Agents <span class="opt">(select all who will be at this expo)</span></label>
+          <div class="expo-agent-checkboxes" id="expoAgentCheckboxes"><!-- filled by JS --></div>
+        </div>
+
+        <!-- ── Products at this Expo ── -->
+        <div class="form-group">
+          <label class="form-label">Products at this Expo</label>
+          <div id="expoProductRows"><!-- filled by JS --></div>
+          <button type="button" class="neo-btn outline sm" id="addExpoProductRowBtn" style="margin-top:10px">+ Add Product</button>
+        </div>
+
+        <div class="modal-footer-actions" style="margin-top:8px">
+          <button type="button" class="neo-btn outline" id="expoModalCancel">Cancel</button>
+          <button type="submit" class="neo-btn yellow" id="expoSubmitBtn">Create Expo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════ MODAL: EXPO LEAD CAPTURE ══════════ -->
+  <div class="modal-overlay" id="expoLeadModal">
+    <div class="modal-box" style="max-width:560px">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="card-eyebrow" id="expoLeadModalEyebrow">// EXPO LEAD CAPTURE</span>
+          <h2 class="modal-title" id="expoLeadModalTitle">New <em>Lead</em></h2>
+        </div>
+        <div class="modal-header-actions">
+          <button class="modal-close" id="expoLeadModalClose">✕</button>
+        </div>
+      </div>
+      <form id="expoLeadForm" class="lead-form">
+        <input type="hidden" id="expoLeadExpoId"/>
+        <!-- Prefill banner -->
+        <div class="expo-lead-prefill-banner" id="expoLeadBanner"></div>
+        <!-- Name + Phone -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Full Name <span class="req">*</span></label>
+            <input type="text" id="expoLeadName" class="form-input" placeholder="e.g. Rajesh Sharma"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone <span class="req">*</span></label>
+            <input type="tel" id="expoLeadPhone" class="form-input" placeholder="+91 98200 00000"/>
+          </div>
+        </div>
+        <!-- Email -->
+        <div class="form-group">
+          <label class="form-label">Email <span class="opt">(optional)</span></label>
+          <input type="email" id="expoLeadEmail" class="form-input" placeholder="email@example.com"/>
+        </div>
+        <!-- Products Interested -->
+        <div class="form-group">
+          <label class="form-label">Products Interested <span class="opt">(multi-select)</span></label>
+          <div class="expo-product-multiselect" id="expoLeadProductSelect"><!-- filled by JS --></div>
+        </div>
+        <!-- Presenter -->
+        <div class="form-group">
+          <label class="form-label">Presenter <span class="req">*</span></label>
+          <select id="expoLeadPresenter" class="form-input">
+            <option value="">— Select Presenter —</option>
+          </select>
+        </div>
+        <!-- Notes -->
+        <div class="form-group">
+          <label class="form-label">Notes <span class="opt">(optional)</span></label>
+          <textarea id="expoLeadNotes" class="form-input" rows="2" placeholder="Met at booth 14, interested in premium flat…"></textarea>
+        </div>
+        <div class="modal-footer-actions">
+          <button type="button" class="neo-btn outline" id="expoLeadModalCancel">Cancel</button>
+          <button type="submit" class="neo-btn yellow" id="expoLeadSubmitBtn">📋 Capture Lead</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- ══════════ PAGE: ANALYTICS ══════════ -->

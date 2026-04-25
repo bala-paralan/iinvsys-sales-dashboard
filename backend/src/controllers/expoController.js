@@ -18,6 +18,8 @@ async function listExpos(req, res, next) {
     const [expos, total] = await Promise.all([
       Expo.find(filter)
         .populate('agents', 'name initials color')
+        .populate('products.product', 'name sku price')
+        .populate('products.presenters', 'name initials color')
         .sort({ startDate: -1 })
         .skip(skip).limit(parseInt(limit))
         .lean(),
@@ -35,6 +37,8 @@ async function getExpo(req, res, next) {
   try {
     const expo = await Expo.findById(req.params.id)
       .populate('agents', 'name initials color designation')
+      .populate('products.product', 'name sku price category')
+      .populate('products.presenters', 'name initials color designation')
       .lean();
     if (!expo) return notFound(res, 'Expo not found');
 
@@ -53,7 +57,12 @@ async function createExpo(req, res, next) {
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
     const expo = await Expo.create({ ...req.body, createdBy: req.user._id });
-    return created(res, expo, 'Expo created');
+    const populated = await Expo.findById(expo._id)
+      .populate('agents', 'name initials color')
+      .populate('products.product', 'name sku price')
+      .populate('products.presenters', 'name initials color')
+      .lean();
+    return created(res, populated, 'Expo created');
   } catch (err) {
     next(err);
   }
@@ -70,7 +79,12 @@ async function updateExpo(req, res, next) {
       new: true, runValidators: true,
     });
     if (!expo) return notFound(res, 'Expo not found');
-    return ok(res, expo, 'Expo updated');
+    const populated = await Expo.findById(expo._id)
+      .populate('agents', 'name initials color')
+      .populate('products.product', 'name sku price')
+      .populate('products.presenters', 'name initials color')
+      .lean();
+    return ok(res, populated, 'Expo updated');
   } catch (err) {
     next(err);
   }
@@ -83,6 +97,27 @@ async function deleteExpo(req, res, next) {
     const expo = await Expo.findByIdAndDelete(req.params.id);
     if (!expo) return notFound(res, 'Expo not found');
     return ok(res, {}, 'Expo deleted');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── PUT /api/expos/:id/products ── replace products+presenters list ── */
+
+async function updateExpoProducts(req, res, next) {
+  try {
+    const { products, agents } = req.body; // products: [{product, presenters:[agentId]}]
+    const update = {};
+    if (Array.isArray(products)) update.products = products;
+    if (Array.isArray(agents))   update.agents   = agents;
+
+    const expo = await Expo.findByIdAndUpdate(req.params.id, update, { new: true })
+      .populate('products.product', 'name sku price')
+      .populate('products.presenters', 'name initials color')
+      .populate('agents', 'name initials color')
+      .lean();
+    if (!expo) return notFound(res, 'Expo not found');
+    return ok(res, expo, 'Expo products updated');
   } catch (err) {
     next(err);
   }
@@ -167,4 +202,4 @@ async function deleteReferrer(req, res, next) {
   }
 }
 
-module.exports = { listExpos, getExpo, createExpo, updateExpo, deleteExpo, createReferrer, listReferrers, deleteReferrer };
+module.exports = { listExpos, getExpo, createExpo, updateExpo, deleteExpo, updateExpoProducts, createReferrer, listReferrers, deleteReferrer };

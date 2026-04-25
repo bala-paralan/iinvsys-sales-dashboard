@@ -77,13 +77,25 @@ function normalizeExpo(e, leadsArr) {
   const fmt   = d => d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
   return {
     id,
-    name:      e.name,
-    dates:     `${fmt(start)} – ${fmt(end)}`,
-    venue:     [e.venue, e.city].filter(Boolean).join(', '),
-    agents:    (e.agents || []).map(a => a._id || a),
-    status:    e.status,
-    leadCount: count,
-    converted: e.converted || 0,
+    name:        e.name,
+    dates:       `${fmt(start)} – ${fmt(end)}`,
+    venue:       [e.venue, e.city].filter(Boolean).join(', '),
+    venue_raw:   e.venue || '',
+    city:        e.city || '',
+    startDate:   e.startDate,
+    endDate:     e.endDate,
+    agents:      (e.agents || []).map(a => a._id || a),
+    products:    (e.products || []).map(p => ({
+      productId:  (p.product?._id || p.product || '').toString(),
+      name:       p.product?.name || '',
+      sku:        p.product?.sku  || '',
+      price:      p.product?.price || 0,
+      presenters: (p.presenters || []).map(pr => (pr._id || pr).toString()),
+    })),
+    status:      e.status,
+    leadCount:   count,
+    converted:   e.converted || 0,
+    targetLeads: e.targetLeads || 0,
   };
 }
 
@@ -1109,34 +1121,83 @@ function renderExpos() {
   if (!grid) return;
   grid.innerHTML = S.expos.map(e => {
     const cls  = e.status === 'live' ? 'live-expo' : e.status === 'upcoming' ? 'upcoming-expo' : 'past-expo';
-    const chip = e.status === 'live' ? `<div class="expo-status-chip live-chip">● LIVE NOW</div>` : e.status === 'upcoming' ? `<div class="expo-status-chip upcoming-chip">◌ UPCOMING</div>` : `<div class="expo-status-chip past-chip">✓ COMPLETED</div>`;
+    const chip = e.status === 'live'
+      ? `<div class="expo-status-chip live-chip">● LIVE NOW</div>`
+      : e.status === 'upcoming'
+        ? `<div class="expo-status-chip upcoming-chip">◌ UPCOMING</div>`
+        : `<div class="expo-status-chip past-chip">✓ COMPLETED</div>`;
+
     const agentList  = e.agents || [];
     const agentChips = agentList.slice(0,4).map(aid => {
       const a = agentById(aid);
       return a ? `<span class="expo-agent-chip" style="--ac:${a.color}">${a.initials}</span>` : '';
     }).join('') + (agentList.length > 4 ? `<span class="expo-agent-chip" style="--ac:#888">+${agentList.length-4}</span>` : '');
-    const liveChart = e.status === 'live' ? `<div class="expo-hourly-label">Leads captured per hour (Today)</div><div class="expo-hourly-chart"><canvas id="expo_${e.id}_chart" height="80"></canvas></div>` : '';
+
+    const liveChart = e.status === 'live'
+      ? `<div class="expo-hourly-label">Leads captured per hour (Today)</div><div class="expo-hourly-chart"><canvas id="expo_${e.id}_chart" height="80"></canvas></div>`
+      : '';
+
+    /* Products with presenters */
+    const productsHtml = (e.products || []).length
+      ? `<div class="expo-products-section">
+          <div class="expo-products-label">// PRODUCTS AT THIS EXPO</div>
+          ${(e.products || []).map(p => {
+            const presenterChips = (p.presenters || []).slice(0,3).map(aid => {
+              const a = agentById(aid);
+              return a ? `<span class="expo-presenter-chip" style="--ac:${a.color}" title="${a.name}">${a.initials}</span>` : '';
+            }).join('');
+            return `<div class="expo-product-row">
+              <div class="expo-product-row-info">
+                <span class="expo-product-sku">${p.sku || ''}</span>
+                <span class="expo-product-name">${p.name}</span>
+              </div>
+              <div class="expo-product-row-right">
+                <div class="expo-product-presenters">${presenterChips}</div>
+                <button class="neo-btn yellow xs" onclick="openExpoLeadModal('${e.id}','${p.productId}')">+ Lead</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`
+      : '';
+
+    const eid = e.id;
+    const ename = e.name.replace(/'/g,"\\'");
     return `
     <div class="expo-card ${cls}">
-      <div class="expo-card-header">${chip}<div class="expo-card-menu">⋯</div></div>
+      <div class="expo-card-header">${chip}
+        <div class="expo-card-menu-actions">
+          <button class="expo-edit-btn neo-btn outline xs" onclick="openEditExpoModal('${eid}')">✏ Edit</button>
+          <button class="expo-delete-btn neo-btn outline xs danger-btn" onclick="deleteExpo('${eid}')">🗑</button>
+        </div>
+      </div>
       <div class="expo-name">${e.name}</div>
       <div class="expo-sub-info">${e.dates} · ${e.venue}</div>
       <div class="expo-kpi-row">
         <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--gold)">${e.leadCount||'—'}</span><span class="exp-kpi-lbl">Leads</span></div>
         <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--emerald)">${e.converted||'—'}</span><span class="exp-kpi-lbl">Converted</span></div>
         <div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--azure)">${agentList.length}</span><span class="exp-kpi-lbl">Agents</span></div>
-        ${e.leadCount > 0 ? `<div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--amber)">${Math.min(100,(((e.converted||0)/e.leadCount)*100)).toFixed(1)}%</span><span class="exp-kpi-lbl">Conv.</span></div>` : ''}
+        ${e.targetLeads > 0 ? `<div class="exp-kpi"><span class="exp-kpi-val" style="color:var(--amber)">${e.targetLeads}</span><span class="exp-kpi-lbl">Target</span></div>` : ''}
       </div>
       ${liveChart}
+      ${productsHtml}
       <div class="expo-agents-row">${agentChips}</div>
       <div class="expo-card-actions">
-        ${e.status === 'live' ? `<button class="neo-btn yellow sm">Live Dashboard</button><button class="neo-btn outline sm">QR Mode</button>` : ''}
-        ${e.status === 'upcoming' ? `<button class="neo-btn yellow sm">Edit Event</button><button class="neo-btn outline sm">Assign Agents</button>` : ''}
-        ${e.status === 'past' ? `<button class="neo-btn outline sm">📄 Report</button><button class="neo-btn outline sm">📊 Compare</button>` : ''}
-        <button class="neo-btn outline sm" onclick="openReferrerModal('${e.id}','${e.name.replace(/'/g,"\\'")}')">👥 Referrers</button>
+        <button class="neo-btn yellow sm" onclick="openExpoLeadModal('${eid}')">📋 Add Lead</button>
+        <button class="neo-btn outline sm" onclick="openReferrerModal('${eid}','${ename}')">👥 Referrers</button>
+        ${e.status === 'past' ? `<button class="neo-btn outline sm">📄 Report</button>` : ''}
       </div>
     </div>`;
   }).join('');
+
+  /* If no expos */
+  if (!S.expos.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div style="font-size:48px;margin-bottom:16px">◇</div>
+      <div class="empty-title">No Expos Yet</div>
+      <div class="empty-sub">Create your first expo to start capturing leads at events.</div>
+      <button class="neo-btn yellow" style="margin-top:20px" onclick="document.getElementById('createExpoBtn').click()">+ Create First Expo</button>
+    </div>`;
+  }
 
   S.expos.filter(e => e.status === 'live').forEach(e => {
     const ctx = document.getElementById(`expo_${e.id}_chart`);
@@ -1148,6 +1209,336 @@ function renderExpos() {
     });
   });
 }
+
+/* ─── Expo CRUD helpers ─── */
+
+/* Open create modal */
+document.getElementById('createExpoBtn')?.addEventListener('click', () => {
+  document.getElementById('expoIdInput').value = '';
+  document.getElementById('expoModalTitle').innerHTML = 'Create <em>Expo</em>';
+  document.getElementById('expoSubmitBtn').textContent = 'Create Expo';
+  document.getElementById('expoForm').reset();
+  renderExpoAgentCheckboxes([]);
+  renderExpoProductRows([]);
+  document.getElementById('expoModal').classList.add('open');
+});
+
+document.getElementById('expoModalClose')?.addEventListener('click', () => document.getElementById('expoModal').classList.remove('open'));
+document.getElementById('expoModalCancel')?.addEventListener('click', () => document.getElementById('expoModal').classList.remove('open'));
+
+/* Open edit modal */
+window.openEditExpoModal = async function(expoId) {
+  const e = S.expos.find(x => x.id === expoId);
+  if (!e) return;
+  document.getElementById('expoIdInput').value = expoId;
+  document.getElementById('expoModalTitle').innerHTML = 'Edit <em>Expo</em>';
+  document.getElementById('expoSubmitBtn').textContent = 'Save Changes';
+  document.getElementById('expoName').value        = e.name;
+  document.getElementById('expoCity').value        = e.city;
+  document.getElementById('expoVenue').value       = e.venue_raw;
+  document.getElementById('expoTargetLeads').value = e.targetLeads || '';
+  if (e.startDate) document.getElementById('expoStartDate').value = e.startDate.toString().slice(0,10);
+  if (e.endDate)   document.getElementById('expoEndDate').value   = e.endDate.toString().slice(0,10);
+  renderExpoAgentCheckboxes(e.agents || []);
+  renderExpoProductRows(e.products || []);
+  document.getElementById('expoModal').classList.add('open');
+};
+
+function renderExpoAgentCheckboxes(selectedIds) {
+  const container = document.getElementById('expoAgentCheckboxes');
+  if (!container) return;
+  if (!S.agents.length) { container.innerHTML = '<span style="color:var(--text-3);font-size:12px">No agents found. Add agents first.</span>'; return; }
+  container.innerHTML = S.agents.map(a => {
+    const checked = selectedIds.includes(a.id) ? 'checked' : '';
+    return `<label class="expo-checkbox-label">
+      <input type="checkbox" class="expo-agent-cb" value="${a.id}" ${checked}>
+      <span class="expo-agent-chip" style="--ac:${a.color}">${a.initials}</span>
+      <span>${a.name}</span>
+    </label>`;
+  }).join('');
+}
+
+/* Product rows in the expo form */
+let _expoProductRows = []; // [{productId, presenters:[agentId]}]
+
+function renderExpoProductRows(existingProducts) {
+  _expoProductRows = existingProducts.map(p => ({
+    productId:  p.productId || (p.product?._id || p.product || '').toString(),
+    presenters: (p.presenters || []).map(x => (x._id || x).toString()),
+  }));
+  _redrawExpoProductRows();
+}
+
+function _redrawExpoProductRows() {
+  const container = document.getElementById('expoProductRows');
+  if (!container) return;
+  if (!_expoProductRows.length) {
+    container.innerHTML = `<div style="color:var(--text-3);font-size:12px;padding:8px 0">No products added yet. Click "+ Add Product" to add.</div>`;
+    return;
+  }
+  container.innerHTML = _expoProductRows.map((row, idx) => {
+    const productOpts = S.products.map(p =>
+      `<option value="${p.id}" ${p.id === row.productId ? 'selected' : ''}>${p.name} (${p.sku || ''})</option>`
+    ).join('');
+    const agentCheckboxes = S.agents.map(a => {
+      const checked = (row.presenters || []).includes(a.id) ? 'checked' : '';
+      return `<label class="expo-presenter-cb-label">
+        <input type="checkbox" class="expo-presenter-cb" data-idx="${idx}" value="${a.id}" ${checked}>
+        <span class="expo-presenter-chip-sm" style="--ac:${a.color}">${a.initials}</span>
+        <span style="font-size:11px">${a.name}</span>
+      </label>`;
+    }).join('');
+    return `<div class="expo-product-form-row" data-idx="${idx}">
+      <div class="expo-product-form-header">
+        <select class="form-input expo-product-select" data-idx="${idx}" style="flex:1">
+          <option value="">— Select Product —</option>
+          ${productOpts}
+        </select>
+        <button type="button" class="neo-btn outline xs danger-btn expo-remove-product" data-idx="${idx}">✕</button>
+      </div>
+      <div class="expo-presenter-checkboxes">
+        <span class="expo-presenter-label">Presenters:</span>
+        ${agentCheckboxes || '<span style="color:var(--text-3);font-size:11px">No agents available</span>'}
+      </div>
+    </div>`;
+  }).join('');
+
+  /* Bind product select changes */
+  container.querySelectorAll('.expo-product-select').forEach(sel => {
+    sel.addEventListener('change', e => {
+      const idx = +e.target.dataset.idx;
+      _expoProductRows[idx].productId = e.target.value;
+    });
+  });
+  /* Bind presenter checkbox changes */
+  container.querySelectorAll('.expo-presenter-cb').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const idx = +e.target.dataset.idx;
+      const val = e.target.value;
+      if (e.target.checked) {
+        if (!_expoProductRows[idx].presenters.includes(val)) _expoProductRows[idx].presenters.push(val);
+      } else {
+        _expoProductRows[idx].presenters = _expoProductRows[idx].presenters.filter(x => x !== val);
+      }
+    });
+  });
+  /* Bind remove buttons */
+  container.querySelectorAll('.expo-remove-product').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.target.dataset.idx;
+      _expoProductRows.splice(idx, 1);
+      _redrawExpoProductRows();
+    });
+  });
+}
+
+document.getElementById('addExpoProductRowBtn')?.addEventListener('click', () => {
+  _expoProductRows.push({ productId: '', presenters: [] });
+  _redrawExpoProductRows();
+});
+
+/* Submit expo form */
+document.getElementById('expoForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('expoSubmitBtn');
+  btnLoad(btn, true);
+
+  const id        = document.getElementById('expoIdInput').value;
+  const agents    = Array.from(document.querySelectorAll('.expo-agent-cb:checked')).map(cb => cb.value);
+  const products  = _expoProductRows
+    .filter(r => r.productId)
+    .map(r => ({ product: r.productId, presenters: r.presenters }));
+
+  const payload = {
+    name:        document.getElementById('expoName').value.trim(),
+    city:        document.getElementById('expoCity').value.trim(),
+    venue:       document.getElementById('expoVenue').value.trim(),
+    startDate:   document.getElementById('expoStartDate').value,
+    endDate:     document.getElementById('expoEndDate').value,
+    targetLeads: parseInt(document.getElementById('expoTargetLeads').value) || 0,
+    agents,
+    products,
+  };
+
+  if (!payload.name || !payload.city || !payload.venue || !payload.startDate || !payload.endDate) {
+    flash('Please fill in all required fields.', 'error');
+    btnLoad(btn, false);
+    return;
+  }
+
+  try {
+    let res;
+    if (id) {
+      res = await api('PUT', `/expos/${id}`, payload);
+      const idx = S.expos.findIndex(x => x.id === id);
+      if (idx >= 0) S.expos[idx] = normalizeExpo(res.data, S.leads);
+    } else {
+      res = await api('POST', '/expos', payload);
+      S.expos.unshift(normalizeExpo(res.data, S.leads));
+    }
+    document.getElementById('expoModal').classList.remove('open');
+    renderExpos();
+    updateNavCounts();
+    flash(id ? 'Expo updated.' : 'Expo created!', 'success');
+  } catch (err) {
+    flash(err.message || 'Failed to save expo.', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+});
+
+/* Delete expo */
+window.deleteExpo = async function(expoId) {
+  if (!confirm('Delete this expo? This cannot be undone.')) return;
+  try {
+    await api('DELETE', `/expos/${expoId}`);
+    S.expos = S.expos.filter(e => e.id !== expoId);
+    renderExpos();
+    updateNavCounts();
+    flash('Expo deleted.', 'success');
+  } catch (err) {
+    flash(err.message || 'Failed to delete expo.', 'error');
+  }
+};
+
+/* ─── Expo Lead Capture Modal ─── */
+
+window.openExpoLeadModal = function(expoId, prefillProductId = null) {
+  const expo = S.expos.find(e => e.id === expoId);
+  if (!expo) return;
+
+  document.getElementById('expoLeadExpoId').value    = expoId;
+  document.getElementById('expoLeadModalTitle').innerHTML = `<em>${expo.name}</em> — New Lead`;
+  document.getElementById('expoLeadModalEyebrow').textContent = '// ' + expo.venue.toUpperCase();
+  document.getElementById('expoLeadForm').reset();
+  document.getElementById('expoLeadExpoId').value = expoId;
+
+  /* Prefill banner */
+  document.getElementById('expoLeadBanner').innerHTML = `
+    <span class="expo-lead-banner-chip">📍 ${expo.venue}</span>
+    <span class="expo-lead-banner-chip">📅 ${expo.dates}</span>`;
+
+  /* Products multi-select */
+  const prodContainer = document.getElementById('expoLeadProductSelect');
+  const prods = expo.products || [];
+
+  let prodHtml = '';
+  /* All option */
+  prodHtml += `<label class="expo-product-cb-label all-option">
+    <input type="checkbox" id="expoLeadAllProd" class="expo-lead-prod-cb special">
+    <span>✦ All Products</span>
+  </label>`;
+  /* Individual products */
+  prods.forEach(p => {
+    const checked = prefillProductId && prefillProductId === p.productId ? 'checked' : '';
+    prodHtml += `<label class="expo-product-cb-label">
+      <input type="checkbox" class="expo-lead-prod-cb" value="${p.productId}" ${checked}>
+      <span><strong>${p.sku || ''}</strong> ${p.name}</span>
+    </label>`;
+  });
+  /* Others option */
+  prodHtml += `<label class="expo-product-cb-label others-option">
+    <input type="checkbox" id="expoLeadOtherProd" class="expo-lead-prod-cb special">
+    <span>◇ Others (not listed)</span>
+  </label>`;
+  prodContainer.innerHTML = prodHtml || '<span style="color:var(--text-3);font-size:12px">No products configured for this expo.</span>';
+
+  /* All checkbox logic */
+  const allCb = document.getElementById('expoLeadAllProd');
+  const productCbs = () => prodContainer.querySelectorAll('.expo-lead-prod-cb:not(.special)');
+  if (allCb) {
+    allCb.addEventListener('change', () => {
+      productCbs().forEach(cb => cb.checked = allCb.checked);
+      const otherCb = document.getElementById('expoLeadOtherProd');
+      if (otherCb && allCb.checked) otherCb.checked = false;
+    });
+    productCbs().forEach(cb => cb.addEventListener('change', () => {
+      allCb.checked = Array.from(productCbs()).every(c => c.checked);
+    }));
+  }
+
+  /* Presenter dropdown — union of all presenters across expo products + expo agents */
+  const presenterIds = new Set();
+  expo.agents.forEach(id => presenterIds.add(id));
+  (expo.products || []).forEach(p => (p.presenters || []).forEach(id => presenterIds.add(id)));
+
+  const presenterSel = document.getElementById('expoLeadPresenter');
+  presenterSel.innerHTML = '<option value="">— Select Presenter —</option>';
+  [...presenterIds].forEach(aid => {
+    const a = agentById(aid);
+    if (a) presenterSel.innerHTML += `<option value="${a.id}">${a.name}</option>`;
+  });
+  /* If no presenters, show all agents */
+  if (presenterIds.size === 0) {
+    S.agents.forEach(a => {
+      presenterSel.innerHTML += `<option value="${a.id}">${a.name}</option>`;
+    });
+  }
+
+  document.getElementById('expoLeadModal').classList.add('open');
+};
+
+document.getElementById('expoLeadModalClose')?.addEventListener('click', () => document.getElementById('expoLeadModal').classList.remove('open'));
+document.getElementById('expoLeadModalCancel')?.addEventListener('click', () => document.getElementById('expoLeadModal').classList.remove('open'));
+
+/* Submit expo lead */
+document.getElementById('expoLeadForm')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('expoLeadSubmitBtn');
+  btnLoad(btn, true);
+
+  const expoId    = document.getElementById('expoLeadExpoId').value;
+  const name      = document.getElementById('expoLeadName').value.trim();
+  const phone     = document.getElementById('expoLeadPhone').value.trim();
+  const email     = document.getElementById('expoLeadEmail').value.trim();
+  const presenter = document.getElementById('expoLeadPresenter').value;
+  const notes     = document.getElementById('expoLeadNotes').value.trim();
+
+  if (!name || !phone) { flash('Name and phone are required.', 'error'); btnLoad(btn, false); return; }
+  if (!presenter)       { flash('Please select a presenter.', 'error');  btnLoad(btn, false); return; }
+
+  /* Collect selected products */
+  const allCb   = document.getElementById('expoLeadAllProd');
+  const otherCb = document.getElementById('expoLeadOtherProd');
+  const prodCbs = document.querySelectorAll('#expoLeadProductSelect .expo-lead-prod-cb:not(.special):checked');
+  const selectedProductIds = Array.from(prodCbs).map(cb => cb.value);
+
+  let finalNotes = notes;
+  if (otherCb?.checked) {
+    finalNotes = finalNotes ? finalNotes + '\nProducts: Others (not listed)' : 'Products: Others (not listed)';
+  }
+  if (allCb?.checked && !selectedProductIds.length) {
+    /* "All" but expo has no products */
+    finalNotes = finalNotes ? finalNotes + '\nInterested in: All products' : 'Interested in: All products';
+  }
+
+  const payload = {
+    name,
+    phone,
+    email,
+    source:        'expo',
+    expo:          expoId,
+    products:      selectedProductIds,
+    assignedAgent: presenter,
+    notes:         finalNotes,
+  };
+
+  try {
+    const res = await api('POST', '/leads', payload);
+    S.leads.unshift(normalizeLead(res.data));
+    /* Update expo lead count */
+    const expo = S.expos.find(x => x.id === expoId);
+    if (expo) expo.leadCount = (expo.leadCount || 0) + 1;
+    document.getElementById('expoLeadModal').classList.remove('open');
+    renderExpos();
+    updateNavCounts();
+    flash(`Lead captured: ${name}`, 'success');
+  } catch (err) {
+    flash(err.message || 'Failed to capture lead.', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+});
 
 /* ═══════════ AGENT VIEW: MY LEADS & STATS ═══════════ */
 function renderMyLeads() {

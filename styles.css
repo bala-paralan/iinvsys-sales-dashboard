@@ -2550,3 +2550,253 @@ button[data-loading="true"] {
   pointer-events: none;
   cursor: not-allowed;
 }
+
+/* ══════════════════════════════════
+   EXPO — PRODUCTS, PRESENTERS, LEAD CAPTURE
+══════════════════════════════════ */
+
+/* Extra-small button */
+.neo-btn.xs {
+  padding: 4px 10px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+/* Header actions (edit + delete) replacing the ⋯ menu */
+.expo-card-menu-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── Products section inside expo card ── */
+.expo-products-section {
+  border: 1px solid var(--surface-3);
+  margin-bottom: 14px;
+}
+.expo-products-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  padding: 7px 12px 5px;
+  border-bottom: 1px solid var(--surface-3);
+  background: rgba(240,190,24,0.04);
+}
+.expo-product-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--surface-3);
+  gap: 8px;
+}
+.expo-product-row:last-child { border-bottom: none; }
+.expo-product-row-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.expo-product-sku {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-3);
+  background: var(--surface-3);
+  padding: 2px 5px;
+  flex-shrink: 0;
+}
+.expo-product-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.expo-product-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.expo-product-presenters {
+  display: flex;
+  gap: 4px;
+}
+.expo-presenter-chip {
+  width: 22px;
+  height: 22px;
+  background: var(--ac, var(--gold));
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-weight: 800;
+  border: 1.5px solid #000;
+  flex-shrink: 0;
+}
+
+/* ── Expo Create/Edit Modal — agents checkboxes ── */
+.expo-agent-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+}
+.expo-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 5px 8px;
+  border: 1px solid var(--surface-3);
+  transition: border-color 0.15s;
+  font-size: 12px;
+}
+.expo-checkbox-label:hover { border-color: var(--gold); }
+.expo-checkbox-label input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--gold); }
+
+/* ── Expo product form rows (inside create/edit modal) ── */
+.expo-product-form-row {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.expo-product-form-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.expo-product-select { font-size: 13px; }
+.expo-presenter-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--surface-3);
+}
+.expo-presenter-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 1px;
+  margin-right: 4px;
+}
+.expo-presenter-cb-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border: 1px solid var(--surface-3);
+  font-size: 11px;
+  transition: border-color 0.15s;
+}
+.expo-presenter-cb-label:hover { border-color: var(--gold); }
+.expo-presenter-cb-label input[type="checkbox"] { width: 12px; height: 12px; accent-color: var(--gold); }
+.expo-presenter-chip-sm {
+  width: 18px; height: 18px;
+  background: var(--ac, var(--gold));
+  color: #000;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-size: 7px;
+  font-weight: 800;
+  border: 1.5px solid #000;
+  flex-shrink: 0;
+}
+
+/* ── Expo Lead Capture — multi-select products ── */
+.expo-product-multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+  padding: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.expo-product-cb-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+  font-size: 13px;
+}
+.expo-product-cb-label:hover { border-color: var(--surface-4); background: var(--surface-3); }
+.expo-product-cb-label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--gold); flex-shrink: 0; }
+.expo-product-cb-label.all-option {
+  border-bottom: 1px solid var(--surface-3);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.expo-product-cb-label.others-option {
+  border-top: 1px solid var(--surface-3);
+  margin-top: 4px;
+  padding-top: 8px;
+  color: var(--text-2);
+  font-style: italic;
+}
+
+/* ── Expo Lead prefill banner ── */
+.expo-lead-prefill-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(240,190,24,0.06);
+  border: 1px solid rgba(240,190,24,0.2);
+  margin-bottom: 16px;
+}
+.expo-lead-prefill-banner:empty { display: none; }
+.expo-lead-banner-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+
+/* ── Modal footer actions (Cancel / Submit row) ── */
+.modal-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-3);
+  margin-top: 8px;
+}
+
+/* ── Expo header actions (create button row) ── */
+.expo-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
+/* ── Empty state ── */
+.empty-title { font-family: var(--font-display); font-size: 20px; color: var(--text-2); margin-bottom: 8px; }
+.empty-sub   { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+
+/* Mobile: expo product rows stack */
+@media (max-width: 480px) {
+  .expo-product-row { flex-wrap: wrap; }
+  .expo-product-row-right { width: 100%; justify-content: flex-end; }
+  .expo-card-menu-actions { gap: 4px; }
+  .expo-product-form-header { flex-direction: column; align-items: stretch; }
+}
