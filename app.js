@@ -1217,6 +1217,7 @@ function renderExpos() {
       <div class="expo-card-actions">
         <button class="neo-btn yellow sm" onclick="openExpoLeadModal('${eid}')">📋 Add Lead</button>
         <button class="neo-btn outline sm" onclick="openReferrerModal('${eid}','${ename}')">👥 Referrers</button>
+        <button class="neo-btn outline sm" onclick="downloadReferrerSheet('${eid}','${ename}')">📥 Sheet</button>
         ${e.status === 'past' ? `<button class="neo-btn outline sm">📄 Report</button>` : ''}
       </div>
     </div>`;
@@ -2318,6 +2319,90 @@ window.deleteReferrer = async function(expoId, uid) {
 
 document.getElementById('referrerModalClose')?.addEventListener('click', () => document.getElementById('referrerModal').classList.remove('open'));
 document.getElementById('referrerModal')?.addEventListener('click', e => { if (e.target === document.getElementById('referrerModal')) document.getElementById('referrerModal').classList.remove('open'); });
+
+/* Download sheet button inside referrer modal */
+document.getElementById('downloadReferrerSheetBtn')?.addEventListener('click', () => {
+  if (_currentReferrerExpoId) {
+    const expo = S.expos.find(e => e.id === _currentReferrerExpoId);
+    downloadReferrerSheet(_currentReferrerExpoId, expo?.name || 'Expo');
+  }
+});
+
+/* ═══════════ EXPO REFERRER CREDENTIALS SHEET ═══════════ */
+window.downloadReferrerSheet = async function(expoId, expoName) {
+  if (typeof XLSX === 'undefined') {
+    flash('Excel library not loaded yet — try again in a moment', 'error');
+    return;
+  }
+
+  flash('Generating sheet…');
+  let referrers = [];
+  try {
+    const res = await api('GET', `/expos/${expoId}/referrers`);
+    referrers = res.data || [];
+  } catch (err) {
+    flash(err.message || 'Failed to fetch referrers', 'error');
+    return;
+  }
+
+  const expo    = S.expos.find(e => e.id === expoId) || {};
+  const wb      = XLSX.utils.book_new();
+  const now     = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+
+  /* ── Sheet 1: Expo Summary ── */
+  const summaryRows = [
+    ['IINVSYS — Expo Referrer Credentials Sheet'],
+    ['Generated:', now],
+    [],
+    ['Expo Name',   expo.name  || expoName],
+    ['Venue',       expo.venue || '—'],
+    ['Dates',       expo.dates || '—'],
+    ['Status',      (expo.status || '—').toUpperCase()],
+    ['Total Leads', expo.leadCount || 0],
+    [],
+    ['Products Presented'],
+    ...(expo.products || []).map(p => ['', p.name || p.productId]),
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+  wsSummary['!cols'] = [{ wch: 20 }, { wch: 40 }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Expo Summary');
+
+  /* ── Sheet 2: Referrer Credentials ── */
+  const headers = ['#', 'Name', 'Login Email', 'Temp Password', 'Expires On', 'Leads Captured', 'Status'];
+  const rows = referrers.map((r, i) => {
+    const exp    = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : 'No Expiry';
+    const active = !r.expiresAt || new Date() < new Date(r.expiresAt);
+    return [
+      i + 1,
+      r.name,
+      r.email,
+      '(set at creation — not stored)',
+      exp,
+      r.leadCount || 0,
+      active ? 'Active' : 'Expired',
+    ];
+  });
+
+  if (rows.length === 0) {
+    rows.push(['—', 'No referrers created yet', '', '', '', '', '']);
+  }
+
+  const wsRefs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  wsRefs['!cols'] = [{ wch: 4 }, { wch: 22 }, { wch: 42 }, { wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 10 }];
+
+  /* Bold the header row */
+  headers.forEach((_, ci) => {
+    const cell = wsRefs[XLSX.utils.encode_cell({ r: 0, c: ci })];
+    if (cell) cell.s = { font: { bold: true } };
+  });
+
+  XLSX.utils.book_append_sheet(wb, wsRefs, 'Referrer Credentials');
+
+  /* ── Download ── */
+  const safeName = expoName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  XLSX.writeFile(wb, `${safeName}_referrer_credentials.xlsx`);
+  flash('Sheet downloaded!', 'success');
+};
 
 /* ═══════════ AGENT HARD DELETE ═══════════ */
 window.hardDeleteAgent = function(agentId, agentName) {

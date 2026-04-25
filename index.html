@@ -10,6 +10,7 @@
 <link href="https://fonts.cdnfonts.com/css/gilroy-free" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -952,7 +953,10 @@
         <button class="copy-btn" id="copyPassBtn">Copy</button>
       </div>
     </div>
-    <div class="referrer-list-label">// ACTIVE REFERRERS</div>
+    <div class="referrer-list-label" style="display:flex;align-items:center;justify-content:space-between">
+      <span>// ACTIVE REFERRERS</span>
+      <button class="neo-btn outline xs" id="downloadReferrerSheetBtn">📥 Download Sheet</button>
+    </div>
     <div class="referrer-list" id="referrerList"><!-- rendered by JS --></div>
   </div>
 </div>
