@@ -202,6 +202,7 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   document.getElementById('loginPage').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   await initApp();
+  btnLoad(signBtn, false); // reset button after app is ready
 });
 
 
@@ -218,7 +219,11 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
   document.getElementById('app').classList.add('hidden');
   document.getElementById('loginPage').classList.remove('hidden');
   document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').classList.add('hidden');
   analyticsInit = false;
+  // Reset sign-in button in case user logged out while it was stuck
+  const signBtn = document.querySelector('#loginForm [type=submit]');
+  if (signBtn) btnLoad(signBtn, false);
 });
 
 /* ═══════════ DATA LOADING ═══════════ */
@@ -345,6 +350,16 @@ function populateAgentDropdowns() {
       const opt = document.createElement('option');
       opt.value = a.id; opt.textContent = a.name;
       leadAgentSel.appendChild(opt);
+    });
+  }
+  /* Populate the lead-form expo dropdown from live S.expos */
+  const leadExpoSel = document.getElementById('leadExpo');
+  if (leadExpoSel) {
+    leadExpoSel.innerHTML = '<option value="">— Select Expo —</option>';
+    S.expos.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = ex.id; opt.textContent = ex.name;
+      leadExpoSel.appendChild(opt);
     });
   }
 }
@@ -720,11 +735,26 @@ function openLeadModal(leadId) {
   const delBtn = document.getElementById('deleteLeadBtn');
   delBtn.classList.toggle('hidden', isNew || !isAdmin());
 
+  // Always refresh expo dropdown with latest S.expos
+  const leadExpoSel = document.getElementById('leadExpo');
+  if (leadExpoSel) {
+    leadExpoSel.innerHTML = '<option value="">— Select Expo —</option>';
+    S.expos.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = ex.id; opt.textContent = ex.name;
+      leadExpoSel.appendChild(opt);
+    });
+  }
+
   // Populate product checkboxes
   const tagWrap = document.getElementById('leadProductTags');
-  tagWrap.innerHTML = S.products.map(p =>
-    `<label class="ptag-check" data-pid="${p.id}"><input type="checkbox" value="${p.id}"/><span>${p.name}</span></label>`
-  ).join('');
+  if (S.products.length === 0) {
+    tagWrap.innerHTML = '<span style="font-size:12px;color:var(--text-3);opacity:0.7">No products configured yet</span>';
+  } else {
+    tagWrap.innerHTML = S.products.map(p =>
+      `<label class="ptag-check" data-pid="${p.id}"><input type="checkbox" value="${p.id}"/><span>${p.name}</span></label>`
+    ).join('');
+  }
 
   if (isNew) {
     form.reset();
@@ -739,7 +769,7 @@ function openLeadModal(leadId) {
     document.getElementById('leadEmail').value    = l.email;
     document.getElementById('leadStage').value    = l.stage;
     document.getElementById('leadSource').value   = l.source;
-    document.getElementById('leadExpo').value     = l.expo;
+    document.getElementById('leadExpo').value     = l.expoId || '';
     document.getElementById('leadAgent').value    = l.agentId || '';
     document.getElementById('leadValue').value    = l.value   || '';
     document.getElementById('leadNotes').value    = l.notes   || '';
@@ -782,11 +812,13 @@ document.getElementById('leadForm').addEventListener('submit', async e => {
   if (!name || !phone) { flash('Name and Phone are required', 'error'); return; }
 
   const products = Array.from(document.querySelectorAll('#leadProductTags input:checked')).map(c => c.value);
+  const expoVal  = document.getElementById('leadExpo').value;
   const payload  = {
     name, phone,
     email:         document.getElementById('leadEmail').value.trim(),
     stage:         document.getElementById('leadStage').value,
     source:        document.getElementById('leadSource').value  || 'direct',
+    expo:          expoVal || undefined,
     assignedAgent: document.getElementById('leadAgent').value   || S.agents.find(a=>a.status==='active')?.id,
     value:         parseInt(document.getElementById('leadValue').value) || 0,
     notes:         document.getElementById('leadNotes').value.trim(),
@@ -969,8 +1001,9 @@ document.getElementById('agentForm')?.addEventListener('submit', async e => {
   const phone = document.getElementById('agentPhone').value.trim();
   const territory = document.getElementById('agentTerritory').value.trim();
   if (!name || !email || !phone || !territory) { flash('Name, email, phone and territory are required', 'error'); return; }
+  const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 3) || name.charAt(0).toUpperCase();
   const payload = {
-    name, email, phone, territory,
+    name, email, phone, territory, initials,
     designation: document.getElementById('agentDesignation').value.trim() || 'Sales Agent',
     target:      parseInt(document.getElementById('agentTarget').value) || 0,
     color:       document.getElementById('agentColor').value,
