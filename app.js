@@ -186,18 +186,6 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   }
 });
 
-// Demo credential fill buttons
-document.querySelectorAll('.demo-cred-row').forEach(row => {
-  row.querySelector('.demo-fill-btn').addEventListener('click', e => {
-    e.stopPropagation();
-    document.getElementById('loginEmail').value    = row.dataset.email;
-    document.getElementById('loginPassword').value = row.dataset.pass;
-  });
-  row.addEventListener('click', () => {
-    document.getElementById('loginEmail').value    = row.dataset.email;
-    document.getElementById('loginPassword').value = row.dataset.pass;
-  });
-});
 
 document.getElementById('pwdToggle').addEventListener('click', () => {
   const inp = document.getElementById('loginPassword');
