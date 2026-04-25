@@ -34,12 +34,19 @@ router.post('/bulk',
   ctrl.bulkImport
 );
 
+/* PRD 4 + cross-cutting telemetry. Static routes before /:id patterns. */
+router.post('/check-duplicate', ...referrerAuth, ctrl.checkDuplicate);
+router.post('/telemetry',       authenticate,    ctrl.logTelemetry);
+
 router.get('/',   ...referrerAuth, ctrl.listLeads);   // referrers see their expo's leads
 router.post('/',  ...referrerAuth, createValidation, ctrl.createLead);
 
 router.get('/:id',    ...referrerAuth, ctrl.getLead);
 router.put('/:id',    ...referrerAuth, updateValidation, ctrl.updateLead); // referrers edit own leads only
 router.delete('/:id', authenticate, requireMinRole('manager'), scopeToAgent, ctrl.deleteLead);
+
+/* PRD 4 — POST /api/leads/:id/merge (target=:id, sourceId in body) */
+router.post('/:id/merge', ...auth, ctrl.mergeLead);
 
 /* POST /api/leads/:id/followups */
 router.post('/:id/followups',

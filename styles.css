@@ -2892,3 +2892,139 @@ button[data-loading="true"] {
 }
 .ref-lead-time     { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
 .ref-read-only-tag { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); letter-spacing: 1px; }
+
+/* ═══════ PRD 1: Confidence Bands + Re-scan Banner ═══════ */
+.form-input.cband-low {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 2px rgba(255, 61, 31, 0.18);
+}
+.form-input.cband-med {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(240, 190, 24, 0.16);
+}
+.form-input.cband-high {
+  border-color: var(--emerald);
+}
+.confidence-hint {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+.confidence-hint.cband-low  { color: var(--coral); }
+.confidence-hint.cband-med  { color: var(--gold); }
+.confidence-hint.cband-high { color: var(--emerald); }
+
+.scan-rescan-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: rgba(255, 61, 31, 0.08);
+  border: 1px solid var(--coral);
+  border-left: 4px solid var(--coral);
+  border-radius: 4px;
+}
+.srb-icon { color: var(--coral); font-size: 18px; }
+.srb-text { color: var(--text-2); font-size: 13px; flex: 1; }
+.neo-btn.xs {
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+}
+
+/* ═══════ PRD 4: Duplicate Match Panel + Merge UI ═══════ */
+.dupe-match-panel {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: rgba(41, 121, 255, 0.08);
+  border: 1px solid var(--azure);
+  border-left: 4px solid var(--azure);
+  border-radius: 4px;
+}
+.dupe-match-panel.strong {
+  background: rgba(255, 61, 31, 0.08);
+  border-color: var(--coral);
+  border-left-color: var(--coral);
+}
+.dmp-header {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-2);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.dupe-match-panel.strong .dmp-header { color: var(--coral); }
+.dmp-match {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--surface-3);
+}
+.dmp-match:first-of-type { border-top: none; }
+.dmp-match-info { flex: 1; min-width: 0; }
+.dmp-match-name {
+  font-weight: 600;
+  color: var(--text-1, #E8E8E8);
+  font-size: 14px;
+}
+.dmp-match-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono, monospace);
+  margin-top: 2px;
+  word-break: break-all;
+}
+.dmp-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.dmp-actions .neo-btn { padding: 4px 10px; font-size: 11px; letter-spacing: 0.5px; }
+
+.merge-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr;
+  gap: 6px;
+  font-size: 13px;
+}
+.merge-grid .mg-h {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--surface-3);
+}
+.merge-grid .mg-label {
+  color: var(--text-2);
+  font-weight: 600;
+  align-self: center;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.merge-grid .mg-cell {
+  padding: 8px 12px;
+  border: 1px solid var(--surface-3);
+  border-radius: 3px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-2);
+  font-size: 13px;
+  word-break: break-word;
+  transition: border-color 0.15s, background 0.15s;
+}
+.merge-grid .mg-cell.empty {
+  color: var(--text-3);
+  font-style: italic;
+}
+.merge-grid .mg-cell:hover { border-color: var(--gold); }
+.merge-grid .mg-cell.selected {
+  border-color: var(--gold);
+  background: rgba(240, 190, 24, 0.1);
+  color: var(--text-1, #E8E8E8);
+  box-shadow: 2px 2px 0 var(--gold);
+}

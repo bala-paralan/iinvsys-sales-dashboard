@@ -10,10 +10,36 @@ const FollowUpSchema = new mongoose.Schema({
   timestamp:      { type: Date, default: Date.now },
 }, { _id: true });
 
+/* PRD 1 — per-field OCR provenance.
+   Each field captured by scan stores its band (high/med/low), the original
+   OCR value, and whether the rep edited it before save. */
+const OcrFieldSchema = new mongoose.Schema({
+  band:          { type: String, enum: ['high','med','low'], required: true },
+  originalValue: { type: String, default: '' },
+  rawConfidence: { type: Number, min: 0, max: 1 },
+  corrected:     { type: Boolean, default: false },
+}, { _id: false });
+
+const OcrCaptureSchema = new mongoose.Schema({
+  scannedAt:    { type: Date, default: Date.now },
+  ocrEngine:    { type: String, default: 'tesseract.js@5' },
+  fields:       { type: Map, of: OcrFieldSchema, default: {} },
+}, { _id: false });
+
+/* PRD 4 — when the rep created a new lead despite a duplicate match,
+   record what they overrode and why. */
+const DupeOverrideSchema = new mongoose.Schema({
+  matchedLeadId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' },
+  reason:          { type: String, enum: ['different-person','different-role','other'], required: true },
+  reasonDetail:    { type: String, trim: true, default: '' },
+  overriddenAt:    { type: Date, default: Date.now },
+}, { _id: false });
+
 const LeadSchema = new mongoose.Schema({
   name:          { type: String, required: true, trim: true },
   phone:         { type: String, required: true, trim: true },
   email:         { type: String, lowercase: true, trim: true, default: '' },
+  company:       { type: String, trim: true, default: '' },
   source:        { type: String, enum: ['expo','referral','direct','digital'], required: true },
   expo:          { type: mongoose.Schema.Types.ObjectId, ref: 'Expo', default: null },
   stage:         { type: String, enum: ['new','contacted','interested','proposal','negotiation','won','lost'], default: 'new' },
@@ -27,6 +53,8 @@ const LeadSchema = new mongoose.Schema({
   followUps:     [FollowUpSchema],
   lastContact:   { type: Date, default: null },
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  ocrCapture:    { type: OcrCaptureSchema, default: null },
+  dupeOverride:  { type: DupeOverrideSchema, default: null },
 }, { timestamps: true });
 
 /* Indexes for common query patterns */

@@ -733,6 +733,12 @@ function openLeadModal(leadId) {
   const form  = document.getElementById('leadForm');
   const isNew = !leadId;
 
+  /* PRD 1/4 — reset transient scan + dupe state on every open */
+  ['leadName','leadPhone','leadEmail','leadCompany'].forEach(clearConfidence);
+  const banner = document.getElementById('scanRescanBanner'); if (banner) banner.hidden = true;
+  const dupePanel = document.getElementById('dupeMatchPanel'); if (dupePanel) { dupePanel.hidden = true; dupePanel.innerHTML = ''; }
+  _dupeState.matches = []; _dupeState.pendingPayload = null; _dupeState.pendingBtn = null;
+
   document.getElementById('leadModalEyebrow').textContent = isNew ? '// QUICK CAPTURE' : '// EDIT LEAD';
   document.getElementById('leadModalTitle').innerHTML     = isNew ? 'New <em>Lead</em>' : 'Edit <em>Lead</em>';
   document.getElementById('leadSubmitBtn').textContent    = isNew ? 'Capture Lead →' : 'Save Changes →';
@@ -808,6 +814,54 @@ document.getElementById('leadModalClose').addEventListener('click',  () => docum
 document.getElementById('leadModalCancel').addEventListener('click', () => document.getElementById('leadModal').classList.remove('open'));
 document.getElementById('leadModal').addEventListener('click', e => { if (e.target === document.getElementById('leadModal')) document.getElementById('leadModal').classList.remove('open'); });
 
+/* PRD 1 AC4 — gather OCR provenance from input dataset attrs into a Map-shaped object */
+function collectOcrCapture() {
+  const fields = {};
+  for (const [logical, inputId] of [['name','leadName'],['phone','leadPhone'],['email','leadEmail'],['company','leadCompany']]) {
+    const el = document.getElementById(inputId);
+    if (!el || !el.dataset.cband) continue;
+    const conf = parseFloat(el.dataset.ocrConfidence);
+    fields[logical] = {
+      band:          el.dataset.cband,
+      originalValue: el.dataset.ocrOriginal || '',
+      rawConfidence: isNaN(conf) ? undefined : conf,
+      corrected:     el.dataset.corrected === 'true',
+    };
+  }
+  if (!Object.keys(fields).length) return undefined;
+  return { scannedAt: new Date().toISOString(), ocrEngine: 'tesseract.js@5', fields };
+}
+
+/* PRD 1 AC3 — confirm dialog when saving with any unedited Low-band field */
+function lowConfidenceFieldsRemaining() {
+  const out = [];
+  for (const inputId of ['leadName','leadPhone','leadEmail','leadCompany']) {
+    const el = document.getElementById(inputId);
+    if (el?.dataset.cband === 'low' && el.dataset.corrected !== 'true' && el.value.trim()) {
+      out.push(inputId);
+    }
+  }
+  return out;
+}
+
+async function _persistLead({ id, payload, btn }) {
+  if (id) {
+    await api('PUT', `/leads/${id}`, payload);
+    flash('Lead updated successfully');
+  } else {
+    const res = await api('POST', '/leads', payload);
+    const newId = res.data?._id || res._id;
+    logTelemetry('scan_saved', {}, newId);
+    flash('Lead captured!');
+  }
+  await loadAllData(true);
+  updateNavCounts();
+  document.getElementById('leadModal').classList.remove('open');
+  renderKanban(getFilters());
+  if (isAgent()) renderMyLeads();
+  if (document.getElementById('page-overview').classList.contains('active')) renderKPIs();
+}
+
 document.getElementById('leadForm').addEventListener('submit', async e => {
   e.preventDefault();
   const id    = document.getElementById('leadIdInput').value;
@@ -817,9 +871,11 @@ document.getElementById('leadForm').addEventListener('submit', async e => {
 
   const products = Array.from(document.querySelectorAll('#leadProductTags input:checked')).map(c => c.value);
   const expoVal  = document.getElementById('leadExpo').value;
+  const ocrCapture = collectOcrCapture();
   const payload  = {
     name, phone,
     email:         document.getElementById('leadEmail').value.trim(),
+    company:       document.getElementById('leadCompany')?.value?.trim() || '',
     stage:         document.getElementById('leadStage').value,
     source:        document.getElementById('leadSource').value  || 'direct',
     expo:          expoVal || undefined,
@@ -827,29 +883,85 @@ document.getElementById('leadForm').addEventListener('submit', async e => {
     value:         parseInt(document.getElementById('leadValue').value) || 0,
     notes:         document.getElementById('leadNotes').value.trim(),
     products,
+    ocrCapture,
   };
 
   const btn = document.getElementById('leadSubmitBtn');
+
+  /* PRD 1 AC3 — confirm if low-confidence fields remain */
+  const lowFields = lowConfidenceFieldsRemaining();
+  if (!id && lowFields.length) {
+    const proceed = window.confirm(`${lowFields.length} field${lowFields.length > 1 ? 's look' : ' looks'} uncertain — save anyway?`);
+    logTelemetry('scan_save_with_low_confidence', { lowFields, accepted: proceed });
+    if (!proceed) return;
+  }
+
+  /* PRD 4 — final dupe check before save (only on new leads) */
+  if (!id) {
+    const matches = await runDuplicateCheck();
+    if (matches?.length) {
+      /* Stop — user must explicitly choose Open / Merge / Save as new from the panel.
+         Add a one-shot "Save as new" button if not already present. */
+      ensureSaveAsNewAffordance(payload, btn);
+      btnLoad(btn, false);
+      return;
+    }
+  }
+
   btnLoad(btn, true, id ? 'Saving…' : 'Capturing…');
   try {
-    if (id) {
-      await api('PUT', `/leads/${id}`, payload);
-      flash('Lead updated successfully');
-    } else {
-      await api('POST', '/leads', payload);
-      flash('Lead captured!');
-    }
-    await loadAllData(true);
-    updateNavCounts();
-    document.getElementById('leadModal').classList.remove('open');
-    renderKanban(getFilters());
-    if (isAgent()) renderMyLeads();
-    if (document.getElementById('page-overview').classList.contains('active')) renderKPIs();
+    await _persistLead({ id, payload, btn });
   } catch (err) {
     flash(err.message || 'Failed to save lead', 'error');
   } finally {
     btnLoad(btn, false);
   }
+});
+
+/* PRD 4 AC6 — when a duplicate match is shown, add a "Save as new" affordance
+   to the dupe panel that triggers the reason modal. */
+function ensureSaveAsNewAffordance(payload, originalBtn) {
+  const panel = document.getElementById('dupeMatchPanel');
+  if (!panel || panel.hidden) return;
+  if (panel.querySelector('[data-dmp-action="save-anyway"]')) return; // already added
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--surface-3);text-align:right';
+  wrap.innerHTML = `<button type="button" class="neo-btn outline" data-dmp-action="save-anyway">Save as new lead anyway</button>`;
+  panel.appendChild(wrap);
+  wrap.querySelector('button').addEventListener('click', () => {
+    _dupeState.pendingPayload = payload;
+    _dupeState.pendingBtn = originalBtn;
+    document.getElementById('dupeReasonModal').classList.add('open');
+  });
+}
+
+/* Wire reason modal */
+document.addEventListener('DOMContentLoaded', () => {
+  const close = () => document.getElementById('dupeReasonModal')?.classList.remove('open');
+  document.getElementById('dupeReasonClose')?.addEventListener('click', close);
+  document.getElementById('dupeReasonCancel')?.addEventListener('click', close);
+  document.getElementById('dupeReasonConfirm')?.addEventListener('click', async () => {
+    const reason = document.getElementById('dupeReasonSelect').value;
+    if (!reason) { flash('Please pick a reason', 'error'); return; }
+    const detail = document.getElementById('dupeReasonDetail').value.trim();
+    const payload = _dupeState.pendingPayload;
+    if (!payload) { close(); return; }
+    payload.dupeOverride = {
+      matchedLeadId: _dupeState.matches[0]?.lead?.id,
+      reason, reasonDetail: detail,
+    };
+    const btn = _dupeState.pendingBtn;
+    btnLoad(btn, true, 'Capturing…');
+    try {
+      await _persistLead({ id: '', payload, btn });
+      logTelemetry('scan_dedupe_save_anyway', { reason, matchedLeadId: payload.dupeOverride.matchedLeadId });
+      close();
+    } catch (err) {
+      flash(err.message || 'Failed to save lead', 'error');
+    } finally {
+      btnLoad(btn, false);
+    }
+  });
 });
 
 /* ── New lead buttons ── */
@@ -2572,13 +2684,106 @@ window.hardDeleteAgent = function(agentId, agentName) {
 };
 
 /* ═══════════ CAMERA / OCR ═══════════ */
+/* PRD 1 — confidence bands per field.
+   Tesseract returns word-level confidence (0-100). For each extracted
+   field we average the confidences of the words it spans, then map to
+   a band (configurable thresholds — defaults from the PRD). */
+const SCAN_BAND_THRESHOLDS = { high: 0.85, med: 0.60 };
+
+function bandFor(confidence) {
+  if (confidence == null || isNaN(confidence)) return 'med'; // AC graceful degradation
+  if (confidence >= SCAN_BAND_THRESHOLDS.high) return 'high';
+  if (confidence >= SCAN_BAND_THRESHOLDS.med)  return 'med';
+  return 'low';
+}
+
+/* Average word-confidence (0-1) for words whose text appears in `phrase` */
+function confidenceForPhrase(words, phrase) {
+  if (!phrase || !words?.length) return null;
+  const tokens = String(phrase).toLowerCase().match(/[\w@.+-]+/g) || [];
+  if (!tokens.length) return null;
+  const scores = [];
+  for (const t of tokens) {
+    const w = words.find(w => (w.text || '').toLowerCase().includes(t) || t.includes((w.text || '').toLowerCase()));
+    if (w && typeof w.confidence === 'number') scores.push(w.confidence / 100);
+  }
+  if (!scores.length) return null;
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
+/* Apply band to a form input + its hint span; fire telemetry */
+function applyConfidence(inputId, value, confidence, leadIdForTelemetry = null) {
+  const el = document.getElementById(inputId);
+  if (!el) return null;
+  const hasValue = value != null && String(value).trim() !== '';
+  /* AC edge-case: empty field → low regardless of OCR score */
+  const band = !hasValue ? 'low' : bandFor(confidence);
+
+  if (hasValue) el.value = String(value).trim();
+  el.classList.remove('cband-low','cband-med','cband-high');
+  el.classList.add('cband-' + band);
+  el.dataset.cband = band;
+  el.dataset.ocrOriginal = hasValue ? String(value).trim() : '';
+  el.dataset.ocrConfidence = confidence != null ? String(confidence) : '';
+
+  const hintId = inputId + '-band';
+  const hint = document.getElementById(hintId);
+  if (hint) {
+    hint.hidden = false;
+    hint.textContent = band === 'low'  ? '⚠ Low confidence — please verify'
+                     : band === 'med'  ? '~ Medium confidence — double-check'
+                     : '✓ High confidence';
+    hint.className = 'confidence-hint cband-' + band;
+    /* AC7 screen-reader: aria-describedby is already wired in the markup,
+       so the hint text is announced when the input gains focus. */
+  }
+
+  /* AC8 telemetry — fire once per band assignment */
+  logTelemetry('scan_field_confidence_band', { field: inputId, band, confidence }, leadIdForTelemetry);
+
+  /* Track edits — promote to "corrected" if user changes the value */
+  el.removeEventListener('input', el._cbandEditHandler || (() => {}));
+  el._cbandEditHandler = () => {
+    if (el.value.trim() !== el.dataset.ocrOriginal) {
+      el.dataset.corrected = 'true';
+      logTelemetry('scan_field_corrected', { field: inputId, fromBand: band });
+    } else {
+      delete el.dataset.corrected;
+    }
+  };
+  el.addEventListener('input', el._cbandEditHandler);
+
+  return band;
+}
+
+function clearConfidence(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.classList.remove('cband-low','cband-med','cband-high');
+  delete el.dataset.cband;
+  delete el.dataset.ocrOriginal;
+  delete el.dataset.ocrConfidence;
+  delete el.dataset.corrected;
+  const hint = document.getElementById(inputId + '-band');
+  if (hint) { hint.hidden = true; hint.textContent = ''; }
+}
+
+/* Telemetry helper — fire-and-forget, non-blocking, swallows errors. */
+function logTelemetry(eventName, metadata = {}, leadId = null) {
+  try {
+    if (!_token) return; // not signed in
+    api('POST', '/leads/telemetry', { eventName, metadata, leadId }).catch(() => {});
+  } catch (e) { /* never let telemetry break the flow */ }
+}
+
 async function processCardImage(file, fieldMap) {
-  /* Disable whichever scan button triggered this */
   const scanBtns = [
     document.getElementById('cameraScanBtn'),
     document.getElementById('refCameraBtn'),
+    document.getElementById('scanRescanBtn'),
   ];
   scanBtns.forEach(b => btnLoad(b, true, '🔍 Scanning…'));
+  logTelemetry('scan_started', { fieldMap });
   try {
     const result = await Tesseract.recognize(file, 'eng', {
       logger: m => {
@@ -2588,14 +2793,13 @@ async function processCardImage(file, fieldMap) {
         else if (m.status === 'recognizing text')             showLoader('Recognising… ' + Math.round((m.progress || 0) * 100) + '%');
       },
     });
-    const text = result.data.text;
+    const text  = result.data.text || '';
+    const words = result.data.words || [];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    /* Extract fields with regex */
-    /* Email */
+    /* ── Field extraction (unchanged heuristics) ── */
     const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
 
-    /* Phone: Indian mobile (with optional +91, spaces, dashes) OR any 10-digit sequence per line */
     let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
     if (!phoneRaw) {
       for (const ln of lines) {
@@ -2606,43 +2810,264 @@ async function processCardImage(file, fieldMap) {
     const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g, '') : null;
     const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
 
-    /* Company: line with common business suffixes */
     const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
 
-    /* Name: strategy 1 — two consecutive ALL-CAPS words (e.g. TIM MARGO) */
     const allCapsMatch = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
-    /* Name: strategy 2 — first readable line that isn't a phone/email/URL/company */
     const fallbackName = lines.find(l =>
       l.length > 2 && l.length < 60 &&
-      !l.match(/^\//) &&                       // skip lines starting with OCR slash artifact
+      !l.match(/^\//) &&
       !l.match(/[@\\]/) &&
       !l.toLowerCase().includes('www') &&
-      !/^\+?[\d\s\-().]+$/.test(l) &&          // skip pure phone/digit lines
+      !/^\+?[\d\s\-().]+$/.test(l) &&
       l !== companyLine
     );
     const nameLine = allCapsMatch ? (allCapsMatch[1] + ' ' + allCapsMatch[2]) : fallbackName;
 
-    const setField = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = String(val).trim(); };
-    setField(fieldMap.name,    nameLine);
-    setField(fieldMap.phone,   phone);
-    setField(fieldMap.email,   emailMatch?.[0]);
-    setField(fieldMap.company, companyLine);
-    /* Always dump raw OCR text into notes so user can verify / correct */
-    if (fieldMap.notes && !fieldMap.company) setField(fieldMap.notes, text.trim().substring(0, 400));
-
-    const filled = [nameLine, phone, emailMatch?.[0]].filter(Boolean).length;
-    if (filled > 0) {
-      flash(`Card scanned — ${filled} field${filled > 1 ? 's' : ''} filled. Review before saving.`);
-    } else {
-      flash('Card text unclear — raw text saved to Notes. Fill fields manually.', 'warn');
+    /* ── Apply per-field confidence (PRD 1) ── */
+    const fieldValues = {
+      name:    { id: fieldMap.name,    value: nameLine,         conf: confidenceForPhrase(words, nameLine) },
+      phone:   { id: fieldMap.phone,   value: phone,            conf: confidenceForPhrase(words, phoneRaw?.[0]) },
+      email:   { id: fieldMap.email,   value: emailMatch?.[0],  conf: confidenceForPhrase(words, emailMatch?.[0]) },
+      company: { id: fieldMap.company, value: companyLine,      conf: confidenceForPhrase(words, companyLine) },
+    };
+    const bands = {};
+    for (const [key, f] of Object.entries(fieldValues)) {
+      if (f.id) bands[key] = applyConfidence(f.id, f.value, f.conf);
     }
+
+    /* Notes always gets the raw text for fallback verification */
+    if (fieldMap.notes) {
+      const notesEl = document.getElementById(fieldMap.notes);
+      if (notesEl) notesEl.value = text.trim().substring(0, 400);
+    }
+
+    /* AC5 — re-scan CTA when >50% of fields are Low */
+    const bandValues = Object.values(bands);
+    const lowCount   = bandValues.filter(b => b === 'low').length;
+    const banner = document.getElementById('scanRescanBanner');
+    if (banner) banner.hidden = !(bandValues.length && lowCount / bandValues.length > 0.5);
+
+    const filled = bandValues.filter(b => b !== 'low').length;
+    logTelemetry('scan_completed', { bands, lowCount, totalFields: bandValues.length });
+    if (filled > 0) {
+      flash(`Card scanned — ${filled} field${filled > 1 ? 's' : ''} above low confidence. Review before saving.`);
+    } else {
+      flash('Card text unclear — please fix the highlighted fields or re-scan.', 'warn');
+    }
+
+    /* PRD 4 — fire duplicate check in parallel with the field render */
+    runDuplicateCheck();
   } catch (err) {
     flash('Could not read card — please fill in manually', 'error');
+    logTelemetry('scan_abandoned', { error: String(err?.message || err) });
   } finally {
     hideLoader();
     scanBtns.forEach(b => btnLoad(b, false));
   }
 }
+
+/* ═══════════ PRD 4: DUPLICATE DETECTION ═══════════ */
+/* In-flight state for the lead-modal dupe check */
+const _dupeState = {
+  matches:        [],     // ranked list from the API
+  pendingPayload: null,   // payload waiting on save-anyway-with-reason
+  pendingBtn:     null,
+};
+
+async function runDuplicateCheck() {
+  const panel = document.getElementById('dupeMatchPanel');
+  if (!panel) return;
+  const payload = {
+    name:    document.getElementById('leadName')?.value?.trim()    || '',
+    phone:   document.getElementById('leadPhone')?.value?.trim()   || '',
+    email:   document.getElementById('leadEmail')?.value?.trim()   || '',
+    company: document.getElementById('leadCompany')?.value?.trim() || '',
+  };
+  if (!payload.name && !payload.phone && !payload.email) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    _dupeState.matches = [];
+    return [];
+  }
+  /* Don't dupe-check edits to existing leads against themselves */
+  const editingId = document.getElementById('leadIdInput')?.value || '';
+  try {
+    const res = await api('POST', '/leads/check-duplicate', payload);
+    const matches = (res.data?.matches || res.matches || []).filter(m => m.lead.id !== editingId);
+    _dupeState.matches = matches;
+    renderDupeMatchPanel(matches);
+    if (matches.length) logTelemetry('scan_dedupe_match_found', { count: matches.length, top: matches[0]?.strength });
+    return matches;
+  } catch (err) {
+    panel.hidden = true;
+    return [];
+  }
+}
+
+function renderDupeMatchPanel(matches) {
+  const panel = document.getElementById('dupeMatchPanel');
+  if (!panel) return;
+  if (!matches.length) { panel.hidden = true; panel.innerHTML = ''; return; }
+
+  const strong = matches.find(m => m.strength === 'strong');
+  panel.classList.toggle('strong', !!strong);
+  panel.hidden = false;
+  const headerLabel = strong
+    ? `// LIKELY DUPLICATE — matched on ${strong.reason}`
+    : `// POSSIBLE MATCH${matches.length > 1 ? `ES — ${matches.length} candidates` : ''}`;
+
+  const rows = matches.slice(0, strong ? 1 : 3).map(m => {
+    const l = m.lead;
+    const sub = [l.email || null, l.phone || null, l.company || null, l.assignedAgent?.name || null]
+                  .filter(Boolean).join(' · ');
+    const idAttr = `data-match-id="${l.id}"`;
+    return `
+      <div class="dmp-match">
+        <div class="dmp-match-info">
+          <div class="dmp-match-name">${escapeHtml(l.name)} <span style="color:var(--text-3);font-weight:400;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">· ${escapeHtml(l.stage)}</span></div>
+          <div class="dmp-match-sub">${escapeHtml(sub)}</div>
+        </div>
+        <div class="dmp-actions">
+          <button type="button" class="neo-btn outline" ${idAttr} data-dmp-action="open">Open</button>
+          <button type="button" class="neo-btn yellow"  ${idAttr} data-dmp-action="merge">Merge</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  panel.innerHTML = `<div class="dmp-header">${escapeHtml(headerLabel)}</div>${rows}`;
+  panel.querySelectorAll('[data-dmp-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.matchId;
+      const action = btn.dataset.dmpAction;
+      logTelemetry('scan_dedupe_action', { action, matchId: id });
+      if (action === 'open') {
+        document.getElementById('leadModal').classList.remove('open');
+        openLeadModal(id);
+      } else if (action === 'merge') {
+        openMergeModal(id);
+      }
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+/* Build merge UI: side-by-side per-field winners */
+function openMergeModal(existingLeadId) {
+  const existing = S.leads.find(l => l.id === existingLeadId);
+  if (!existing) { flash('Could not load the existing lead', 'error'); return; }
+
+  const incoming = {
+    name:    document.getElementById('leadName')?.value?.trim()    || '',
+    phone:   document.getElementById('leadPhone')?.value?.trim()   || '',
+    email:   document.getElementById('leadEmail')?.value?.trim()   || '',
+    company: document.getElementById('leadCompany')?.value?.trim() || '',
+    notes:   document.getElementById('leadNotes')?.value?.trim()   || '',
+    value:   document.getElementById('leadValue')?.value           || '',
+    stage:   document.getElementById('leadStage')?.value           || '',
+  };
+  const existingMap = {
+    name: existing.name, phone: existing.phone, email: existing.email,
+    company: existing.company || '', notes: existing.notes || '',
+    value: existing.value || '', stage: existing.stage,
+  };
+
+  const grid = document.getElementById('mergeGrid');
+  grid.innerHTML = `
+    <div class="mg-h"></div>
+    <div class="mg-h">Existing</div>
+    <div class="mg-h">From scan</div>
+    ${['name','phone','email','company','value','stage','notes'].map(f => {
+      const a = existingMap[f]; const b = incoming[f];
+      /* Default winner: PRD 1 says highest-confidence value, else newest non-empty.
+         The scan value is "newest" by definition; pick it when existing is empty
+         OR when the scanned input has a high confidence band. */
+      const incomingEl = document.getElementById('lead' + (f === 'name' ? 'Name' : f.charAt(0).toUpperCase() + f.slice(1)));
+      const incomingBand = incomingEl?.dataset?.cband;
+      const defaultPick = (!a && b) ? 'incoming'
+                        : (a && !b) ? 'existing'
+                        : (incomingBand === 'high') ? 'incoming'
+                        : 'existing';
+      return `
+        <div class="mg-label">${f}</div>
+        <div class="mg-cell ${a ? '' : 'empty'} ${defaultPick==='existing' ? 'selected' : ''}" data-mg-field="${f}" data-mg-side="existing">${escapeHtml(a || '— empty —')}</div>
+        <div class="mg-cell ${b ? '' : 'empty'} ${defaultPick==='incoming' ? 'selected' : ''}" data-mg-field="${f}" data-mg-side="incoming">${escapeHtml(b || '— empty —')}</div>
+      `;
+    }).join('')}
+  `;
+
+  /* Click toggles per-field winner */
+  grid.querySelectorAll('.mg-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const field = cell.dataset.mgField;
+      grid.querySelectorAll(`.mg-cell[data-mg-field="${field}"]`).forEach(c => c.classList.remove('selected'));
+      cell.classList.add('selected');
+    });
+  });
+
+  document.getElementById('mergeModal').classList.add('open');
+  document.getElementById('mergeConfirmBtn').onclick = () => confirmMerge(existingLeadId, incoming);
+  document.getElementById('mergeCancelBtn').onclick  = () => document.getElementById('mergeModal').classList.remove('open');
+  document.getElementById('mergeModalClose').onclick = () => document.getElementById('mergeModal').classList.remove('open');
+}
+
+async function confirmMerge(existingLeadId, incoming) {
+  const grid = document.getElementById('mergeGrid');
+  const fieldChoices = {};
+  /* For each field: 'source' means "use the incoming/scan value", which on
+     the backend means take from the source row. We're not actually creating
+     the source row first — instead, mutate the existing lead in place via
+     the merge endpoint by providing a fake "source" payload. To keep the
+     backend simple we POST a temp lead first, then merge. */
+  grid.querySelectorAll('.mg-cell.selected').forEach(c => {
+    const field = c.dataset.mgField;
+    const side  = c.dataset.mgSide;
+    fieldChoices[field] = (side === 'incoming') ? 'source' : 'target';
+  });
+
+  const btn = document.getElementById('mergeConfirmBtn');
+  btnLoad(btn, true, 'Merging…');
+  try {
+    /* Create the source lead first (so its activity history can be migrated
+       — currently empty, but the schema requires it). Use minimum required fields. */
+    const srcPayload = {
+      name:    incoming.name  || 'Scanned',
+      phone:   incoming.phone || '0000000000',
+      email:   incoming.email,
+      company: incoming.company,
+      notes:   incoming.notes,
+      value:   parseInt(incoming.value) || 0,
+      stage:   incoming.stage || 'new',
+      source:  document.getElementById('leadSource')?.value || 'direct',
+    };
+    const srcRes = await api('POST', '/leads', srcPayload);
+    const srcId  = srcRes.data?._id || srcRes.data?.id || srcRes._id;
+    if (!srcId) throw new Error('Could not stage source lead for merge');
+
+    await api('POST', `/leads/${existingLeadId}/merge`, { sourceId: srcId, fieldChoices });
+    logTelemetry('scan_dedupe_action', { action: 'merge_confirmed', existingLeadId });
+    flash('Leads merged successfully');
+
+    document.getElementById('mergeModal').classList.remove('open');
+    document.getElementById('leadModal').classList.remove('open');
+    await loadAllData(true);
+    updateNavCounts();
+    renderKanban(getFilters());
+  } catch (err) {
+    flash(err.message || 'Merge failed', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+}
+
+/* Wire the Re-scan banner button */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('scanRescanBtn')?.addEventListener('click', () => {
+    document.getElementById('cardCameraInput')?.click();
+  });
+});
 
 /* Wire up the lead modal camera button */
 document.getElementById('cameraScanBtn')?.addEventListener('click', () => {
