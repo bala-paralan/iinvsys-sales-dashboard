@@ -553,12 +553,11 @@ function renderTrendChart() {
 
 /* ── ACTIVITY STREAM ── */
 const ACTIVITIES_SEED = [
-  { dot:'emerald', msg:'<strong>New lead</strong> created from API',                     meta:'Live data from MongoDB · <span class="act-time">Just now</span>',         tag:'new',      tagLabel:'NEW' },
-  { dot:'gold',    msg:'<strong>Database</strong> connected successfully',                meta:'MongoDB · localhost:27017 · <span class="act-time">On startup</span>',  tag:'won',      tagLabel:'LIVE' },
-  { dot:'azure',   msg:'<strong>API server</strong> running on port 5001',               meta:'Node.js + Express · <span class="act-time">Active</span>',              tag:'follow',   tagLabel:'API' },
-  { dot:'amber',   msg:'<strong>Seed data</strong> loaded — 15 leads, 6 agents',        meta:'Run node src/utils/seed.js · <span class="act-time">Seeded</span>',     tag:'proposal', tagLabel:'SEED' },
-  { dot:'violet',  msg:'<strong>JWT auth</strong> protecting all routes',                meta:'Role-based: superadmin, manager, agent · <span class="act-time">Secured</span>', tag:'won', tagLabel:'AUTH' },
-  { dot:'coral',   msg:'<strong>Bulk CSV import</strong> available via API',             meta:'POST /api/leads/bulk-import · dedup by phone · <span class="act-time">Ready</span>', tag:'overdue', tagLabel:'IMPORT' },
+  { dot:'emerald', msg:'<strong>System</strong> ready',                                  meta:'IINVSYS Sales OS · <span class="act-time">Online</span>',                tag:'new',      tagLabel:'LIVE' },
+  { dot:'gold',    msg:'<strong>Database</strong> connected successfully',               meta:'MongoDB · <span class="act-time">On startup</span>',                    tag:'won',      tagLabel:'LIVE' },
+  { dot:'violet',  msg:'<strong>JWT auth</strong> protecting all routes',               meta:'Role-based: superadmin, manager, agent · <span class="act-time">Secured</span>', tag:'won', tagLabel:'AUTH' },
+  { dot:'azure',   msg:'<strong>API server</strong> running',                            meta:'Node.js + Express · <span class="act-time">Active</span>',              tag:'follow',   tagLabel:'API' },
+  { dot:'coral',   msg:'<strong>Bulk CSV import</strong> available',                    meta:'POST /api/leads/bulk-import · dedup by phone · <span class="act-time">Ready</span>', tag:'overdue', tagLabel:'IMPORT' },
 ];
 
 function renderActivityStream() {
@@ -2007,6 +2006,4 @@ document.getElementById('cardCameraInput')?.addEventListener('change', e => {
 });
 
 console.log('%c IINVSYS Sales OS v2.0 ', 'background:#F0BE18;color:#000;font-weight:bold;padding:4px 12px;letter-spacing:2px');
-console.log('%c API: http://localhost:5001/api  ·  MongoDB: live', 'color:#00DFA2;font-size:11px');
 console.log('%c Keyboard: 1-6 navigate · N = new lead · Esc = close modal', 'color:#555;font-size:11px');
-console.log('%c Logins: admin@iinvsys.com / Admin@123  |  rahul@iinvsys.com / Agent@123', 'color:#888;font-size:10px');

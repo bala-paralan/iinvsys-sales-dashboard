@@ -16,10 +16,27 @@ app.set('trust proxy', 1);
 /* ── Security & Transport ── */
 app.use(helmet());
 app.use(compression());
+
+// Build allowed-origin list from CORS_ORIGINS (comma-separated) or CORS_ORIGIN.
+// In production the frontend is served from the same origin so the relative /api
+// path is used — CORS is only needed when the frontend runs on a different host.
+// Falling back to '*' is fine for same-origin deployments but explicit is safer.
+const _rawOrigins = process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '';
+const _allowedOrigins = _rawOrigins
+  ? _rawOrigins.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: _allowedOrigins.length
+    ? (origin, cb) => {
+        // Allow requests with no origin (server-to-server, curl, health checks)
+        if (!origin || _allowedOrigins.includes(origin)) return cb(null, true);
+        cb(new Error(`CORS: origin "${origin}" not allowed`));
+      }
+    : '*',
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
+  credentials: true,
 }));
 
 /* ── Rate Limiting ── */

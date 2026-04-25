@@ -8,6 +8,10 @@ const PORT = process.env.PORT || 5000;
 async function start() {
   await connectDB();
 
+  // Auto-create superadmin if the database is empty (first-run / production bootstrap)
+  const initAdmin = require('./src/utils/initAdmin');
+  await initAdmin();
+
   // Start email report scheduler (skip in test env)
   if (process.env.NODE_ENV !== 'test') {
     const { initScheduler } = require('./src/utils/scheduler');
