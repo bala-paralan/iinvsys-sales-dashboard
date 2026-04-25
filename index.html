@@ -315,6 +315,7 @@
         </select>
       </div>
       <button class="neo-btn outline" id="bulkImportBtn">⬆ Bulk Import</button>
+      <button class="neo-btn outline" id="bulkScanBtn">📷 Bulk Scan</button>
       <button class="neo-btn yellow" id="newLeadBtn">+ New Lead</button>
     </div>
     <div class="kanban-board" id="kanbanBoard"><!-- rendered by JS --></div>
@@ -1045,6 +1046,52 @@
       <div class="form-actions">
         <button type="button" class="neo-btn outline" id="dupeReasonCancel">Cancel</button>
         <button type="button" class="neo-btn yellow" id="dupeReasonConfirm">Save as new →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL: BULK SCAN (PRD 3) ══════ -->
+<div class="modal-overlay" id="bulkScanModal">
+  <div class="modal-box wide-modal" style="max-width:900px">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow">// PRD 3 — PHASE 1</span>
+        <h2 class="modal-title">Bulk <em>Scan</em></h2>
+      </div>
+      <button class="modal-close" id="bulkScanClose">✕</button>
+    </div>
+
+    <!-- Step 1: Upload zone (shown when queue is empty) -->
+    <div id="bulkScanUploadZone" class="bulk-upload-zone" role="region" aria-label="Image upload area">
+      <div class="buz-icon" aria-hidden="true">📷</div>
+      <div class="buz-title">Drop up to 50 card images here</div>
+      <div class="buz-sub">or click to select files — JPG, PNG, WEBP, up to 8 MB each</div>
+      <button type="button" class="neo-btn yellow" id="bulkScanSelectBtn">Select Images</button>
+      <input type="file" id="bulkScanFileInput" accept="image/*" multiple style="display:none"/>
+    </div>
+
+    <!-- Step 2: Queue + review (shown after images are added) -->
+    <div id="bulkScanQueueWrap" hidden>
+      <div class="bulk-queue-toolbar">
+        <span class="bq-summary" id="bulkQueueSummary">0 images</span>
+        <div class="bulk-queue-toolbar-actions">
+          <button type="button" class="neo-btn outline sm" id="bulkScanAddMoreBtn">+ Add more</button>
+          <input type="file" id="bulkScanAddMoreInput" accept="image/*" multiple style="display:none"/>
+        </div>
+      </div>
+
+      <!-- Review queue: left = thumbnail + status, right = fields -->
+      <div class="bulk-queue-list" id="bulkQueueList"></div>
+
+      <!-- Batch name + save -->
+      <div class="bulk-queue-footer">
+        <div class="form-group" style="flex:1;min-width:220px">
+          <label class="form-label" for="bulkBatchName">Batch / Event Name <span class="opt">(optional)</span></label>
+          <input type="text" id="bulkBatchName" class="form-input" placeholder="e.g. Mumbai IoT Expo 2026"/>
+        </div>
+        <button type="button" class="neo-btn outline" id="bulkScanCancelBtn">Cancel</button>
+        <button type="button" class="neo-btn yellow" id="bulkScanSaveAllBtn" disabled>Save Ready Leads →</button>
       </div>
     </div>
   </div>

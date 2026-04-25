@@ -35,6 +35,20 @@ const DupeOverrideSchema = new mongoose.Schema({
   overriddenAt:    { type: Date, default: Date.now },
 }, { _id: false });
 
+/* PRD 3 — bulk scan batch metadata */
+const BatchSchema = new mongoose.Schema({
+  batchId:   { type: String, required: true },
+  batchName: { type: String, trim: true, default: '' },
+}, { _id: false });
+
+/* PRD 5 — per-field auto-enrichment provenance.
+   Stored as a Map keyed by field name (logo, website, industry, etc.). */
+const EnrichmentFieldSchema = new mongoose.Schema({
+  value:       { type: mongoose.Schema.Types.Mixed },
+  provider:    { type: String },
+  enrichedAt:  { type: Date, default: Date.now },
+}, { _id: false });
+
 const LeadSchema = new mongoose.Schema({
   name:          { type: String, required: true, trim: true },
   phone:         { type: String, required: true, trim: true },
@@ -55,6 +69,18 @@ const LeadSchema = new mongoose.Schema({
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   ocrCapture:    { type: OcrCaptureSchema, default: null },
   dupeOverride:  { type: DupeOverrideSchema, default: null },
+  /* PRD 3 */
+  batch:         { type: BatchSchema, default: null },
+  /* PRD 5 */
+  enrichment:    { type: Map, of: EnrichmentFieldSchema, default: {} },
+  doNotEnrich:   [{ type: String }],
+  jobTitle:      { type: String, trim: true, default: '' },
+  website:       { type: String, trim: true, default: '' },
+  industry:      { type: String, trim: true, default: '' },
+  employeeCount: { type: String, trim: true, default: '' },
+  hqCountry:     { type: String, trim: true, default: '' },
+  linkedinUrl:   { type: String, trim: true, default: '' },
+  logoUrl:       { type: String, trim: true, default: '' },
 }, { timestamps: true });
 
 /* Indexes for common query patterns */

@@ -1,9 +1,13 @@
 'use strict';
 const { validationResult } = require('express-validator');
-const Lead      = require('../models/Lead');
-const Telemetry = require('../models/Telemetry');
+const Lead        = require('../models/Lead');
+const Telemetry   = require('../models/Telemetry');
+const { enrichLead, ENRICHABLE } = require('../enrichment');
 const { normalizePhone, jaroWinkler, nameCompanyScore } = require('../utils/matching');
 const { ok, created, notFound, forbidden, badRequest, unprocessable, paginated } = require('../utils/response');
+const { nanoid } = (() => {
+  try { return require('nanoid'); } catch { return { nanoid: () => Math.random().toString(36).slice(2, 10) }; }
+})();
 
 /* Allow-list of telemetry events from PRD AC8 + cross-cutting contract */
 const TELEMETRY_EVENTS = new Set([
@@ -11,6 +15,8 @@ const TELEMETRY_EVENTS = new Set([
   'scan_field_confidence_band', 'scan_field_corrected', 'scan_save_with_low_confidence',
   'scan_dedupe_match_found', 'scan_dedupe_action', 'scan_dedupe_false_positive',
   'scan_dedupe_save_anyway',
+  'enrichment_completed', 'enrichment_failed', 'enrichment_field_overridden',
+  'bulk_scan_saved',
 ]);
 
 /* ── helpers ─────────────────────────────────────────────────────── */
@@ -119,6 +125,10 @@ async function createLead(req, res, next) {
       .populate('assignedAgent', 'name initials color')
       .populate('products', 'name sku price')
       .lean({ virtuals: true });
+
+    /* PRD 5 AC1 — fire enrichment async; rep never blocked */
+    setImmediate(() => enrichLead(lead._id, req.user._id).catch(() => {}));
+
     return created(res, populated, 'Lead created');
   } catch (err) {
     next(err);
@@ -380,7 +390,130 @@ async function logTelemetry(req, res, next) {
   }
 }
 
+/* ── POST /api/leads/bulk-scan ────────────────────────────────────
+   PRD 3 Phase 1 — batch save of scan-reviewed leads (client-side OCR).
+   Accepts up to 50 leads with ocrCapture, batch_id, batchName. */
+async function bulkScan(req, res, next) {
+  try {
+    const { leads, batchName = '' } = req.body || {};
+    if (!Array.isArray(leads) || leads.length === 0) return badRequest(res, 'leads array is required');
+    if (leads.length > 50) return badRequest(res, 'Maximum 50 leads per batch');
+
+    const batchId = 'batch_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+
+    /* Dedup on phone within batch + against DB */
+    const phones    = leads.map(l => (l.phone || '').replace(/\D/g,'').slice(-10)).filter(Boolean);
+    const existing  = await Lead.find({ phone: { $regex: new RegExp(`(${phones.join('|')})$`) } }).select('phone').lean();
+    const dupPhones = new Set(existing.map(l => l.phone.replace(/\D/g,'').slice(-10)));
+
+    const agentId = req.agentScope || null;
+
+    const toInsert = leads
+      .filter(l => !dupPhones.has((l.phone || '').replace(/\D/g,'').slice(-10)))
+      .map(l => ({
+        name:          l.name,
+        phone:         l.phone,
+        email:         l.email  || '',
+        company:       l.company || '',
+        notes:         l.notes  || '',
+        source:        l.source || 'direct',
+        stage:         'new',
+        assignedAgent: agentId,
+        ocrCapture:    l.ocrCapture || null,
+        batch:         { batchId, batchName },
+        createdBy:     req.user._id,
+      }));
+
+    let inserted = [];
+    if (toInsert.length) inserted = await Lead.insertMany(toInsert);
+
+    /* PRD 5 — trigger enrichment async for each inserted lead */
+    for (const lead of inserted) {
+      setImmediate(() => enrichLead(lead._id, req.user._id).catch(() => {}));
+    }
+
+    await Telemetry.create({
+      eventName: 'bulk_scan_saved',
+      userId: req.user._id,
+      metadata: { batchId, batchName, inserted: inserted.length, duplicates: leads.length - toInsert.length },
+    }).catch(() => {});
+
+    return ok(res, {
+      batchId,
+      inserted:   inserted.length,
+      duplicates: leads.length - toInsert.length,
+      total:      leads.length,
+    }, `Batch saved: ${inserted.length} leads`);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── POST /api/leads/:id/enrich ──────────────────────────────────
+   PRD 5 AC1 — trigger enrichment on-demand (async, non-blocking). */
+async function triggerEnrich(req, res, next) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return notFound(res, 'Lead not found');
+    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
+
+    /* Fire async; respond immediately (AC1: rep never blocked) */
+    setImmediate(() => enrichLead(lead._id, req.user._id).catch(() => {}));
+    return ok(res, { queued: true }, 'Enrichment queued');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── DELETE /api/leads/:id/enrich/:field ─────────────────────────
+   PRD 5 AC5 — roll back one enriched field + flag do_not_enrich. */
+async function rollbackEnrichField(req, res, next) {
+  try {
+    const { field } = req.params;
+    if (!ENRICHABLE.includes(field)) return badRequest(res, `Unknown enrichable field: ${field}`);
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return notFound(res, 'Lead not found');
+    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
+
+    lead[field] = '';
+    if (lead.enrichment) lead.enrichment.delete(field);
+    if (!lead.doNotEnrich.includes(field)) lead.doNotEnrich.push(field);
+
+    await lead.save();
+
+    await Telemetry.create({
+      eventName: 'enrichment_field_overridden',
+      userId: req.user._id,
+      leadId: lead._id,
+      metadata: { field },
+    }).catch(() => {});
+
+    return ok(res, { field, rolledBack: true }, 'Field cleared and flagged do-not-enrich');
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── GET /api/leads/batch/:batchId ───────────────────────────────
+   PRD 3 AC3 — per-card status for a batch. */
+async function getBatch(req, res, next) {
+  try {
+    const { batchId } = req.params;
+    const filter = { 'batch.batchId': batchId };
+    if (req.agentScope) filter.assignedAgent = req.agentScope;
+
+    const leads = await Lead.find(filter)
+      .select('name phone email company stage ocrCapture batch enrichment createdAt')
+      .lean();
+    return ok(res, { batchId, count: leads.length, leads });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listLeads, getLead, createLead, updateLead, deleteLead, addFollowUp, bulkImport,
   checkDuplicate, mergeLead, logTelemetry,
+  bulkScan, triggerEnrich, rollbackEnrichField, getBatch,
 };

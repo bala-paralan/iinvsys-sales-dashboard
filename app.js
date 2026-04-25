@@ -807,6 +807,17 @@ function openLeadModal(leadId) {
     modal.classList.remove('open');
   });
 
+  /* PRD 5 — render enrichment section for existing leads */
+  const existingEnrichSection = modal.querySelector('.enrichment-section');
+  if (existingEnrichSection) existingEnrichSection.remove();
+  if (!isNew) {
+    const l = S.leads.find(x => x.id === leadId);
+    if (l && l.enrichment && Object.keys(l.enrichment).length) {
+      const form = document.getElementById('leadForm');
+      renderEnrichmentSection(l, form);
+    }
+  }
+
   modal.classList.add('open');
 }
 
@@ -3078,6 +3089,324 @@ document.getElementById('cardCameraInput')?.addEventListener('change', e => {
   if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail', notes:'leadNotes' });
   e.target.value = ''; // reset so same file can re-trigger
 });
+
+/* ═══════════ PRD 3: BULK SCAN MODAL ═══════════ */
+const _bulk = {
+  items: [],     // { file, dataUrl, status, fields, bands, skip }
+  processing: false,
+};
+
+function openBulkScanModal() {
+  _bulk.items = [];
+  document.getElementById('bulkScanUploadZone').hidden = false;
+  document.getElementById('bulkScanQueueWrap').hidden  = true;
+  document.getElementById('bulkScanModal').classList.add('open');
+}
+
+/* Accept files from input or drop */
+function acceptBulkFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/')).slice(0, 50 - _bulk.items.length);
+  if (!files.length) return;
+
+  const newItems = files.map(file => ({
+    id:     Math.random().toString(36).slice(2),
+    file,
+    dataUrl: null,
+    status: 'queued',
+    fields: { name:'', phone:'', email:'', company:'' },
+    bands:  {},
+    ocrCapture: null,
+    skip: false,
+  }));
+  _bulk.items.push(...newItems);
+
+  /* Generate thumbnails */
+  newItems.forEach(item => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      item.dataUrl = e.target.result;
+      renderBulkQueueItem(item);
+    };
+    reader.readAsDataURL(item.file);
+  });
+
+  showBulkQueue();
+  if (!_bulk.processing) processBulkQueue();
+}
+
+function showBulkQueue() {
+  document.getElementById('bulkScanUploadZone').hidden = true;
+  document.getElementById('bulkScanQueueWrap').hidden  = false;
+  refreshBulkSummary();
+}
+
+function refreshBulkSummary() {
+  const total   = _bulk.items.length;
+  const ready   = _bulk.items.filter(i => i.status === 'ready' && !i.skip).length;
+  const skipped = _bulk.items.filter(i => i.skip).length;
+  const errors  = _bulk.items.filter(i => i.status === 'error').length;
+  document.getElementById('bulkQueueSummary').textContent =
+    `${total} image${total !== 1 ? 's' : ''} · ${ready} ready · ${skipped} skipped · ${errors} error${errors !== 1 ? 's' : ''}`;
+  const saveBtn = document.getElementById('bulkScanSaveAllBtn');
+  if (saveBtn) saveBtn.disabled = ready === 0;
+}
+
+async function processBulkQueue() {
+  _bulk.processing = true;
+  for (const item of _bulk.items) {
+    if (item.status !== 'queued') continue;
+    item.status = 'scanning';
+    renderBulkQueueItem(item);
+    try {
+      const result = await Tesseract.recognize(item.file, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
+            if (statusEl) statusEl.textContent = 'scanning ' + Math.round((m.progress || 0) * 100) + '%';
+          }
+        },
+      });
+      const text  = result.data.text || '';
+      const words = result.data.words || [];
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+      /* Same extraction heuristics as single scan */
+      const emailM = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
+      if (!phoneRaw) for (const ln of lines) { const m = ln.match(/\b\d[\d \-]{8,11}\d\b/); if (m) { phoneRaw = m; break; } }
+      const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g,'') : null;
+      const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
+      const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
+      const allCaps = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
+      const fallbackName = lines.find(l => l.length > 2 && l.length < 60 && !l.match(/^\//) && !l.match(/[@\\]/) && !l.toLowerCase().includes('www') && !/^\+?[\d\s\-().]+$/.test(l) && l !== companyLine);
+      const nameLine = allCaps ? allCaps[1] + ' ' + allCaps[2] : fallbackName;
+
+      item.fields = {
+        name:    nameLine    || '',
+        phone:   phone       || '',
+        email:   emailM?.[0] || '',
+        company: companyLine || '',
+      };
+      item.bands = {
+        name:    bandFor(confidenceForPhrase(words, nameLine)),
+        phone:   bandFor(confidenceForPhrase(words, phoneRaw?.[0])),
+        email:   bandFor(confidenceForPhrase(words, emailM?.[0])),
+        company: bandFor(confidenceForPhrase(words, companyLine)),
+      };
+      item.ocrCapture = {
+        scannedAt:  new Date().toISOString(),
+        ocrEngine:  'tesseract.js@5',
+        fields: Object.fromEntries(
+          Object.entries(item.fields).map(([k, v]) => [k, {
+            band: item.bands[k] || 'low',
+            originalValue: v,
+            rawConfidence: null,
+            corrected: false,
+          }])
+        ),
+      };
+      item.status = 'ready';
+    } catch (err) {
+      item.status = 'error';
+      item.errorMsg = err?.message || 'OCR failed';
+    }
+    renderBulkQueueItem(item);
+    refreshBulkSummary();
+  }
+  _bulk.processing = false;
+}
+
+function renderBulkQueueItem(item) {
+  const list = document.getElementById('bulkQueueList');
+  let el = list.querySelector(`[data-bq-id="${item.id}"]`);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'bq-item';
+    el.dataset.bqId = item.id;
+    list.appendChild(el);
+  }
+  el.classList.toggle('skipped', item.skip);
+
+  const thumbHtml = item.dataUrl
+    ? `<img class="bq-thumb" src="${item.dataUrl}" alt="Card"/>`
+    : `<div class="bq-thumb-placeholder">🪪</div>`;
+
+  const statusColor = { queued:'queued', scanning:'scanning', ready:'ready', error:'error' }[item.status] || 'queued';
+
+  const fieldsHtml = ['name','phone','email','company'].map(f => `
+    <div class="bq-field">
+      <label>${f}</label>
+      <input type="text" data-bq-field="${f}" value="${escapeHtml(item.fields[f] || '')}"
+             class="${item.bands[f] ? 'cband-' + item.bands[f] : ''}"
+             ${item.skip ? 'disabled' : ''}/>
+    </div>`).join('');
+
+  el.innerHTML = `
+    ${thumbHtml}
+    <div>
+      <span class="bq-status-badge ${statusColor}">${item.status === 'error' ? (item.errorMsg || 'error') : item.status}</span>
+      <div class="bq-fields">${fieldsHtml}</div>
+    </div>
+    <div class="bq-actions">
+      <button class="bq-skip-btn ${item.skip ? 'skipped-active' : ''}">${item.skip ? 'Undo skip' : 'Skip'}</button>
+    </div>`;
+
+  /* Live edits update item.fields */
+  el.querySelectorAll('[data-bq-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      item.fields[input.dataset.bqField] = input.value;
+      if (item.ocrCapture?.fields?.[input.dataset.bqField]) {
+        item.ocrCapture.fields[input.dataset.bqField].corrected = true;
+      }
+    });
+  });
+  el.querySelector('.bq-skip-btn').addEventListener('click', () => {
+    item.skip = !item.skip;
+    renderBulkQueueItem(item);
+    refreshBulkSummary();
+  });
+}
+
+async function saveBulkLeads() {
+  const readyItems = _bulk.items.filter(i => i.status === 'ready' && !i.skip);
+  if (!readyItems.length) { flash('No ready leads to save', 'warn'); return; }
+
+  const btn = document.getElementById('bulkScanSaveAllBtn');
+  btnLoad(btn, true, 'Saving…');
+  logTelemetry('scan_started', { mode: 'bulk', count: readyItems.length });
+
+  try {
+    const batchName = document.getElementById('bulkBatchName')?.value?.trim() || '';
+    const leads = readyItems.map(item => ({
+      name:       item.fields.name    || 'Unknown',
+      phone:      item.fields.phone   || '0000000000',
+      email:      item.fields.email   || '',
+      company:    item.fields.company || '',
+      source:     'direct',
+      ocrCapture: item.ocrCapture,
+    }));
+
+    const res = await api('POST', '/leads/bulk-scan', { leads, batchName });
+    const { inserted = 0, duplicates = 0 } = res.data || res;
+
+    logTelemetry('scan_saved', { mode: 'bulk', inserted, duplicates });
+    flash(`Saved ${inserted} lead${inserted !== 1 ? 's' : ''}${duplicates ? ` (${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped)` : ''}`, 'success');
+
+    await loadAllData(true);
+    updateNavCounts();
+    renderKanban(getFilters());
+    document.getElementById('bulkScanModal').classList.remove('open');
+  } catch (err) {
+    flash(err.message || 'Bulk save failed', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+}
+
+/* Wire bulk scan modal events */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bulkScanBtn')?.addEventListener('click', openBulkScanModal);
+  document.getElementById('bulkScanClose')?.addEventListener('click', () => document.getElementById('bulkScanModal').classList.remove('open'));
+  document.getElementById('bulkScanCancelBtn')?.addEventListener('click', () => document.getElementById('bulkScanModal').classList.remove('open'));
+  document.getElementById('bulkScanModal')?.addEventListener('click', e => { if (e.target === document.getElementById('bulkScanModal')) document.getElementById('bulkScanModal').classList.remove('open'); });
+
+  document.getElementById('bulkScanSelectBtn')?.addEventListener('click', () => document.getElementById('bulkScanFileInput').click());
+  document.getElementById('bulkScanFileInput')?.addEventListener('change', e => { acceptBulkFiles(e.target.files); e.target.value=''; });
+
+  document.getElementById('bulkScanAddMoreBtn')?.addEventListener('click', () => document.getElementById('bulkScanAddMoreInput').click());
+  document.getElementById('bulkScanAddMoreInput')?.addEventListener('change', e => { acceptBulkFiles(e.target.files); e.target.value=''; });
+
+  document.getElementById('bulkScanSaveAllBtn')?.addEventListener('click', saveBulkLeads);
+
+  /* Drag-and-drop onto upload zone */
+  const zone = document.getElementById('bulkScanUploadZone');
+  if (zone) {
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      acceptBulkFiles(e.dataTransfer.files);
+    });
+    zone.addEventListener('click', e => { if (e.target !== document.getElementById('bulkScanSelectBtn')) document.getElementById('bulkScanFileInput').click(); });
+  }
+});
+
+/* ═══════════ PRD 5: ENRICHMENT BADGES ═══════════ */
+/* Render enrichment section inside an info modal body or lead detail panel.
+   Called with the full lead object (including enrichment Map as an object). */
+function renderEnrichmentSection(lead, containerId) {
+  const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
+  if (!container) return;
+
+  const enrichment = lead.enrichment || {};
+  const enrichedFields = Object.entries(enrichment);
+  if (!enrichedFields.length) return;
+
+  const fieldsHtml = enrichedFields.map(([field, info]) => {
+    const val = info?.value ?? info;
+    const provider = info?.provider || 'auto';
+    let displayVal = escapeHtml(String(val || ''));
+    if (field === 'logoUrl' && val) {
+      displayVal = `<img class="enrichment-logo" src="${escapeHtml(val)}" alt="Logo" onerror="this.style.display='none'"/>`;
+    } else if ((field === 'linkedinUrl' || field === 'website') && val) {
+      displayVal = `<a href="${escapeHtml(val)}" target="_blank" rel="noopener">${escapeHtml(val)}</a>`;
+    }
+
+    const label = {
+      website:'Website', industry:'Industry', employeeCount:'Employees',
+      hqCountry:'HQ Country', linkedinUrl:'LinkedIn', logoUrl:'Logo',
+    }[field] || field;
+
+    return `
+      <div class="enrichment-field">
+        <div class="enrichment-field-label">${label}</div>
+        <div class="enrichment-field-value">${displayVal}</div>
+        <button class="auto-badge" title="Auto-filled by ${escapeHtml(provider)} — click to remove"
+                data-enrich-field="${field}" data-lead-id="${lead.id || lead._id}">auto</button>
+      </div>`;
+  }).join('');
+
+  const section = document.createElement('div');
+  section.className = 'enrichment-section';
+  section.innerHTML = `<div class="enrichment-section-header">// AUTO-ENRICHMENT</div><div class="enrichment-grid">${fieldsHtml}</div>`;
+  container.appendChild(section);
+
+  /* Roll-back: click the "auto" badge */
+  section.querySelectorAll('.auto-badge').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const field  = btn.dataset.enrichField;
+      const leadId = btn.dataset.leadId;
+      if (!field || !leadId) return;
+      const conf = window.confirm(`Remove auto-enriched "${field}" and mark it do-not-enrich?`);
+      if (!conf) return;
+      try {
+        await api('DELETE', `/leads/${leadId}/enrich/${field}`);
+        logTelemetry('enrichment_field_overridden', { field });
+        btn.closest('.enrichment-field')?.remove();
+        flash(`"${field}" cleared`, 'success');
+      } catch (err) {
+        flash(err.message || 'Rollback failed', 'error');
+      }
+    });
+  });
+}
+
+/* Patch normalizeLead to include enrichment data */
+const _origNormalizeLead = normalizeLead;
+/* eslint-disable-next-line no-global-assign */
+normalizeLead = function(l) {
+  const base = _origNormalizeLead(l);
+  base.enrichment   = l.enrichment   || {};
+  base.company      = l.company      || '';
+  base.website      = l.website      || '';
+  base.industry     = l.industry     || '';
+  base.employeeCount= l.employeeCount|| '';
+  base.hqCountry    = l.hqCountry    || '';
+  base.linkedinUrl  = l.linkedinUrl  || '';
+  base.logoUrl      = l.logoUrl      || '';
+  base.jobTitle     = l.jobTitle     || '';
+  return base;
+};
 
 console.log('%c IINVSYS Sales OS v2.0 ', 'background:#F0BE18;color:#000;font-weight:bold;padding:4px 12px;letter-spacing:2px');
 console.log('%c Keyboard: 1-6 navigate · N = new lead · Esc = close modal', 'color:#555;font-size:11px');
