@@ -1,7 +1,8 @@
 'use strict';
 const router = require('express').Router();
 const { body } = require('express-validator');
-const ctrl = require('../controllers/leadController');
+const ctrl     = require('../controllers/leadController');
+const vmCtrl   = require('../controllers/voiceMemoController');
 const { authenticate }    = require('../middleware/auth');
 const { requireMinRole, scopeToAgent, allowReferrer } = require('../middleware/rbac');
 
@@ -59,5 +60,11 @@ router.post('/:id/followups',
   body('channel').isIn(['call', 'whatsapp', 'email', 'visit', 'other']),
   ctrl.addFollowUp
 );
+
+/* PRD 6 — Voice Memos */
+router.post('/:id/voice-memos/extract', ...auth, vmCtrl.extractPreview);
+router.get( '/:id/voice-memos',         ...auth, vmCtrl.listVoiceMemos);
+router.post('/:id/voice-memos',         ...auth, vmCtrl.createVoiceMemo);
+router.patch('/:id/voice-memos/:memoId',...auth, vmCtrl.updateVoiceMemo);
 
 module.exports = router;

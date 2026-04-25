@@ -2030,8 +2030,48 @@ async function renderSettings() {
     wrap.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--coral);padding:24px">Failed to load settings: ${err.message}</div>`;
   }
 
+  /* PRD 2 AC5 — OCR language config panel, appended after server settings */
+  renderOcrLangSettings(wrap);
+
   // Email Reports section — superadmin only
   if (isSuperAdmin()) renderEmailReports();
+}
+
+/* PRD 2 — OCR Language Settings panel (client-side localStorage, AC5) */
+function renderOcrLangSettings(container) {
+  const enabled = getEnabledOcrLangs();
+  const section = document.createElement('section');
+  section.className = 'settings-group';
+  section.id = 'ocrLangSettings';
+  section.innerHTML = `
+    <div class="settings-group-header">// OCR LANGUAGES (PRD 2)</div>
+    <div style="font-size:12px;color:var(--text-3);padding:4px 0 12px">
+      Select the scripts your team scans. Each additional language adds a second OCR pass (~3–8 s extra).
+    </div>
+    ${OCR_LANG_DEFS.map(def => `
+      <div class="settings-row">
+        <div class="settings-label-col">
+          <div class="settings-key">${def.label}</div>
+          <div class="settings-desc">${def.code}</div>
+        </div>
+        <div class="settings-val-col">
+          <label class="toggle-switch" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" class="ocr-lang-toggle" data-lang="${def.code}"
+              ${enabled.includes(def.code) ? 'checked' : ''}
+              ${def.code === 'eng' ? 'disabled' : ''} style="accent-color:var(--gold);width:16px;height:16px"/>
+            <span style="font-size:12px;color:var(--text-2)">${def.code === 'eng' ? 'Always on' : (enabled.includes(def.code) ? 'Enabled' : 'Disabled')}</span>
+          </label>
+        </div>
+      </div>`).join('')}`;
+  container.appendChild(section);
+
+  section.querySelectorAll('.ocr-lang-toggle').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const allChecked = Array.from(section.querySelectorAll('.ocr-lang-toggle:checked')).map(c => c.dataset.lang);
+      setEnabledOcrLangs(allChecked.length ? allChecked : ['eng']);
+      flash('OCR language preferences saved', 'success');
+    });
+  });
 }
 
 /* ─── Email Reports Config ──────────────────────────────────────── */
@@ -2787,6 +2827,69 @@ function logTelemetry(eventName, metadata = {}, leadId = null) {
   } catch (e) { /* never let telemetry break the flow */ }
 }
 
+/* ═══════════ PRD 2: MULTILINGUAL OCR ═══════════ */
+
+/* Language config — stored in localStorage so admin can toggle via Settings.
+   AC2: initial supported set.  AC5: per-tenant via config flag. */
+const OCR_LANG_DEFS = [
+  { code:'eng',      label:'English',             tesseract:'eng',                script:/[A-z]/  },
+  { code:'hin',      label:'Hindi (Devanagari)',   tesseract:'hin',                script:/[ऀ-ॿ]/  },
+  { code:'tam',      label:'Tamil',                tesseract:'tam',                script:/[஀-௿]/  },
+  { code:'ara',      label:'Arabic',               tesseract:'ara',                script:/[؀-ۿ]/  },
+  { code:'chi_sim',  label:'Chinese (Simplified)', tesseract:'chi_sim',            script:/[一-鿿]/  },
+  { code:'chi_tra',  label:'Chinese (Traditional)',tesseract:'chi_tra',            script:/[一-鿿]/  },
+  { code:'jpn',      label:'Japanese',             tesseract:'jpn',                script:/[぀-ヿ]/  },
+  { code:'kor',      label:'Korean',               tesseract:'kor',                script:/[가-힯]/  },
+];
+
+/* AC5 — enabled languages (persisted per user in localStorage) */
+function getEnabledOcrLangs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('ii_ocr_langs') || 'null');
+    if (Array.isArray(stored)) return stored;
+  } catch (_) {}
+  return ['eng']; // default: English only
+}
+function setEnabledOcrLangs(codes) {
+  localStorage.setItem('ii_ocr_langs', JSON.stringify(codes));
+}
+
+/* AC1 — detect non-Latin scripts in a text sample (<500 ms, pure JS) */
+function detectScripts(text) {
+  if (!text) return ['eng'];
+  const detected = [];
+  for (const def of OCR_LANG_DEFS) {
+    if (def.code !== 'eng' && def.script.test(text)) detected.push(def.code);
+  }
+  return detected.length ? detected : ['eng'];
+}
+
+/* Build Tesseract language string from enabled list + detected scripts */
+function buildLangString(detectedScripts) {
+  const enabled  = getEnabledOcrLangs();
+  const langSet  = new Set(['eng']); // always include English
+  for (const code of [...enabled, ...detectedScripts]) langSet.add(code);
+  return Array.from(langSet).map(c => OCR_LANG_DEFS.find(d => d.code === c)?.tesseract || c).join('+');
+}
+
+/* AC4 — basic transliteration for Devanagari → Latin (name/company display).
+   A full library (e.g. libindic) ships as a vendor dep; this covers the
+   most-common name characters sufficient for search indexing. */
+function transliterateDevanagari(text) {
+  const map = { 'अ':'a','आ':'aa','इ':'i','ई':'ee','उ':'u','ऊ':'oo','ए':'e','ऐ':'ai','ओ':'o','औ':'au',
+    'क':'k','ख':'kh','ग':'g','घ':'gh','च':'ch','छ':'chh','ज':'j','झ':'jh','ट':'t','ठ':'th',
+    'ड':'d','ढ':'dh','ण':'n','त':'t','थ':'th','द':'d','ध':'dh','न':'n','प':'p','फ':'ph',
+    'ब':'b','भ':'bh','म':'m','य':'y','र':'r','ल':'l','व':'v','श':'sh','ष':'sh','स':'s','ह':'h',
+    'ा':'a','ि':'i','ी':'ee','ु':'u','ू':'oo','े':'e','ै':'ai','ो':'o','ौ':'au','ं':'n','ः':'h','्':'' };
+  return text.split('').map(c => map[c] ?? c).join('');
+}
+
+function transliterateText(text) {
+  if (!text) return '';
+  if (/[ऀ-ॿ]/.test(text)) return transliterateDevanagari(text);
+  return text; // Tamil, Arabic, CJK: leave as-is (full library needed)
+}
+
 async function processCardImage(file, fieldMap) {
   const scanBtns = [
     document.getElementById('cameraScanBtn'),
@@ -2796,14 +2899,45 @@ async function processCardImage(file, fieldMap) {
   scanBtns.forEach(b => btnLoad(b, true, '🔍 Scanning…'));
   logTelemetry('scan_started', { fieldMap });
   try {
-    const result = await Tesseract.recognize(file, 'eng', {
+    /* PRD 2 — Phase 1: run English OCR first (fast), detect scripts, then
+       re-run with additional languages if non-Latin script found. */
+    const engResult = await Tesseract.recognize(file, 'eng', {
       logger: m => {
         if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
         else if (m.status === 'loading language traineddata') showLoader('Downloading language data…');
         else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
-        else if (m.status === 'recognizing text')             showLoader('Recognising… ' + Math.round((m.progress || 0) * 100) + '%');
+        else if (m.status === 'recognizing text')             showLoader('Recognising (pass 1)… ' + Math.round((m.progress || 0) * 100) + '%');
       },
     });
+
+    const engText      = engResult.data.text || '';
+    const detected     = detectScripts(engText);
+    const enabledLangs = getEnabledOcrLangs();
+
+    /* Check if any detected script is NOT enabled for this tenant (AC edge case) */
+    const disabledDetected = detected.filter(d => d !== 'eng' && !enabledLangs.includes(d));
+    if (disabledDetected.length) {
+      const labels = disabledDetected.map(c => OCR_LANG_DEFS.find(d => d.code === c)?.label || c).join(', ');
+      flash(`Card appears to be in ${labels} — enable it in Settings → OCR Languages for better results.`, 'warn');
+      logTelemetry('scan_language_mismatch', { detected, enabled: enabledLangs, disabled: disabledDetected });
+    }
+
+    /* AC3 — if non-Latin script detected AND the language is enabled, re-run with combined langs */
+    const enabledNonLatin = detected.filter(d => d !== 'eng' && enabledLangs.includes(d));
+    let result = engResult;
+    let detectedLang = 'eng';
+    if (enabledNonLatin.length) {
+      const langStr = buildLangString(enabledNonLatin);
+      showLoader(`Recognising ${langStr.replace(/\+/g, ' + ')}… pass 2`);
+      result = await Tesseract.recognize(file, langStr, {
+        logger: m => {
+          if (m.status === 'recognizing text') showLoader('Recognising (pass 2)… ' + Math.round((m.progress || 0) * 100) + '%');
+        },
+      });
+      detectedLang = enabledNonLatin[0];
+      logTelemetry('scan_language_detected', { detected: detectedLang, langStr });
+    }
+
     const text  = result.data.text || '';
     const words = result.data.words || [];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -2833,6 +2967,18 @@ async function processCardImage(file, fieldMap) {
       l !== companyLine
     );
     const nameLine = allCapsMatch ? (allCapsMatch[1] + ' ' + allCapsMatch[2]) : fallbackName;
+
+    /* PRD 2 AC4 — Latin transliteration for non-Latin name/company.
+       Store native script in the field value; append transliteration to notes. */
+    const nameTranslit    = detectedLang !== 'eng' ? transliterateText(nameLine    || '') : '';
+    const companyTranslit = detectedLang !== 'eng' ? transliterateText(companyLine || '') : '';
+    if ((nameTranslit || companyTranslit) && fieldMap.notes) {
+      const notesEl = document.getElementById(fieldMap.notes);
+      if (notesEl) {
+        const translit = [nameTranslit && `Name (en): ${nameTranslit}`, companyTranslit && `Company (en): ${companyTranslit}`].filter(Boolean).join('\n');
+        notesEl.value = translit + (notesEl.value ? '\n\n' + notesEl.value : '');
+      }
+    }
 
     /* ── Apply per-field confidence (PRD 1) ── */
     const fieldValues = {
@@ -3158,14 +3304,24 @@ async function processBulkQueue() {
     item.status = 'scanning';
     renderBulkQueueItem(item);
     try {
-      const result = await Tesseract.recognize(item.file, 'eng', {
-        logger: m => {
-          if (m.status === 'recognizing text') {
-            const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
-            if (statusEl) statusEl.textContent = 'scanning ' + Math.round((m.progress || 0) * 100) + '%';
-          }
-        },
+      /* PRD 2 — two-pass multilingual OCR for bulk items */
+      const logStatus = pct => {
+        const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
+        if (statusEl) statusEl.textContent = 'scanning ' + pct + '%';
+      };
+      const engRes = await Tesseract.recognize(item.file, 'eng', {
+        logger: m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); },
       });
+      const detectedBulk   = detectScripts(engRes.data.text || '');
+      const nonLatinBulk   = detectedBulk.filter(d => d !== 'eng' && getEnabledOcrLangs().includes(d));
+      let result = engRes;
+      if (nonLatinBulk.length) {
+        const langStr = buildLangString(nonLatinBulk);
+        result = await Tesseract.recognize(item.file, langStr, {
+          logger: m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); },
+        });
+      }
+      item.detectedLang = nonLatinBulk[0] || 'eng';
       const text  = result.data.text || '';
       const words = result.data.words || [];
       const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -3196,6 +3352,7 @@ async function processBulkQueue() {
       item.ocrCapture = {
         scannedAt:  new Date().toISOString(),
         ocrEngine:  'tesseract.js@5',
+        detectedLang: item.detectedLang || 'eng',
         fields: Object.fromEntries(
           Object.entries(item.fields).map(([k, v]) => [k, {
             band: item.bands[k] || 'low',
@@ -3406,6 +3563,333 @@ normalizeLead = function(l) {
   base.logoUrl      = l.logoUrl      || '';
   base.jobTitle     = l.jobTitle     || '';
   return base;
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   PRD 6 — Voice Memo (MediaRecorder + Web Speech API)
+   ══════════════════════════════════════════════════════════════════ */
+
+const _vm = {
+  mediaRecorder:  null,
+  audioChunks:    [],
+  recognition:    null,
+  transcript:     '',
+  interimTranscript: '',
+  startTime:      null,
+  timerInterval:  null,
+  currentLeadId:  null,
+  blob:           null,
+};
+
+function _vmSetStatus(msg) {
+  const el = document.getElementById('vmStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+function _vmFormatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function _vmStartTimer() {
+  _vm.startTime = Date.now();
+  const timerEl = document.getElementById('vmTimer');
+  if (timerEl) timerEl.hidden = false;
+  _vm.timerInterval = setInterval(() => {
+    const el = document.getElementById('vmTimer');
+    if (el) el.textContent = _vmFormatTime(Date.now() - _vm.startTime);
+  }, 500);
+}
+
+function _vmStopTimer() {
+  clearInterval(_vm.timerInterval);
+  _vm.timerInterval = null;
+}
+
+/* Rule-based extraction — mirrors backend extractFromTranscript exactly */
+function vmExtractFields(transcript) {
+  const t = transcript.toLowerCase();
+
+  const PAIN_TRIGGERS = ['problem','issue','challenge','struggle','pain','difficult','frustrat','concern','worry','bottleneck','slow','manual'];
+  const sentences = transcript.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+  const painSentences = sentences.filter(s => PAIN_TRIGGERS.some(kw => s.toLowerCase().includes(kw)));
+  const painPoints = painSentences.length
+    ? { value: painSentences.join('. '), confidence: painSentences.length >= 2 ? 'high' : 'med' }
+    : null;
+
+  let budgetSignal = null;
+  const bHigh = /\b(large|big|high|enterprise|unlimited)\s*(budget|spend|invest)/i.test(transcript) || /[$£€₹]\s*[\d,]{5,}/.test(transcript);
+  const bMid  = /\b(mid|medium|moderate|reasonable)\s*(budget|spend)/i.test(transcript) || /[$£€₹]\s*[\d,]{3,4}/.test(transcript);
+  const bLow  = /\b(small|tight|limited|low|no)\s*(budget|spend)/i.test(transcript) || /\bno\s+budget\b/i.test(transcript);
+  if      (bHigh) budgetSignal = { value: 'high',    confidence: 'high' };
+  else if (bMid)  budgetSignal = { value: 'mid',     confidence: 'med'  };
+  else if (bLow)  budgetSignal = { value: 'low',     confidence: 'med'  };
+  else if (/budget|spend|invest/i.test(transcript)) budgetSignal = { value: 'unknown', confidence: 'low' };
+
+  let timeline = null;
+  const tmatch = transcript.match(/\b(immediately|asap|urgent|this\s+(week|month|quarter|year)|next\s+(week|month|quarter|year|\d+\s+months?)|\d+\s+(days?|weeks?|months?))\b/i);
+  if (tmatch) timeline = { value: tmatch[0], confidence: 'high' };
+
+  let decisionMakers = null;
+  const dmMatch = transcript.match(/(?:decision\s*maker|approver|approves|sign off|sign-off|ceo|cfo|cto|vp|director|head of)[^.!?]{0,80}/i);
+  if (dmMatch) decisionMakers = { value: dmMatch[0].trim(), confidence: 'med' };
+
+  const NEXT_TRIGGERS = ['follow up','follow-up','send','schedule','call back','demo','proposal','meeting','trial','pilot','next step','action'];
+  const nextSentences = sentences.filter(s => NEXT_TRIGGERS.some(kw => s.toLowerCase().includes(kw)));
+  const nextStep = nextSentences.length ? { value: nextSentences[0], confidence: 'high' } : null;
+
+  let interestLevel = null;
+  const hot  = /\b(very\s+interest|definitely|love\s+(it|this)|ready\s+to\s+buy|want\s+to\s+proceed|sign\s+(up|today)|go\s+ahead)\b/i.test(transcript);
+  const cold = /\b(not\s+interest|no\s+thanks|don't\s+need|not\s+now|maybe\s+later|just\s+looking)\b/i.test(transcript);
+  const warm = /\b(interest|consider|look\s+into|tell\s+me\s+more|sounds\s+good|makes\s+sense)\b/i.test(transcript);
+  if      (hot)  interestLevel = { value: 'hot',  confidence: 'high' };
+  else if (cold) interestLevel = { value: 'cold', confidence: 'high' };
+  else if (warm) interestLevel = { value: 'warm', confidence: 'med'  };
+
+  return { painPoints, budgetSignal, timeline, decisionMakers, nextStep, interestLevel };
+}
+
+const VM_FIELD_LABELS = {
+  painPoints:     'Pain Points',
+  budgetSignal:   'Budget',
+  timeline:       'Timeline',
+  decisionMakers: 'Decision Makers',
+  nextStep:       'Next Step',
+  interestLevel:  'Interest',
+};
+
+function vmRenderExtracted(extracted) {
+  const grid = document.getElementById('vmExtractedGrid');
+  const wrap = document.getElementById('vmExtracted');
+  if (!grid || !wrap) return;
+
+  const entries = Object.entries(extracted).filter(([, v]) => v !== null);
+  if (!entries.length) { wrap.hidden = true; return; }
+
+  grid.innerHTML = entries.map(([field, info]) => `
+    <div class="vm-field-card conf-${info.confidence}">
+      <div class="vm-field-label">${VM_FIELD_LABELS[field] || field}</div>
+      <div class="vm-field-value">${escapeHtml(String(info.value))}</div>
+      <span class="vm-conf-badge ${info.confidence}">${info.confidence}</span>
+    </div>
+  `).join('');
+
+  wrap.hidden = false;
+}
+
+async function vmStartRecording() {
+  if (!_vm.currentLeadId) return;
+  _vm.transcript = '';
+  _vm.interimTranscript = '';
+  _vm.audioChunks = [];
+  _vm.blob = null;
+
+  const transcriptEl = document.getElementById('vmTranscript');
+  const transcriptWrap = document.getElementById('vmTranscriptWrap');
+  if (transcriptEl) { transcriptEl.textContent = ''; transcriptEl.contentEditable = 'false'; }
+  if (transcriptWrap) transcriptWrap.hidden = true;
+  const vmExtracted = document.getElementById('vmExtracted');
+  if (vmExtracted) vmExtracted.hidden = true;
+
+  /* SpeechRecognition (Web Speech API) */
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRec) {
+    _vm.recognition = new SpeechRec();
+    _vm.recognition.continuous = true;
+    _vm.recognition.interimResults = true;
+    _vm.recognition.lang = 'en-IN';
+
+    _vm.recognition.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          _vm.transcript += e.results[i][0].transcript + ' ';
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+      if (transcriptEl) {
+        transcriptEl.textContent = _vm.transcript + (interim ? `[${interim}]` : '');
+      }
+      if (transcriptWrap) transcriptWrap.hidden = false;
+    };
+
+    _vm.recognition.onerror = (e) => {
+      if (e.error !== 'no-speech') _vmSetStatus(`Speech error: ${e.error}`);
+    };
+
+    _vm.recognition.start();
+  }
+
+  /* MediaRecorder for audio capture */
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _vm.mediaRecorder = new MediaRecorder(stream);
+    _vm.mediaRecorder.ondataavailable = e => { if (e.data.size) _vm.audioChunks.push(e.data); };
+    _vm.mediaRecorder.onstop = () => {
+      _vm.blob = new Blob(_vm.audioChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t => t.stop());
+    };
+    _vm.mediaRecorder.start(250);
+  } catch {
+    /* Mic permission denied — transcription-only mode */
+    _vmSetStatus('Mic unavailable — transcript only mode');
+  }
+
+  document.getElementById('vmRecordBtn').hidden = true;
+  document.getElementById('vmStopBtn').hidden = false;
+  _vmStartTimer();
+  _vmSetStatus('Recording…');
+
+  logTelemetry('voice_memo_recorded', { leadId: _vm.currentLeadId });
+}
+
+async function vmStopRecording() {
+  _vmStopTimer();
+
+  if (_vm.recognition) { try { _vm.recognition.stop(); } catch {} _vm.recognition = null; }
+  if (_vm.mediaRecorder && _vm.mediaRecorder.state !== 'inactive') _vm.mediaRecorder.stop();
+
+  document.getElementById('vmRecordBtn').hidden = false;
+  document.getElementById('vmStopBtn').hidden = true;
+  const timerEl = document.getElementById('vmTimer');
+  if (timerEl) timerEl.hidden = true;
+
+  _vmSetStatus('Processing…');
+
+  /* Small delay to let final speech results arrive */
+  await new Promise(r => setTimeout(r, 600));
+
+  const finalTranscript = _vm.transcript.trim();
+  const transcriptEl = document.getElementById('vmTranscript');
+  if (transcriptEl) {
+    transcriptEl.textContent = finalTranscript;
+    transcriptEl.contentEditable = 'true';
+  }
+  const transcriptWrap = document.getElementById('vmTranscriptWrap');
+  if (transcriptWrap) transcriptWrap.hidden = !finalTranscript;
+
+  if (finalTranscript) {
+    const extracted = vmExtractFields(finalTranscript);
+    vmRenderExtracted(extracted);
+    logTelemetry('voice_memo_transcribed', { leadId: _vm.currentLeadId, charCount: finalTranscript.length });
+  }
+
+  _vmSetStatus(finalTranscript ? 'Review transcript and extracted fields below.' : 'No speech detected. Type notes manually above.');
+}
+
+async function vmSaveMemo() {
+  const leadId = _vm.currentLeadId;
+  if (!leadId) return;
+
+  const transcriptEl = document.getElementById('vmTranscript');
+  const transcript = (transcriptEl?.textContent || _vm.transcript || '').trim();
+
+  const durationSec = _vm.startTime ? Math.round((Date.now() - _vm.startTime) / 1000) : null;
+
+  const btn = document.getElementById('vmSaveMemoBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    let body;
+    if (_vm.blob && _vm.blob.size > 0) {
+      const fd = new FormData();
+      fd.append('transcript', transcript);
+      fd.append('transcriptLang', 'en');
+      if (durationSec) fd.append('audioDurationSec', durationSec);
+      fd.append('audio', _vm.blob, 'memo.webm');
+      await fetch(`${API_BASE}/leads/${leadId}/voice-memos`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      }).then(r => r.json());
+    } else {
+      await api('POST', `/leads/${leadId}/voice-memos`, { transcript, transcriptLang: 'en', audioDurationSec: durationSec });
+    }
+
+    flash('Voice note saved', 'success');
+
+    /* Clear UI */
+    if (transcriptEl) { transcriptEl.textContent = ''; transcriptEl.contentEditable = 'false'; }
+    document.getElementById('vmTranscriptWrap').hidden = true;
+    document.getElementById('vmExtracted').hidden = true;
+    _vm.transcript = ''; _vm.blob = null;
+    _vmSetStatus('');
+
+    vmLoadSavedMemos(leadId);
+  } catch (err) {
+    flash(err.message || 'Save failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Voice Note →'; }
+  }
+}
+
+async function vmLoadSavedMemos(leadId) {
+  const list = document.getElementById('vmSavedList');
+  if (!list) return;
+  try {
+    const memos = await api('GET', `/leads/${leadId}/voice-memos`);
+    if (!memos || !memos.length) { list.innerHTML = ''; return; }
+
+    list.innerHTML = memos.map(m => {
+      const date = new Date(m.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const by   = m.recordedBy?.name || 'Unknown';
+      const excerpt = m.transcript ? escapeHtml(m.transcript.slice(0, 120)) + (m.transcript.length > 120 ? '…' : '') : '<em style="color:var(--text-3)">No transcript</em>';
+      const extractedTags = ['painPoints','budgetSignal','timeline','decisionMakers','nextStep','interestLevel']
+        .filter(f => m[f]?.value)
+        .map(f => `<span class="vm-tag">${VM_FIELD_LABELS[f]}: ${escapeHtml(String(m[f].value).slice(0,20))}</span>`)
+        .join('');
+
+      return `
+        <div class="vm-saved-item">
+          <div class="vm-saved-meta">${escapeHtml(date)} · ${escapeHtml(by)}${m.audioDurationSec ? ` · ${_vmFormatTime(m.audioDurationSec * 1000)}` : ''}</div>
+          <div class="vm-saved-excerpt">${excerpt}</div>
+          ${extractedTags ? `<div class="vm-saved-fields">${extractedTags}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch {
+    list.innerHTML = '';
+  }
+}
+
+/* Wire up Voice Memo button in lead modal header */
+document.getElementById('voiceMemoBtn')?.addEventListener('click', () => {
+  const panel = document.getElementById('voiceMemoPanel');
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden && _vm.currentLeadId) vmLoadSavedMemos(_vm.currentLeadId);
+});
+
+document.getElementById('vmRecordBtn')?.addEventListener('click', vmStartRecording);
+document.getElementById('vmStopBtn')?.addEventListener('click',   vmStopRecording);
+document.getElementById('vmSaveMemoBtn')?.addEventListener('click', vmSaveMemo);
+
+/* Patch openLeadModal to wire voice memo panel */
+const _origOpenLeadModal = openLeadModal;
+openLeadModal = function(leadId) {
+  _origOpenLeadModal(leadId);
+  _vm.currentLeadId = leadId;
+
+  const vBtn   = document.getElementById('voiceMemoBtn');
+  const vPanel = document.getElementById('voiceMemoPanel');
+  const isNew  = !leadId;
+
+  if (vBtn)   vBtn.classList.toggle('hidden', isNew);
+  if (vPanel) { vPanel.hidden = true; }
+
+  /* Reset recorder state */
+  if (_vm.mediaRecorder && _vm.mediaRecorder.state !== 'inactive') { try { _vm.mediaRecorder.stop(); } catch {} }
+  if (_vm.recognition) { try { _vm.recognition.stop(); } catch {} _vm.recognition = null; }
+  _vmStopTimer();
+  document.getElementById('vmRecordBtn').hidden = false;
+  document.getElementById('vmStopBtn').hidden   = true;
+  const timerEl = document.getElementById('vmTimer'); if (timerEl) timerEl.hidden = true;
+  _vmSetStatus('');
+  const tw = document.getElementById('vmTranscriptWrap'); if (tw) tw.hidden = true;
+  const ex = document.getElementById('vmExtracted');      if (ex) ex.hidden = true;
+  const sl = document.getElementById('vmSavedList');      if (sl) sl.innerHTML = '';
 };
 
 console.log('%c IINVSYS Sales OS v2.0 ', 'background:#F0BE18;color:#000;font-weight:bold;padding:4px 12px;letter-spacing:2px');

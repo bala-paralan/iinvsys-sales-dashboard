@@ -17,6 +17,8 @@ const TELEMETRY_EVENTS = new Set([
   'scan_dedupe_save_anyway',
   'enrichment_completed', 'enrichment_failed', 'enrichment_field_overridden',
   'bulk_scan_saved',
+  'scan_language_detected', 'scan_language_mismatch',
+  'voice_memo_recorded', 'voice_memo_transcribed', 'voice_memo_field_corrected',
 ]);
 
 /* ── helpers ─────────────────────────────────────────────────────── */

@@ -619,6 +619,7 @@
       <div class="modal-header-actions">
         <button type="button" class="neo-btn outline sm hidden" id="cameraScanBtn">📷 Scan Card</button>
         <input type="file" id="cardCameraInput" accept="image/*" capture="environment" style="display:none"/>
+        <button type="button" class="neo-btn outline sm hidden" id="voiceMemoBtn">🎙 Voice Note</button>
         <button class="neo-btn outline sm danger-btn hidden" id="deleteLeadBtn">🗑 Delete</button>
         <button class="modal-close" id="leadModalClose">✕</button>
       </div>
@@ -717,6 +718,30 @@
         <button type="submit" class="neo-btn yellow" id="leadSubmitBtn">Capture Lead →</button>
       </div>
     </form>
+
+    <!-- PRD 6: Voice Memo Panel (shown for existing leads only) -->
+    <div class="voice-memo-panel" id="voiceMemoPanel" hidden>
+      <div class="vmp-header">
+        <span class="card-eyebrow">// VOICE NOTES</span>
+        <div class="vmp-controls">
+          <button type="button" class="neo-btn yellow sm" id="vmRecordBtn">🎙 Record</button>
+          <button type="button" class="neo-btn outline sm hidden" id="vmStopBtn">⏹ Stop</button>
+          <span class="vm-timer" id="vmTimer" hidden>0:00</span>
+        </div>
+      </div>
+      <div class="vm-status" id="vmStatus" hidden></div>
+      <div class="vm-transcript-wrap" id="vmTranscriptWrap" hidden>
+        <div class="vm-transcript-label">Transcript</div>
+        <div class="vm-transcript" id="vmTranscript" contenteditable="false"></div>
+      </div>
+      <div class="vm-extracted" id="vmExtracted" hidden>
+        <div class="vm-extracted-label">// EXTRACTED FIELDS</div>
+        <div class="vm-extracted-grid" id="vmExtractedGrid"></div>
+        <button type="button" class="neo-btn yellow sm" id="vmSaveMemoBtn">Save Voice Note →</button>
+      </div>
+      <!-- PRD 6: Saved memos list -->
+      <div class="vm-saved-list" id="vmSavedList"></div>
+    </div>
   </div>
 </div>
 
