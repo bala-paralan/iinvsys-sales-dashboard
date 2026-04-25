@@ -33,15 +33,20 @@ function buildFilter(query, agentScope) {
 
 async function listLeads(req, res, next) {
   try {
-    const { page = 1, limit = 20, sort = '-createdAt' } = req.query;
+    const { page = 1, limit = 500, sort = '-createdAt' } = req.query;
     const filter = buildFilter(req.query, req.agentScope);
-    const skip   = (parseInt(page) - 1) * parseInt(limit);
+
+    /* Referrers see all leads for their expo only */
+    if (req.referrerExpoId) filter.expo = req.referrerExpoId;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const [leads, total] = await Promise.all([
       Lead.find(filter)
         .populate('assignedAgent', 'name initials color')
         .populate('products', 'name sku price')
         .populate('expo', 'name city')
+        .populate('createdBy', 'name role')
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit))
@@ -62,13 +67,19 @@ async function getLead(req, res, next) {
       .populate('assignedAgent', 'name initials color designation')
       .populate('products', 'name sku price category')
       .populate('expo', 'name city startDate endDate')
+      .populate('createdBy', 'name role')
       .populate('followUps.agent', 'name initials')
       .lean({ virtuals: true });
 
     if (!lead) return notFound(res, 'Lead not found');
 
+    /* Referrer: can only view leads for their expo */
+    if (req.referrerExpoId && String(lead.expo?._id || lead.expo) !== String(req.referrerExpoId)) {
+      return forbidden(res, 'Access denied');
+    }
+
     /* Agent: can only view own leads */
-    if (req.agentScope && String(lead.assignedAgent._id) !== String(req.agentScope)) {
+    if (req.agentScope && String(lead.assignedAgent?._id || lead.assignedAgent) !== String(req.agentScope)) {
       return forbidden(res, 'Access denied');
     }
     return ok(res, lead);
@@ -114,7 +125,14 @@ async function updateLead(req, res, next) {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return notFound(res, 'Lead not found');
 
-    /* Agents can only edit their own leads and only the stage field */
+    /* Referrers can only edit leads they created, limited fields */
+    if (req.user.role === 'referrer') {
+      if (String(lead.createdBy) !== String(req.user._id)) return forbidden(res, 'Access denied');
+      const allowed = ['name', 'phone', 'email', 'notes', 'stage'];
+      Object.keys(req.body).forEach(k => { if (!allowed.includes(k)) delete req.body[k]; });
+    }
+
+    /* Agents can only edit their own assigned leads, limited fields */
     if (req.agentScope) {
       if (String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
       const allowed = ['stage', 'notes'];

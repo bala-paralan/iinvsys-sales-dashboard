@@ -23,22 +23,25 @@ async function api(method, path, body) {
 /* ═══════════ NORMALIZERS ═══════════ */
 function normalizeLead(l) {
   return {
-    id:          l._id,
-    name:        l.name,
-    phone:       l.phone,
-    email:       l.email || '',
-    source:      l.source,
-    expo:        l.expo ? (l.expo.name || '') : '',
-    expoId:      l.expo ? (l.expo._id || l.expo) : null,
-    stage:       l.stage,
-    agentId:     l.assignedAgent?._id || (typeof l.assignedAgent === 'string' ? l.assignedAgent : null),
-    products:    (l.products || []).map(p => p._id || p),
-    value:       l.value || 0,
-    score:       l.score || 50,
-    followUps:   Array.isArray(l.followUps) ? l.followUps.length : (l.followUps || 0),
-    notes:       l.notes || '',
-    createdAt:   l.createdAt ? l.createdAt.split('T')[0] : null,
-    lastContact: l.lastContact ? l.lastContact.split('T')[0] : null,
+    id:              l._id,
+    name:            l.name,
+    phone:           l.phone,
+    email:           l.email || '',
+    source:          l.source,
+    expo:            l.expo ? (l.expo.name || '') : '',
+    expoId:          l.expo ? (l.expo._id || l.expo) : null,
+    stage:           l.stage,
+    agentId:         l.assignedAgent?._id || (typeof l.assignedAgent === 'string' ? l.assignedAgent : null),
+    products:        (l.products || []).map(p => p._id || p),
+    value:           l.value || 0,
+    score:           l.score || 50,
+    followUps:       Array.isArray(l.followUps) ? l.followUps.length : (l.followUps || 0),
+    notes:           l.notes || '',
+    createdAt:       l.createdAt ? l.createdAt.split('T')[0] : null,
+    lastContact:     l.lastContact ? l.lastContact.split('T')[0] : null,
+    createdById:     l.createdBy?._id || l.createdBy || null,
+    createdByName:   l.createdBy?.name  || null,
+    createdByRole:   l.createdBy?.role  || null,
   };
 }
 
@@ -687,6 +690,7 @@ function leadCardHTML(l) {
     </div>
     <div class="lead-detail">📞 ${l.phone}</div>
     <div class="lead-detail">◇ ${l.source.charAt(0).toUpperCase()+l.source.slice(1)}${l.expo ? ' — ' + l.expo : ''}</div>
+    ${l.createdByRole === 'referrer' ? `<div class="lead-detail" style="color:var(--violet);font-size:10px">↳ via ${l.createdByName || 'Referrer'}</div>` : ''}
     ${prodTags ? `<div class="lead-tags">${prodTags}</div>` : ''}
     <div class="lead-footer">
       <div class="lead-agent" style="background:${agent?.color||'var(--text-3)'}">${agent?.initials||'?'}</div>
@@ -2144,20 +2148,38 @@ window.saveSetting = async function(key, btn) {
 };
 
 /* ═══════════ REFERRER VIEW ═══════════ */
-function renderReferrerView() {
+async function renderReferrerView() {
   const wrap = document.getElementById('referrerView');
   if (!wrap) return;
 
-  const expoName = S.session?.expoId
-    ? (S.expos.find(e => e.id === S.session?.expoId)?.name || 'Your Expo')
-    : 'Your Expo';
+  const expo     = S.expos.find(e => e.id === S.session?.expoId);
+  const expoName = expo?.name || 'Your Expo';
+
+  /* ── Expo details section ── */
+  const productsList = (expo?.products || []).map(p =>
+    `<span class="ref-expo-product-chip">${p.name || '—'}</span>`
+  ).join('') || '<span style="color:var(--text-3);font-size:11px">No products listed</span>';
 
   wrap.innerHTML = `
     <div class="referrer-hero">
       <div class="referrer-expo-badge">◇ ${expoName}</div>
-      <div class="referrer-welcome">Ready to capture leads?</div>
+      <div class="referrer-welcome">Lead Capture & Tracker</div>
     </div>
-    <div class="referrer-form-card">
+
+    <!-- Expo Info Card -->
+    <div class="ref-expo-info-card">
+      <div class="ref-expo-info-row"><span class="ref-expo-info-label">Venue</span><span>${expo?.venue || '—'}</span></div>
+      <div class="ref-expo-info-row"><span class="ref-expo-info-label">Dates</span><span>${expo?.dates || '—'}</span></div>
+      <div class="ref-expo-info-row"><span class="ref-expo-info-label">Status</span><span class="ref-expo-status-chip ${expo?.status || ''}">${(expo?.status||'—').toUpperCase()}</span></div>
+      <div class="ref-expo-info-row"><span class="ref-expo-info-label">Products</span><div class="ref-expo-products-wrap">${productsList}</div></div>
+    </div>
+
+    <!-- Add Lead Form (collapsible) -->
+    <div class="ref-add-lead-header">
+      <span>// ADD NEW LEAD</span>
+      <button class="neo-btn yellow xs" id="refToggleFormBtn">+ New Lead</button>
+    </div>
+    <div class="referrer-form-card" id="refFormCard" style="display:none">
       <form id="referrerLeadForm">
         <div class="referrer-camera-row">
           <button type="button" class="neo-btn outline full-w" id="refCameraBtn">📷 Scan Business Card</button>
@@ -2188,10 +2210,23 @@ function renderReferrerView() {
           Capture Lead →
         </button>
       </form>
-      <div id="refTodayCount" class="ref-today-count"><!-- rendered after submit --></div>
-    </div>`;
+      <div id="refTodayCount" class="ref-today-count"></div>
+    </div>
 
-  /* Camera / OCR for referrer form */
+    <!-- All Expo Leads -->
+    <div class="ref-leads-section-label">// ALL LEADS AT THIS EXPO</div>
+    <div id="refLeadsList" class="ref-leads-list">${contentSpinner('Loading leads…')}</div>`;
+
+  /* ── Toggle form ── */
+  document.getElementById('refToggleFormBtn')?.addEventListener('click', () => {
+    const card = document.getElementById('refFormCard');
+    const btn  = document.getElementById('refToggleFormBtn');
+    const open = card.style.display === 'none';
+    card.style.display = open ? '' : 'none';
+    btn.textContent    = open ? '✕ Close' : '+ New Lead';
+  });
+
+  /* ── Camera / OCR ── */
   document.getElementById('refCameraBtn')?.addEventListener('click', () => {
     document.getElementById('refCardInput').click();
   });
@@ -2200,6 +2235,7 @@ function renderReferrerView() {
     if (file) processCardImage(file, { name:'refLeadName', phone:'refLeadPhone', email:'refLeadEmail', notes:'refLeadNotes' });
   });
 
+  /* ── Submit new lead ── */
   document.getElementById('referrerLeadForm')?.addEventListener('submit', async ev => {
     ev.preventDefault();
     const name  = document.getElementById('refLeadName').value.trim();
@@ -2218,19 +2254,128 @@ function renderReferrerView() {
     const btn = document.getElementById('refLeadSubmit');
     btnLoad(btn, true, 'Capturing…');
     try {
-      await api('POST', '/leads', payload);
+      const res = await api('POST', '/leads', payload);
       document.getElementById('referrerLeadForm').reset();
       flash('Lead captured!');
       S._refCount = (S._refCount || 0) + 1;
       const countEl = document.getElementById('refTodayCount');
       if (countEl) countEl.innerHTML = `<span class="ref-count-badge">${S._refCount} lead${S._refCount > 1 ? 's' : ''} captured today ✓</span>`;
+      /* Close form, refresh list */
+      document.getElementById('refFormCard').style.display = 'none';
+      document.getElementById('refToggleFormBtn').textContent = '+ New Lead';
+      await loadRefLeadsList();
     } catch (err) {
       flash(err.message || 'Failed to save lead', 'error');
     } finally {
       btnLoad(btn, false);
     }
   });
+
+  /* ── Load leads list ── */
+  await loadRefLeadsList();
 }
+
+async function loadRefLeadsList() {
+  const listEl = document.getElementById('refLeadsList');
+  if (!listEl) return;
+  listEl.innerHTML = contentSpinner('Loading leads…');
+  try {
+    const res   = await api('GET', '/leads?limit=500');
+    const leads = (res.data || []).map(normalizeLead);
+    if (leads.length === 0) {
+      listEl.innerHTML = `<div class="referrer-empty">No leads captured at this expo yet.</div>`;
+      return;
+    }
+    const myId = S.session?.id || S.session?._id;
+    listEl.innerHTML = leads.map(l => {
+      const isMine  = String(l.createdById) === String(myId);
+      const stageColors = { new:'var(--text-3)', contacted:'var(--azure)', interested:'var(--amber)', proposal:'var(--gold)', negotiation:'var(--violet)', won:'var(--emerald)', lost:'var(--coral)' };
+      const stageColor  = stageColors[l.stage] || 'var(--text-3)';
+      return `
+      <div class="ref-lead-item ${isMine ? 'ref-lead-mine' : 'ref-lead-other'}">
+        <div class="ref-lead-item-top">
+          <div>
+            <div class="ref-lead-name">${l.name}</div>
+            <div class="ref-lead-meta">📞 ${l.phone}${l.email ? ' · ' + l.email : ''}</div>
+            ${l.notes ? `<div class="ref-lead-notes">${l.notes}</div>` : ''}
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div class="ref-lead-stage" style="color:${stageColor}">${l.stage.toUpperCase()}</div>
+            ${isMine ? `<div class="ref-lead-mine-badge">My Lead</div>` : `<div class="ref-lead-other-badge">by ${l.createdByName || '—'}</div>`}
+          </div>
+        </div>
+        <div class="ref-lead-item-footer">
+          <span class="ref-lead-time">${l.createdAt || ''}</span>
+          ${isMine
+            ? `<button class="neo-btn outline xs" onclick="openRefEditLead('${l.id}')">✏ Edit</button>`
+            : `<span class="ref-read-only-tag">Read Only</span>`
+          }
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    listEl.innerHTML = `<div style="color:var(--coral);padding:12px;font-size:12px">${err.message}</div>`;
+  }
+}
+
+/* Referrer edit their own lead */
+window.openRefEditLead = async function(leadId) {
+  const res  = await api('GET', `/leads/${leadId}`);
+  const l    = normalizeLead(res.data);
+
+  /* Reuse the standard lead modal, pre-filled, locked to editable fields only */
+  const modal = document.getElementById('leadModal');
+  document.getElementById('leadModalEyebrow').textContent = '// EDIT MY LEAD';
+  document.getElementById('leadModalTitle').innerHTML     = 'Edit <em>My Lead</em>';
+  document.getElementById('leadSubmitBtn').textContent    = 'Save Changes →';
+  document.getElementById('deleteLeadBtn').classList.add('hidden');
+
+  /* Refresh expo dropdown */
+  const leadExpoSel = document.getElementById('leadExpo');
+  if (leadExpoSel) {
+    leadExpoSel.innerHTML = '<option value="">— Select Expo —</option>';
+    S.expos.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = ex.id; opt.textContent = ex.name;
+      leadExpoSel.appendChild(opt);
+    });
+  }
+
+  /* Product checkboxes — disabled for referrers */
+  const tagWrap = document.getElementById('leadProductTags');
+  tagWrap.innerHTML = '<span style="font-size:12px;color:var(--text-3)">Product selection managed by admin</span>';
+
+  document.getElementById('leadIdInput').value = l.id;
+  document.getElementById('leadName').value    = l.name;
+  document.getElementById('leadPhone').value   = l.phone;
+  document.getElementById('leadEmail').value   = l.email;
+  document.getElementById('leadStage').value   = l.stage;
+  document.getElementById('leadNotes').value   = l.notes;
+
+  /* Lock fields referrers cannot change */
+  ['leadSource','leadExpo','leadAgent','leadValue'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.setAttribute('readonly', ''); el.setAttribute('disabled', ''); el.style.opacity = '0.4'; }
+  });
+  /* Unlock editable fields */
+  ['leadName','leadPhone','leadEmail','leadStage','leadNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.removeAttribute('readonly'); el.removeAttribute('disabled'); el.style.opacity = ''; }
+  });
+
+  modal.classList.add('open');
+
+  /* After modal closes, re-enable disabled fields and refresh list */
+  const closeAndRefresh = async () => {
+    ['leadSource','leadExpo','leadAgent','leadValue'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.removeAttribute('readonly'); el.removeAttribute('disabled'); el.style.opacity = ''; }
+    });
+    await loadRefLeadsList();
+  };
+  document.getElementById('leadModalClose').onclick  = () => { modal.classList.remove('open'); closeAndRefresh(); };
+  document.getElementById('leadModalCancel').onclick = () => { modal.classList.remove('open'); closeAndRefresh(); };
+};
 
 /* ═══════════ REFERRER MANAGEMENT MODAL ═══════════ */
 let _currentReferrerExpoId = null;
@@ -2257,13 +2402,11 @@ async function loadReferrerList(expoId) {
       return;
     }
     list.innerHTML = referrers.map(r => {
-      const exp = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—';
-      const active = !r.expiresAt || new Date() < new Date(r.expiresAt);
       return `<div class="referrer-item">
         <div class="referrer-item-info">
           <span class="referrer-item-name">${r.name}</span>
           <span class="referrer-item-meta">${r.email}</span>
-          <span class="referrer-item-meta">Expires: ${exp} · ${r.leadCount || 0} leads · <span style="color:${active?'var(--emerald)':'var(--coral)'}">${active?'Active':'Expired'}</span></span>
+          <span class="referrer-item-meta">${r.leadCount || 0} leads captured · <span style="color:var(--emerald)">Active</span></span>
         </div>
         <button class="agent-btn danger" onclick="deleteReferrer('${expoId}','${r._id}')">Delete</button>
       </div>`;
@@ -2368,18 +2511,15 @@ window.downloadReferrerSheet = async function(expoId, expoName) {
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Expo Summary');
 
   /* ── Sheet 2: Referrer Credentials ── */
-  const headers = ['#', 'Name', 'Login Email', 'Temp Password', 'Expires On', 'Leads Captured', 'Status'];
+  const headers = ['#', 'Name', 'Login Email', 'Temp Password', 'Leads Captured', 'Status'];
   const rows = referrers.map((r, i) => {
-    const exp    = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : 'No Expiry';
-    const active = !r.expiresAt || new Date() < new Date(r.expiresAt);
     return [
       i + 1,
       r.name,
       r.email,
       '(set at creation — not stored)',
-      exp,
       r.leadCount || 0,
-      active ? 'Active' : 'Expired',
+      'Active',
     ];
   });
 
@@ -2388,7 +2528,7 @@ window.downloadReferrerSheet = async function(expoId, expoName) {
   }
 
   const wsRefs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  wsRefs['!cols'] = [{ wch: 4 }, { wch: 22 }, { wch: 42 }, { wch: 28 }, { wch: 18 }, { wch: 16 }, { wch: 10 }];
+  wsRefs['!cols'] = [{ wch: 4 }, { wch: 22 }, { wch: 42 }, { wch: 28 }, { wch: 16 }, { wch: 10 }];
 
   /* Bold the header row */
   headers.forEach((_, ci) => {

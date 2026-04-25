@@ -137,9 +137,6 @@ async function createReferrer(req, res, next) {
     const slug  = name.toLowerCase().replace(/\s+/g, '.') + '.' + Date.now().toString(36);
     const email = `${slug}@ref.${expo._id.toString().slice(-6)}.iinvsys`;
 
-    /* Referrer expires when expo ends */
-    const expiresAt = expo.endDate ? new Date(expo.endDate) : null;
-
     const existing = await User.findOne({ email });
     if (existing) return badRequest(res, 'A referrer with that name already exists for this expo');
 
@@ -147,19 +144,18 @@ async function createReferrer(req, res, next) {
       name,
       email,
       password,
-      role:        'referrer',
-      expoId:      expo._id,
-      expiresAt,
-      isTemporary: true,
-      isActive:    true,
+      role:      'referrer',
+      expoId:    expo._id,
+      expiresAt: null, // referrers never expire — admin must delete manually
+      isActive:  true,
     });
 
     return created(res, {
-      id:       user._id,
-      name:     user.name,
-      email:    user.email,
-      expoId:   user.expoId,
-      expiresAt: user.expiresAt,
+      id:        user._id,
+      name:      user.name,
+      email:     user.email,
+      expoId:    user.expoId,
+      expiresAt: null,
       password, // return plain-text once for admin to share
     }, 'Referrer account created');
   } catch (err) {

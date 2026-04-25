@@ -7,7 +7,7 @@ const { requireMinRole, scopeToAgent, allowReferrer } = require('../middleware/r
 
 const auth = [authenticate, requireMinRole('agent'), scopeToAgent];
 
-/* Referrer auth: only POST /api/leads allowed, auto-scoped to their expo */
+/* Referrer-aware auth: referrers get allowReferrer (expo-scoped), others get normal agent auth */
 const referrerAuth = [authenticate, (req, res, next) => {
   if (req.user.role === 'referrer') return allowReferrer(req, res, next);
   requireMinRole('agent')(req, res, () => scopeToAgent(req, res, next));
@@ -34,11 +34,11 @@ router.post('/bulk',
   ctrl.bulkImport
 );
 
-router.get('/',   ...auth, ctrl.listLeads);
+router.get('/',   ...referrerAuth, ctrl.listLeads);   // referrers see their expo's leads
 router.post('/',  ...referrerAuth, createValidation, ctrl.createLead);
 
-router.get('/:id',    ...auth, ctrl.getLead);
-router.put('/:id',    ...auth, updateValidation, ctrl.updateLead);
+router.get('/:id',    ...referrerAuth, ctrl.getLead);
+router.put('/:id',    ...referrerAuth, updateValidation, ctrl.updateLead); // referrers edit own leads only
 router.delete('/:id', authenticate, requireMinRole('manager'), scopeToAgent, ctrl.deleteLead);
 
 /* POST /api/leads/:id/followups */

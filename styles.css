@@ -2800,3 +2800,95 @@ button[data-loading="true"] {
   .expo-card-menu-actions { gap: 4px; }
   .expo-product-form-header { flex-direction: column; align-items: stretch; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   REFERRER VIEW — Expo info + lead list
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Expo info card */
+.ref-expo-info-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-3);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ref-expo-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.ref-expo-info-label {
+  color: var(--text-3);
+  min-width: 64px;
+  text-transform: uppercase;
+  font-size: 10px;
+  padding-top: 2px;
+}
+.ref-expo-status-chip { font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+.ref-expo-status-chip.live       { color: var(--emerald); }
+.ref-expo-status-chip.upcoming   { color: var(--azure); }
+.ref-expo-status-chip.past       { color: var(--text-3); }
+.ref-expo-products-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.ref-expo-product-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-3);
+  border-radius: 2px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+/* Add Lead toggle header */
+.ref-add-lead-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+/* Lead list section */
+.ref-leads-section-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  letter-spacing: 1px;
+  margin: 20px 0 12px;
+}
+.ref-leads-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* Individual lead items */
+.ref-lead-item {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-3);
+  border-radius: 4px;
+  padding: 12px 14px;
+}
+.ref-lead-item.ref-lead-mine  { border-left: 3px solid var(--gold); }
+.ref-lead-item.ref-lead-other { opacity: 0.75; }
+.ref-lead-item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.ref-lead-name  { font-family: var(--font-display); font-size: 14px; color: var(--text-1); margin-bottom: 2px; }
+.ref-lead-meta  { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+.ref-lead-notes { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); margin-top: 4px; font-style: italic; }
+.ref-lead-stage { font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+.ref-lead-mine-badge  { font-family: var(--font-mono); font-size: 9px; color: var(--gold); margin-top: 4px; text-align: right; }
+.ref-lead-other-badge { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); margin-top: 4px; text-align: right; }
+.ref-lead-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-3);
+}
+.ref-lead-time     { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.ref-read-only-tag { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); letter-spacing: 1px; }
