@@ -15,12 +15,12 @@ async function initAdmin() {
   if (count > 0) return; // users already exist — nothing to do
 
   const rawPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
-  const hashed      = await bcrypt.hash(rawPassword, 12);
-
+  // Pass plain-text — the User pre-save hook hashes it automatically.
+  // Do NOT pre-hash here; double-hashing breaks comparePassword().
   await User.create({
     name:     'Admin IINVSYS',
     email:    (process.env.ADMIN_EMAIL || 'admin@iinvsys.com').toLowerCase(),
-    password: hashed,
+    password: rawPassword,
     role:     'superadmin',
     isActive: true,
   });
