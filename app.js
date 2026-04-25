@@ -733,6 +733,12 @@ function openLeadModal(leadId) {
   const form  = document.getElementById('leadForm');
   const isNew = !leadId;
 
+  /* PRD 1/4 — reset transient scan + dupe state on every open */
+  ['leadName','leadPhone','leadEmail','leadCompany'].forEach(clearConfidence);
+  const banner = document.getElementById('scanRescanBanner'); if (banner) banner.hidden = true;
+  const dupePanel = document.getElementById('dupeMatchPanel'); if (dupePanel) { dupePanel.hidden = true; dupePanel.innerHTML = ''; }
+  _dupeState.matches = []; _dupeState.pendingPayload = null; _dupeState.pendingBtn = null;
+
   document.getElementById('leadModalEyebrow').textContent = isNew ? '// QUICK CAPTURE' : '// EDIT LEAD';
   document.getElementById('leadModalTitle').innerHTML     = isNew ? 'New <em>Lead</em>' : 'Edit <em>Lead</em>';
   document.getElementById('leadSubmitBtn').textContent    = isNew ? 'Capture Lead →' : 'Save Changes →';
@@ -801,12 +807,71 @@ function openLeadModal(leadId) {
     modal.classList.remove('open');
   });
 
+  /* PRD 5 — render enrichment section for existing leads */
+  const existingEnrichSection = modal.querySelector('.enrichment-section');
+  if (existingEnrichSection) existingEnrichSection.remove();
+  if (!isNew) {
+    const l = S.leads.find(x => x.id === leadId);
+    if (l && l.enrichment && Object.keys(l.enrichment).length) {
+      const form = document.getElementById('leadForm');
+      renderEnrichmentSection(l, form);
+    }
+  }
+
   modal.classList.add('open');
 }
 
 document.getElementById('leadModalClose').addEventListener('click',  () => document.getElementById('leadModal').classList.remove('open'));
 document.getElementById('leadModalCancel').addEventListener('click', () => document.getElementById('leadModal').classList.remove('open'));
 document.getElementById('leadModal').addEventListener('click', e => { if (e.target === document.getElementById('leadModal')) document.getElementById('leadModal').classList.remove('open'); });
+
+/* PRD 1 AC4 — gather OCR provenance from input dataset attrs into a Map-shaped object */
+function collectOcrCapture() {
+  const fields = {};
+  for (const [logical, inputId] of [['name','leadName'],['phone','leadPhone'],['email','leadEmail'],['company','leadCompany']]) {
+    const el = document.getElementById(inputId);
+    if (!el || !el.dataset.cband) continue;
+    const conf = parseFloat(el.dataset.ocrConfidence);
+    fields[logical] = {
+      band:          el.dataset.cband,
+      originalValue: el.dataset.ocrOriginal || '',
+      rawConfidence: isNaN(conf) ? undefined : conf,
+      corrected:     el.dataset.corrected === 'true',
+    };
+  }
+  if (!Object.keys(fields).length) return undefined;
+  return { scannedAt: new Date().toISOString(), ocrEngine: 'tesseract.js@5', fields };
+}
+
+/* PRD 1 AC3 — confirm dialog when saving with any unedited Low-band field */
+function lowConfidenceFieldsRemaining() {
+  const out = [];
+  for (const inputId of ['leadName','leadPhone','leadEmail','leadCompany']) {
+    const el = document.getElementById(inputId);
+    if (el?.dataset.cband === 'low' && el.dataset.corrected !== 'true' && el.value.trim()) {
+      out.push(inputId);
+    }
+  }
+  return out;
+}
+
+async function _persistLead({ id, payload, btn }) {
+  if (id) {
+    await api('PUT', `/leads/${id}`, payload);
+    flash('Lead updated successfully');
+  } else {
+    const res = await api('POST', '/leads', payload);
+    const newId = res.data?._id || res._id;
+    logTelemetry('scan_saved', {}, newId);
+    flash('Lead captured!');
+  }
+  await loadAllData(true);
+  updateNavCounts();
+  document.getElementById('leadModal').classList.remove('open');
+  renderKanban(getFilters());
+  if (isAgent()) renderMyLeads();
+  if (document.getElementById('page-overview').classList.contains('active')) renderKPIs();
+}
 
 document.getElementById('leadForm').addEventListener('submit', async e => {
   e.preventDefault();
@@ -817,9 +882,11 @@ document.getElementById('leadForm').addEventListener('submit', async e => {
 
   const products = Array.from(document.querySelectorAll('#leadProductTags input:checked')).map(c => c.value);
   const expoVal  = document.getElementById('leadExpo').value;
+  const ocrCapture = collectOcrCapture();
   const payload  = {
     name, phone,
     email:         document.getElementById('leadEmail').value.trim(),
+    company:       document.getElementById('leadCompany')?.value?.trim() || '',
     stage:         document.getElementById('leadStage').value,
     source:        document.getElementById('leadSource').value  || 'direct',
     expo:          expoVal || undefined,
@@ -827,29 +894,85 @@ document.getElementById('leadForm').addEventListener('submit', async e => {
     value:         parseInt(document.getElementById('leadValue').value) || 0,
     notes:         document.getElementById('leadNotes').value.trim(),
     products,
+    ocrCapture,
   };
 
   const btn = document.getElementById('leadSubmitBtn');
+
+  /* PRD 1 AC3 — confirm if low-confidence fields remain */
+  const lowFields = lowConfidenceFieldsRemaining();
+  if (!id && lowFields.length) {
+    const proceed = window.confirm(`${lowFields.length} field${lowFields.length > 1 ? 's look' : ' looks'} uncertain — save anyway?`);
+    logTelemetry('scan_save_with_low_confidence', { lowFields, accepted: proceed });
+    if (!proceed) return;
+  }
+
+  /* PRD 4 — final dupe check before save (only on new leads) */
+  if (!id) {
+    const matches = await runDuplicateCheck();
+    if (matches?.length) {
+      /* Stop — user must explicitly choose Open / Merge / Save as new from the panel.
+         Add a one-shot "Save as new" button if not already present. */
+      ensureSaveAsNewAffordance(payload, btn);
+      btnLoad(btn, false);
+      return;
+    }
+  }
+
   btnLoad(btn, true, id ? 'Saving…' : 'Capturing…');
   try {
-    if (id) {
-      await api('PUT', `/leads/${id}`, payload);
-      flash('Lead updated successfully');
-    } else {
-      await api('POST', '/leads', payload);
-      flash('Lead captured!');
-    }
-    await loadAllData(true);
-    updateNavCounts();
-    document.getElementById('leadModal').classList.remove('open');
-    renderKanban(getFilters());
-    if (isAgent()) renderMyLeads();
-    if (document.getElementById('page-overview').classList.contains('active')) renderKPIs();
+    await _persistLead({ id, payload, btn });
   } catch (err) {
     flash(err.message || 'Failed to save lead', 'error');
   } finally {
     btnLoad(btn, false);
   }
+});
+
+/* PRD 4 AC6 — when a duplicate match is shown, add a "Save as new" affordance
+   to the dupe panel that triggers the reason modal. */
+function ensureSaveAsNewAffordance(payload, originalBtn) {
+  const panel = document.getElementById('dupeMatchPanel');
+  if (!panel || panel.hidden) return;
+  if (panel.querySelector('[data-dmp-action="save-anyway"]')) return; // already added
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--surface-3);text-align:right';
+  wrap.innerHTML = `<button type="button" class="neo-btn outline" data-dmp-action="save-anyway">Save as new lead anyway</button>`;
+  panel.appendChild(wrap);
+  wrap.querySelector('button').addEventListener('click', () => {
+    _dupeState.pendingPayload = payload;
+    _dupeState.pendingBtn = originalBtn;
+    document.getElementById('dupeReasonModal').classList.add('open');
+  });
+}
+
+/* Wire reason modal */
+document.addEventListener('DOMContentLoaded', () => {
+  const close = () => document.getElementById('dupeReasonModal')?.classList.remove('open');
+  document.getElementById('dupeReasonClose')?.addEventListener('click', close);
+  document.getElementById('dupeReasonCancel')?.addEventListener('click', close);
+  document.getElementById('dupeReasonConfirm')?.addEventListener('click', async () => {
+    const reason = document.getElementById('dupeReasonSelect').value;
+    if (!reason) { flash('Please pick a reason', 'error'); return; }
+    const detail = document.getElementById('dupeReasonDetail').value.trim();
+    const payload = _dupeState.pendingPayload;
+    if (!payload) { close(); return; }
+    payload.dupeOverride = {
+      matchedLeadId: _dupeState.matches[0]?.lead?.id,
+      reason, reasonDetail: detail,
+    };
+    const btn = _dupeState.pendingBtn;
+    btnLoad(btn, true, 'Capturing…');
+    try {
+      await _persistLead({ id: '', payload, btn });
+      logTelemetry('scan_dedupe_save_anyway', { reason, matchedLeadId: payload.dupeOverride.matchedLeadId });
+      close();
+    } catch (err) {
+      flash(err.message || 'Failed to save lead', 'error');
+    } finally {
+      btnLoad(btn, false);
+    }
+  });
 });
 
 /* ── New lead buttons ── */
@@ -1907,8 +2030,48 @@ async function renderSettings() {
     wrap.innerHTML = `<div style="font-family:var(--font-mono);font-size:11px;color:var(--coral);padding:24px">Failed to load settings: ${err.message}</div>`;
   }
 
+  /* PRD 2 AC5 — OCR language config panel, appended after server settings */
+  renderOcrLangSettings(wrap);
+
   // Email Reports section — superadmin only
   if (isSuperAdmin()) renderEmailReports();
+}
+
+/* PRD 2 — OCR Language Settings panel (client-side localStorage, AC5) */
+function renderOcrLangSettings(container) {
+  const enabled = getEnabledOcrLangs();
+  const section = document.createElement('section');
+  section.className = 'settings-group';
+  section.id = 'ocrLangSettings';
+  section.innerHTML = `
+    <div class="settings-group-header">// OCR LANGUAGES (PRD 2)</div>
+    <div style="font-size:12px;color:var(--text-3);padding:4px 0 12px">
+      Select the scripts your team scans. Each additional language adds a second OCR pass (~3–8 s extra).
+    </div>
+    ${OCR_LANG_DEFS.map(def => `
+      <div class="settings-row">
+        <div class="settings-label-col">
+          <div class="settings-key">${def.label}</div>
+          <div class="settings-desc">${def.code}</div>
+        </div>
+        <div class="settings-val-col">
+          <label class="toggle-switch" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" class="ocr-lang-toggle" data-lang="${def.code}"
+              ${enabled.includes(def.code) ? 'checked' : ''}
+              ${def.code === 'eng' ? 'disabled' : ''} style="accent-color:var(--gold);width:16px;height:16px"/>
+            <span style="font-size:12px;color:var(--text-2)">${def.code === 'eng' ? 'Always on' : (enabled.includes(def.code) ? 'Enabled' : 'Disabled')}</span>
+          </label>
+        </div>
+      </div>`).join('')}`;
+  container.appendChild(section);
+
+  section.querySelectorAll('.ocr-lang-toggle').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const allChecked = Array.from(section.querySelectorAll('.ocr-lang-toggle:checked')).map(c => c.dataset.lang);
+      setEnabledOcrLangs(allChecked.length ? allChecked : ['eng']);
+      flash('OCR language preferences saved', 'success');
+    });
+  });
 }
 
 /* ─── Email Reports Config ──────────────────────────────────────── */
@@ -2572,30 +2735,216 @@ window.hardDeleteAgent = function(agentId, agentName) {
 };
 
 /* ═══════════ CAMERA / OCR ═══════════ */
+/* PRD 1 — confidence bands per field.
+   Tesseract returns word-level confidence (0-100). For each extracted
+   field we average the confidences of the words it spans, then map to
+   a band (configurable thresholds — defaults from the PRD). */
+const SCAN_BAND_THRESHOLDS = { high: 0.85, med: 0.60 };
+
+function bandFor(confidence) {
+  if (confidence == null || isNaN(confidence)) return 'med'; // AC graceful degradation
+  if (confidence >= SCAN_BAND_THRESHOLDS.high) return 'high';
+  if (confidence >= SCAN_BAND_THRESHOLDS.med)  return 'med';
+  return 'low';
+}
+
+/* Average word-confidence (0-1) for words whose text appears in `phrase` */
+function confidenceForPhrase(words, phrase) {
+  if (!phrase || !words?.length) return null;
+  const tokens = String(phrase).toLowerCase().match(/[\w@.+-]+/g) || [];
+  if (!tokens.length) return null;
+  const scores = [];
+  for (const t of tokens) {
+    const w = words.find(w => (w.text || '').toLowerCase().includes(t) || t.includes((w.text || '').toLowerCase()));
+    if (w && typeof w.confidence === 'number') scores.push(w.confidence / 100);
+  }
+  if (!scores.length) return null;
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
+/* Apply band to a form input + its hint span; fire telemetry */
+function applyConfidence(inputId, value, confidence, leadIdForTelemetry = null) {
+  const el = document.getElementById(inputId);
+  if (!el) return null;
+  const hasValue = value != null && String(value).trim() !== '';
+  /* AC edge-case: empty field → low regardless of OCR score */
+  const band = !hasValue ? 'low' : bandFor(confidence);
+
+  if (hasValue) el.value = String(value).trim();
+  el.classList.remove('cband-low','cband-med','cband-high');
+  el.classList.add('cband-' + band);
+  el.dataset.cband = band;
+  el.dataset.ocrOriginal = hasValue ? String(value).trim() : '';
+  el.dataset.ocrConfidence = confidence != null ? String(confidence) : '';
+
+  const hintId = inputId + '-band';
+  const hint = document.getElementById(hintId);
+  if (hint) {
+    hint.hidden = false;
+    hint.textContent = band === 'low'  ? '⚠ Low confidence — please verify'
+                     : band === 'med'  ? '~ Medium confidence — double-check'
+                     : '✓ High confidence';
+    hint.className = 'confidence-hint cband-' + band;
+    /* AC7 screen-reader: aria-describedby is already wired in the markup,
+       so the hint text is announced when the input gains focus. */
+  }
+
+  /* AC8 telemetry — fire once per band assignment */
+  logTelemetry('scan_field_confidence_band', { field: inputId, band, confidence }, leadIdForTelemetry);
+
+  /* Track edits — promote to "corrected" if user changes the value */
+  el.removeEventListener('input', el._cbandEditHandler || (() => {}));
+  el._cbandEditHandler = () => {
+    if (el.value.trim() !== el.dataset.ocrOriginal) {
+      el.dataset.corrected = 'true';
+      logTelemetry('scan_field_corrected', { field: inputId, fromBand: band });
+    } else {
+      delete el.dataset.corrected;
+    }
+  };
+  el.addEventListener('input', el._cbandEditHandler);
+
+  return band;
+}
+
+function clearConfidence(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.classList.remove('cband-low','cband-med','cband-high');
+  delete el.dataset.cband;
+  delete el.dataset.ocrOriginal;
+  delete el.dataset.ocrConfidence;
+  delete el.dataset.corrected;
+  const hint = document.getElementById(inputId + '-band');
+  if (hint) { hint.hidden = true; hint.textContent = ''; }
+}
+
+/* Telemetry helper — fire-and-forget, non-blocking, swallows errors. */
+function logTelemetry(eventName, metadata = {}, leadId = null) {
+  try {
+    if (!_token) return; // not signed in
+    api('POST', '/leads/telemetry', { eventName, metadata, leadId }).catch(() => {});
+  } catch (e) { /* never let telemetry break the flow */ }
+}
+
+/* ═══════════ PRD 2: MULTILINGUAL OCR ═══════════ */
+
+/* Language config — stored in localStorage so admin can toggle via Settings.
+   AC2: initial supported set.  AC5: per-tenant via config flag. */
+const OCR_LANG_DEFS = [
+  { code:'eng',      label:'English',             tesseract:'eng',                script:/[A-z]/  },
+  { code:'hin',      label:'Hindi (Devanagari)',   tesseract:'hin',                script:/[ऀ-ॿ]/  },
+  { code:'tam',      label:'Tamil',                tesseract:'tam',                script:/[஀-௿]/  },
+  { code:'ara',      label:'Arabic',               tesseract:'ara',                script:/[؀-ۿ]/  },
+  { code:'chi_sim',  label:'Chinese (Simplified)', tesseract:'chi_sim',            script:/[一-鿿]/  },
+  { code:'chi_tra',  label:'Chinese (Traditional)',tesseract:'chi_tra',            script:/[一-鿿]/  },
+  { code:'jpn',      label:'Japanese',             tesseract:'jpn',                script:/[぀-ヿ]/  },
+  { code:'kor',      label:'Korean',               tesseract:'kor',                script:/[가-힯]/  },
+];
+
+/* AC5 — enabled languages (persisted per user in localStorage) */
+function getEnabledOcrLangs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('ii_ocr_langs') || 'null');
+    if (Array.isArray(stored)) return stored;
+  } catch (_) {}
+  return ['eng']; // default: English only
+}
+function setEnabledOcrLangs(codes) {
+  localStorage.setItem('ii_ocr_langs', JSON.stringify(codes));
+}
+
+/* AC1 — detect non-Latin scripts in a text sample (<500 ms, pure JS) */
+function detectScripts(text) {
+  if (!text) return ['eng'];
+  const detected = [];
+  for (const def of OCR_LANG_DEFS) {
+    if (def.code !== 'eng' && def.script.test(text)) detected.push(def.code);
+  }
+  return detected.length ? detected : ['eng'];
+}
+
+/* Build Tesseract language string from enabled list + detected scripts */
+function buildLangString(detectedScripts) {
+  const enabled  = getEnabledOcrLangs();
+  const langSet  = new Set(['eng']); // always include English
+  for (const code of [...enabled, ...detectedScripts]) langSet.add(code);
+  return Array.from(langSet).map(c => OCR_LANG_DEFS.find(d => d.code === c)?.tesseract || c).join('+');
+}
+
+/* AC4 — basic transliteration for Devanagari → Latin (name/company display).
+   A full library (e.g. libindic) ships as a vendor dep; this covers the
+   most-common name characters sufficient for search indexing. */
+function transliterateDevanagari(text) {
+  const map = { 'अ':'a','आ':'aa','इ':'i','ई':'ee','उ':'u','ऊ':'oo','ए':'e','ऐ':'ai','ओ':'o','औ':'au',
+    'क':'k','ख':'kh','ग':'g','घ':'gh','च':'ch','छ':'chh','ज':'j','झ':'jh','ट':'t','ठ':'th',
+    'ड':'d','ढ':'dh','ण':'n','त':'t','थ':'th','द':'d','ध':'dh','न':'n','प':'p','फ':'ph',
+    'ब':'b','भ':'bh','म':'m','य':'y','र':'r','ल':'l','व':'v','श':'sh','ष':'sh','स':'s','ह':'h',
+    'ा':'a','ि':'i','ी':'ee','ु':'u','ू':'oo','े':'e','ै':'ai','ो':'o','ौ':'au','ं':'n','ः':'h','्':'' };
+  return text.split('').map(c => map[c] ?? c).join('');
+}
+
+function transliterateText(text) {
+  if (!text) return '';
+  if (/[ऀ-ॿ]/.test(text)) return transliterateDevanagari(text);
+  return text; // Tamil, Arabic, CJK: leave as-is (full library needed)
+}
+
 async function processCardImage(file, fieldMap) {
-  /* Disable whichever scan button triggered this */
   const scanBtns = [
     document.getElementById('cameraScanBtn'),
     document.getElementById('refCameraBtn'),
+    document.getElementById('scanRescanBtn'),
   ];
   scanBtns.forEach(b => btnLoad(b, true, '🔍 Scanning…'));
+  logTelemetry('scan_started', { fieldMap });
   try {
-    const result = await Tesseract.recognize(file, 'eng', {
+    /* PRD 2 — Phase 1: run English OCR first (fast), detect scripts, then
+       re-run with additional languages if non-Latin script found. */
+    const engResult = await Tesseract.recognize(file, 'eng', {
       logger: m => {
         if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
         else if (m.status === 'loading language traineddata') showLoader('Downloading language data…');
         else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
-        else if (m.status === 'recognizing text')             showLoader('Recognising… ' + Math.round((m.progress || 0) * 100) + '%');
+        else if (m.status === 'recognizing text')             showLoader('Recognising (pass 1)… ' + Math.round((m.progress || 0) * 100) + '%');
       },
     });
-    const text = result.data.text;
+
+    const engText      = engResult.data.text || '';
+    const detected     = detectScripts(engText);
+    const enabledLangs = getEnabledOcrLangs();
+
+    /* Check if any detected script is NOT enabled for this tenant (AC edge case) */
+    const disabledDetected = detected.filter(d => d !== 'eng' && !enabledLangs.includes(d));
+    if (disabledDetected.length) {
+      const labels = disabledDetected.map(c => OCR_LANG_DEFS.find(d => d.code === c)?.label || c).join(', ');
+      flash(`Card appears to be in ${labels} — enable it in Settings → OCR Languages for better results.`, 'warn');
+      logTelemetry('scan_language_mismatch', { detected, enabled: enabledLangs, disabled: disabledDetected });
+    }
+
+    /* AC3 — if non-Latin script detected AND the language is enabled, re-run with combined langs */
+    const enabledNonLatin = detected.filter(d => d !== 'eng' && enabledLangs.includes(d));
+    let result = engResult;
+    let detectedLang = 'eng';
+    if (enabledNonLatin.length) {
+      const langStr = buildLangString(enabledNonLatin);
+      showLoader(`Recognising ${langStr.replace(/\+/g, ' + ')}… pass 2`);
+      result = await Tesseract.recognize(file, langStr, {
+        logger: m => {
+          if (m.status === 'recognizing text') showLoader('Recognising (pass 2)… ' + Math.round((m.progress || 0) * 100) + '%');
+        },
+      });
+      detectedLang = enabledNonLatin[0];
+      logTelemetry('scan_language_detected', { detected: detectedLang, langStr });
+    }
+
+    const text  = result.data.text || '';
+    const words = result.data.words || [];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    /* Extract fields with regex */
-    /* Email */
+    /* ── Field extraction (unchanged heuristics) ── */
     const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
 
-    /* Phone: Indian mobile (with optional +91, spaces, dashes) OR any 10-digit sequence per line */
     let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
     if (!phoneRaw) {
       for (const ln of lines) {
@@ -2606,43 +2955,276 @@ async function processCardImage(file, fieldMap) {
     const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g, '') : null;
     const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
 
-    /* Company: line with common business suffixes */
     const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
 
-    /* Name: strategy 1 — two consecutive ALL-CAPS words (e.g. TIM MARGO) */
     const allCapsMatch = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
-    /* Name: strategy 2 — first readable line that isn't a phone/email/URL/company */
     const fallbackName = lines.find(l =>
       l.length > 2 && l.length < 60 &&
-      !l.match(/^\//) &&                       // skip lines starting with OCR slash artifact
+      !l.match(/^\//) &&
       !l.match(/[@\\]/) &&
       !l.toLowerCase().includes('www') &&
-      !/^\+?[\d\s\-().]+$/.test(l) &&          // skip pure phone/digit lines
+      !/^\+?[\d\s\-().]+$/.test(l) &&
       l !== companyLine
     );
     const nameLine = allCapsMatch ? (allCapsMatch[1] + ' ' + allCapsMatch[2]) : fallbackName;
 
-    const setField = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = String(val).trim(); };
-    setField(fieldMap.name,    nameLine);
-    setField(fieldMap.phone,   phone);
-    setField(fieldMap.email,   emailMatch?.[0]);
-    setField(fieldMap.company, companyLine);
-    /* Always dump raw OCR text into notes so user can verify / correct */
-    if (fieldMap.notes && !fieldMap.company) setField(fieldMap.notes, text.trim().substring(0, 400));
-
-    const filled = [nameLine, phone, emailMatch?.[0]].filter(Boolean).length;
-    if (filled > 0) {
-      flash(`Card scanned — ${filled} field${filled > 1 ? 's' : ''} filled. Review before saving.`);
-    } else {
-      flash('Card text unclear — raw text saved to Notes. Fill fields manually.', 'warn');
+    /* PRD 2 AC4 — Latin transliteration for non-Latin name/company.
+       Store native script in the field value; append transliteration to notes. */
+    const nameTranslit    = detectedLang !== 'eng' ? transliterateText(nameLine    || '') : '';
+    const companyTranslit = detectedLang !== 'eng' ? transliterateText(companyLine || '') : '';
+    if ((nameTranslit || companyTranslit) && fieldMap.notes) {
+      const notesEl = document.getElementById(fieldMap.notes);
+      if (notesEl) {
+        const translit = [nameTranslit && `Name (en): ${nameTranslit}`, companyTranslit && `Company (en): ${companyTranslit}`].filter(Boolean).join('\n');
+        notesEl.value = translit + (notesEl.value ? '\n\n' + notesEl.value : '');
+      }
     }
+
+    /* ── Apply per-field confidence (PRD 1) ── */
+    const fieldValues = {
+      name:    { id: fieldMap.name,    value: nameLine,         conf: confidenceForPhrase(words, nameLine) },
+      phone:   { id: fieldMap.phone,   value: phone,            conf: confidenceForPhrase(words, phoneRaw?.[0]) },
+      email:   { id: fieldMap.email,   value: emailMatch?.[0],  conf: confidenceForPhrase(words, emailMatch?.[0]) },
+      company: { id: fieldMap.company, value: companyLine,      conf: confidenceForPhrase(words, companyLine) },
+    };
+    const bands = {};
+    for (const [key, f] of Object.entries(fieldValues)) {
+      if (f.id) bands[key] = applyConfidence(f.id, f.value, f.conf);
+    }
+
+    /* Notes always gets the raw text for fallback verification */
+    if (fieldMap.notes) {
+      const notesEl = document.getElementById(fieldMap.notes);
+      if (notesEl) notesEl.value = text.trim().substring(0, 400);
+    }
+
+    /* AC5 — re-scan CTA when >50% of fields are Low */
+    const bandValues = Object.values(bands);
+    const lowCount   = bandValues.filter(b => b === 'low').length;
+    const banner = document.getElementById('scanRescanBanner');
+    if (banner) banner.hidden = !(bandValues.length && lowCount / bandValues.length > 0.5);
+
+    const filled = bandValues.filter(b => b !== 'low').length;
+    logTelemetry('scan_completed', { bands, lowCount, totalFields: bandValues.length });
+    if (filled > 0) {
+      flash(`Card scanned — ${filled} field${filled > 1 ? 's' : ''} above low confidence. Review before saving.`);
+    } else {
+      flash('Card text unclear — please fix the highlighted fields or re-scan.', 'warn');
+    }
+
+    /* PRD 4 — fire duplicate check in parallel with the field render */
+    runDuplicateCheck();
   } catch (err) {
     flash('Could not read card — please fill in manually', 'error');
+    logTelemetry('scan_abandoned', { error: String(err?.message || err) });
   } finally {
     hideLoader();
     scanBtns.forEach(b => btnLoad(b, false));
   }
 }
+
+/* ═══════════ PRD 4: DUPLICATE DETECTION ═══════════ */
+/* In-flight state for the lead-modal dupe check */
+const _dupeState = {
+  matches:        [],     // ranked list from the API
+  pendingPayload: null,   // payload waiting on save-anyway-with-reason
+  pendingBtn:     null,
+};
+
+async function runDuplicateCheck() {
+  const panel = document.getElementById('dupeMatchPanel');
+  if (!panel) return;
+  const payload = {
+    name:    document.getElementById('leadName')?.value?.trim()    || '',
+    phone:   document.getElementById('leadPhone')?.value?.trim()   || '',
+    email:   document.getElementById('leadEmail')?.value?.trim()   || '',
+    company: document.getElementById('leadCompany')?.value?.trim() || '',
+  };
+  if (!payload.name && !payload.phone && !payload.email) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    _dupeState.matches = [];
+    return [];
+  }
+  /* Don't dupe-check edits to existing leads against themselves */
+  const editingId = document.getElementById('leadIdInput')?.value || '';
+  try {
+    const res = await api('POST', '/leads/check-duplicate', payload);
+    const matches = (res.data?.matches || res.matches || []).filter(m => m.lead.id !== editingId);
+    _dupeState.matches = matches;
+    renderDupeMatchPanel(matches);
+    if (matches.length) logTelemetry('scan_dedupe_match_found', { count: matches.length, top: matches[0]?.strength });
+    return matches;
+  } catch (err) {
+    panel.hidden = true;
+    return [];
+  }
+}
+
+function renderDupeMatchPanel(matches) {
+  const panel = document.getElementById('dupeMatchPanel');
+  if (!panel) return;
+  if (!matches.length) { panel.hidden = true; panel.innerHTML = ''; return; }
+
+  const strong = matches.find(m => m.strength === 'strong');
+  panel.classList.toggle('strong', !!strong);
+  panel.hidden = false;
+  const headerLabel = strong
+    ? `// LIKELY DUPLICATE — matched on ${strong.reason}`
+    : `// POSSIBLE MATCH${matches.length > 1 ? `ES — ${matches.length} candidates` : ''}`;
+
+  const rows = matches.slice(0, strong ? 1 : 3).map(m => {
+    const l = m.lead;
+    const sub = [l.email || null, l.phone || null, l.company || null, l.assignedAgent?.name || null]
+                  .filter(Boolean).join(' · ');
+    const idAttr = `data-match-id="${l.id}"`;
+    return `
+      <div class="dmp-match">
+        <div class="dmp-match-info">
+          <div class="dmp-match-name">${escapeHtml(l.name)} <span style="color:var(--text-3);font-weight:400;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">· ${escapeHtml(l.stage)}</span></div>
+          <div class="dmp-match-sub">${escapeHtml(sub)}</div>
+        </div>
+        <div class="dmp-actions">
+          <button type="button" class="neo-btn outline" ${idAttr} data-dmp-action="open">Open</button>
+          <button type="button" class="neo-btn yellow"  ${idAttr} data-dmp-action="merge">Merge</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  panel.innerHTML = `<div class="dmp-header">${escapeHtml(headerLabel)}</div>${rows}`;
+  panel.querySelectorAll('[data-dmp-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.matchId;
+      const action = btn.dataset.dmpAction;
+      logTelemetry('scan_dedupe_action', { action, matchId: id });
+      if (action === 'open') {
+        document.getElementById('leadModal').classList.remove('open');
+        openLeadModal(id);
+      } else if (action === 'merge') {
+        openMergeModal(id);
+      }
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+/* Build merge UI: side-by-side per-field winners */
+function openMergeModal(existingLeadId) {
+  const existing = S.leads.find(l => l.id === existingLeadId);
+  if (!existing) { flash('Could not load the existing lead', 'error'); return; }
+
+  const incoming = {
+    name:    document.getElementById('leadName')?.value?.trim()    || '',
+    phone:   document.getElementById('leadPhone')?.value?.trim()   || '',
+    email:   document.getElementById('leadEmail')?.value?.trim()   || '',
+    company: document.getElementById('leadCompany')?.value?.trim() || '',
+    notes:   document.getElementById('leadNotes')?.value?.trim()   || '',
+    value:   document.getElementById('leadValue')?.value           || '',
+    stage:   document.getElementById('leadStage')?.value           || '',
+  };
+  const existingMap = {
+    name: existing.name, phone: existing.phone, email: existing.email,
+    company: existing.company || '', notes: existing.notes || '',
+    value: existing.value || '', stage: existing.stage,
+  };
+
+  const grid = document.getElementById('mergeGrid');
+  grid.innerHTML = `
+    <div class="mg-h"></div>
+    <div class="mg-h">Existing</div>
+    <div class="mg-h">From scan</div>
+    ${['name','phone','email','company','value','stage','notes'].map(f => {
+      const a = existingMap[f]; const b = incoming[f];
+      /* Default winner: PRD 1 says highest-confidence value, else newest non-empty.
+         The scan value is "newest" by definition; pick it when existing is empty
+         OR when the scanned input has a high confidence band. */
+      const incomingEl = document.getElementById('lead' + (f === 'name' ? 'Name' : f.charAt(0).toUpperCase() + f.slice(1)));
+      const incomingBand = incomingEl?.dataset?.cband;
+      const defaultPick = (!a && b) ? 'incoming'
+                        : (a && !b) ? 'existing'
+                        : (incomingBand === 'high') ? 'incoming'
+                        : 'existing';
+      return `
+        <div class="mg-label">${f}</div>
+        <div class="mg-cell ${a ? '' : 'empty'} ${defaultPick==='existing' ? 'selected' : ''}" data-mg-field="${f}" data-mg-side="existing">${escapeHtml(a || '— empty —')}</div>
+        <div class="mg-cell ${b ? '' : 'empty'} ${defaultPick==='incoming' ? 'selected' : ''}" data-mg-field="${f}" data-mg-side="incoming">${escapeHtml(b || '— empty —')}</div>
+      `;
+    }).join('')}
+  `;
+
+  /* Click toggles per-field winner */
+  grid.querySelectorAll('.mg-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const field = cell.dataset.mgField;
+      grid.querySelectorAll(`.mg-cell[data-mg-field="${field}"]`).forEach(c => c.classList.remove('selected'));
+      cell.classList.add('selected');
+    });
+  });
+
+  document.getElementById('mergeModal').classList.add('open');
+  document.getElementById('mergeConfirmBtn').onclick = () => confirmMerge(existingLeadId, incoming);
+  document.getElementById('mergeCancelBtn').onclick  = () => document.getElementById('mergeModal').classList.remove('open');
+  document.getElementById('mergeModalClose').onclick = () => document.getElementById('mergeModal').classList.remove('open');
+}
+
+async function confirmMerge(existingLeadId, incoming) {
+  const grid = document.getElementById('mergeGrid');
+  const fieldChoices = {};
+  /* For each field: 'source' means "use the incoming/scan value", which on
+     the backend means take from the source row. We're not actually creating
+     the source row first — instead, mutate the existing lead in place via
+     the merge endpoint by providing a fake "source" payload. To keep the
+     backend simple we POST a temp lead first, then merge. */
+  grid.querySelectorAll('.mg-cell.selected').forEach(c => {
+    const field = c.dataset.mgField;
+    const side  = c.dataset.mgSide;
+    fieldChoices[field] = (side === 'incoming') ? 'source' : 'target';
+  });
+
+  const btn = document.getElementById('mergeConfirmBtn');
+  btnLoad(btn, true, 'Merging…');
+  try {
+    /* Create the source lead first (so its activity history can be migrated
+       — currently empty, but the schema requires it). Use minimum required fields. */
+    const srcPayload = {
+      name:    incoming.name  || 'Scanned',
+      phone:   incoming.phone || '0000000000',
+      email:   incoming.email,
+      company: incoming.company,
+      notes:   incoming.notes,
+      value:   parseInt(incoming.value) || 0,
+      stage:   incoming.stage || 'new',
+      source:  document.getElementById('leadSource')?.value || 'direct',
+    };
+    const srcRes = await api('POST', '/leads', srcPayload);
+    const srcId  = srcRes.data?._id || srcRes.data?.id || srcRes._id;
+    if (!srcId) throw new Error('Could not stage source lead for merge');
+
+    await api('POST', `/leads/${existingLeadId}/merge`, { sourceId: srcId, fieldChoices });
+    logTelemetry('scan_dedupe_action', { action: 'merge_confirmed', existingLeadId });
+    flash('Leads merged successfully');
+
+    document.getElementById('mergeModal').classList.remove('open');
+    document.getElementById('leadModal').classList.remove('open');
+    await loadAllData(true);
+    updateNavCounts();
+    renderKanban(getFilters());
+  } catch (err) {
+    flash(err.message || 'Merge failed', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+}
+
+/* Wire the Re-scan banner button */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('scanRescanBtn')?.addEventListener('click', () => {
+    document.getElementById('cardCameraInput')?.click();
+  });
+});
 
 /* Wire up the lead modal camera button */
 document.getElementById('cameraScanBtn')?.addEventListener('click', () => {
@@ -2653,6 +3235,662 @@ document.getElementById('cardCameraInput')?.addEventListener('change', e => {
   if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail', notes:'leadNotes' });
   e.target.value = ''; // reset so same file can re-trigger
 });
+
+/* ═══════════ PRD 3: BULK SCAN MODAL ═══════════ */
+const _bulk = {
+  items: [],     // { file, dataUrl, status, fields, bands, skip }
+  processing: false,
+};
+
+function openBulkScanModal() {
+  _bulk.items = [];
+  document.getElementById('bulkScanUploadZone').hidden = false;
+  document.getElementById('bulkScanQueueWrap').hidden  = true;
+  document.getElementById('bulkScanModal').classList.add('open');
+}
+
+/* Accept files from input or drop */
+function acceptBulkFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/')).slice(0, 50 - _bulk.items.length);
+  if (!files.length) return;
+
+  const newItems = files.map(file => ({
+    id:     Math.random().toString(36).slice(2),
+    file,
+    dataUrl: null,
+    status: 'queued',
+    fields: { name:'', phone:'', email:'', company:'' },
+    bands:  {},
+    ocrCapture: null,
+    skip: false,
+  }));
+  _bulk.items.push(...newItems);
+
+  /* Generate thumbnails */
+  newItems.forEach(item => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      item.dataUrl = e.target.result;
+      renderBulkQueueItem(item);
+    };
+    reader.readAsDataURL(item.file);
+  });
+
+  showBulkQueue();
+  if (!_bulk.processing) processBulkQueue();
+}
+
+function showBulkQueue() {
+  document.getElementById('bulkScanUploadZone').hidden = true;
+  document.getElementById('bulkScanQueueWrap').hidden  = false;
+  refreshBulkSummary();
+}
+
+function refreshBulkSummary() {
+  const total   = _bulk.items.length;
+  const ready   = _bulk.items.filter(i => i.status === 'ready' && !i.skip).length;
+  const skipped = _bulk.items.filter(i => i.skip).length;
+  const errors  = _bulk.items.filter(i => i.status === 'error').length;
+  document.getElementById('bulkQueueSummary').textContent =
+    `${total} image${total !== 1 ? 's' : ''} · ${ready} ready · ${skipped} skipped · ${errors} error${errors !== 1 ? 's' : ''}`;
+  const saveBtn = document.getElementById('bulkScanSaveAllBtn');
+  if (saveBtn) saveBtn.disabled = ready === 0;
+}
+
+async function processBulkQueue() {
+  _bulk.processing = true;
+  for (const item of _bulk.items) {
+    if (item.status !== 'queued') continue;
+    item.status = 'scanning';
+    renderBulkQueueItem(item);
+    try {
+      /* PRD 2 — two-pass multilingual OCR for bulk items */
+      const logStatus = pct => {
+        const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
+        if (statusEl) statusEl.textContent = 'scanning ' + pct + '%';
+      };
+      const engRes = await Tesseract.recognize(item.file, 'eng', {
+        logger: m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); },
+      });
+      const detectedBulk   = detectScripts(engRes.data.text || '');
+      const nonLatinBulk   = detectedBulk.filter(d => d !== 'eng' && getEnabledOcrLangs().includes(d));
+      let result = engRes;
+      if (nonLatinBulk.length) {
+        const langStr = buildLangString(nonLatinBulk);
+        result = await Tesseract.recognize(item.file, langStr, {
+          logger: m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); },
+        });
+      }
+      item.detectedLang = nonLatinBulk[0] || 'eng';
+      const text  = result.data.text || '';
+      const words = result.data.words || [];
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+      /* Same extraction heuristics as single scan */
+      const emailM = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
+      if (!phoneRaw) for (const ln of lines) { const m = ln.match(/\b\d[\d \-]{8,11}\d\b/); if (m) { phoneRaw = m; break; } }
+      const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g,'') : null;
+      const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
+      const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
+      const allCaps = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
+      const fallbackName = lines.find(l => l.length > 2 && l.length < 60 && !l.match(/^\//) && !l.match(/[@\\]/) && !l.toLowerCase().includes('www') && !/^\+?[\d\s\-().]+$/.test(l) && l !== companyLine);
+      const nameLine = allCaps ? allCaps[1] + ' ' + allCaps[2] : fallbackName;
+
+      item.fields = {
+        name:    nameLine    || '',
+        phone:   phone       || '',
+        email:   emailM?.[0] || '',
+        company: companyLine || '',
+      };
+      item.bands = {
+        name:    bandFor(confidenceForPhrase(words, nameLine)),
+        phone:   bandFor(confidenceForPhrase(words, phoneRaw?.[0])),
+        email:   bandFor(confidenceForPhrase(words, emailM?.[0])),
+        company: bandFor(confidenceForPhrase(words, companyLine)),
+      };
+      item.ocrCapture = {
+        scannedAt:  new Date().toISOString(),
+        ocrEngine:  'tesseract.js@5',
+        detectedLang: item.detectedLang || 'eng',
+        fields: Object.fromEntries(
+          Object.entries(item.fields).map(([k, v]) => [k, {
+            band: item.bands[k] || 'low',
+            originalValue: v,
+            rawConfidence: null,
+            corrected: false,
+          }])
+        ),
+      };
+      item.status = 'ready';
+    } catch (err) {
+      item.status = 'error';
+      item.errorMsg = err?.message || 'OCR failed';
+    }
+    renderBulkQueueItem(item);
+    refreshBulkSummary();
+  }
+  _bulk.processing = false;
+}
+
+function renderBulkQueueItem(item) {
+  const list = document.getElementById('bulkQueueList');
+  let el = list.querySelector(`[data-bq-id="${item.id}"]`);
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'bq-item';
+    el.dataset.bqId = item.id;
+    list.appendChild(el);
+  }
+  el.classList.toggle('skipped', item.skip);
+
+  const thumbHtml = item.dataUrl
+    ? `<img class="bq-thumb" src="${item.dataUrl}" alt="Card"/>`
+    : `<div class="bq-thumb-placeholder">🪪</div>`;
+
+  const statusColor = { queued:'queued', scanning:'scanning', ready:'ready', error:'error' }[item.status] || 'queued';
+
+  const fieldsHtml = ['name','phone','email','company'].map(f => `
+    <div class="bq-field">
+      <label>${f}</label>
+      <input type="text" data-bq-field="${f}" value="${escapeHtml(item.fields[f] || '')}"
+             class="${item.bands[f] ? 'cband-' + item.bands[f] : ''}"
+             ${item.skip ? 'disabled' : ''}/>
+    </div>`).join('');
+
+  el.innerHTML = `
+    ${thumbHtml}
+    <div>
+      <span class="bq-status-badge ${statusColor}">${item.status === 'error' ? (item.errorMsg || 'error') : item.status}</span>
+      <div class="bq-fields">${fieldsHtml}</div>
+    </div>
+    <div class="bq-actions">
+      <button class="bq-skip-btn ${item.skip ? 'skipped-active' : ''}">${item.skip ? 'Undo skip' : 'Skip'}</button>
+    </div>`;
+
+  /* Live edits update item.fields */
+  el.querySelectorAll('[data-bq-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      item.fields[input.dataset.bqField] = input.value;
+      if (item.ocrCapture?.fields?.[input.dataset.bqField]) {
+        item.ocrCapture.fields[input.dataset.bqField].corrected = true;
+      }
+    });
+  });
+  el.querySelector('.bq-skip-btn').addEventListener('click', () => {
+    item.skip = !item.skip;
+    renderBulkQueueItem(item);
+    refreshBulkSummary();
+  });
+}
+
+async function saveBulkLeads() {
+  const readyItems = _bulk.items.filter(i => i.status === 'ready' && !i.skip);
+  if (!readyItems.length) { flash('No ready leads to save', 'warn'); return; }
+
+  const btn = document.getElementById('bulkScanSaveAllBtn');
+  btnLoad(btn, true, 'Saving…');
+  logTelemetry('scan_started', { mode: 'bulk', count: readyItems.length });
+
+  try {
+    const batchName = document.getElementById('bulkBatchName')?.value?.trim() || '';
+    const leads = readyItems.map(item => ({
+      name:       item.fields.name    || 'Unknown',
+      phone:      item.fields.phone   || '0000000000',
+      email:      item.fields.email   || '',
+      company:    item.fields.company || '',
+      source:     'direct',
+      ocrCapture: item.ocrCapture,
+    }));
+
+    const res = await api('POST', '/leads/bulk-scan', { leads, batchName });
+    const { inserted = 0, duplicates = 0 } = res.data || res;
+
+    logTelemetry('scan_saved', { mode: 'bulk', inserted, duplicates });
+    flash(`Saved ${inserted} lead${inserted !== 1 ? 's' : ''}${duplicates ? ` (${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped)` : ''}`, 'success');
+
+    await loadAllData(true);
+    updateNavCounts();
+    renderKanban(getFilters());
+    document.getElementById('bulkScanModal').classList.remove('open');
+  } catch (err) {
+    flash(err.message || 'Bulk save failed', 'error');
+  } finally {
+    btnLoad(btn, false);
+  }
+}
+
+/* Wire bulk scan modal events */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bulkScanBtn')?.addEventListener('click', openBulkScanModal);
+  document.getElementById('bulkScanClose')?.addEventListener('click', () => document.getElementById('bulkScanModal').classList.remove('open'));
+  document.getElementById('bulkScanCancelBtn')?.addEventListener('click', () => document.getElementById('bulkScanModal').classList.remove('open'));
+  document.getElementById('bulkScanModal')?.addEventListener('click', e => { if (e.target === document.getElementById('bulkScanModal')) document.getElementById('bulkScanModal').classList.remove('open'); });
+
+  document.getElementById('bulkScanSelectBtn')?.addEventListener('click', () => document.getElementById('bulkScanFileInput').click());
+  document.getElementById('bulkScanFileInput')?.addEventListener('change', e => { acceptBulkFiles(e.target.files); e.target.value=''; });
+
+  document.getElementById('bulkScanAddMoreBtn')?.addEventListener('click', () => document.getElementById('bulkScanAddMoreInput').click());
+  document.getElementById('bulkScanAddMoreInput')?.addEventListener('change', e => { acceptBulkFiles(e.target.files); e.target.value=''; });
+
+  document.getElementById('bulkScanSaveAllBtn')?.addEventListener('click', saveBulkLeads);
+
+  /* Drag-and-drop onto upload zone */
+  const zone = document.getElementById('bulkScanUploadZone');
+  if (zone) {
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      acceptBulkFiles(e.dataTransfer.files);
+    });
+    zone.addEventListener('click', e => { if (e.target !== document.getElementById('bulkScanSelectBtn')) document.getElementById('bulkScanFileInput').click(); });
+  }
+});
+
+/* ═══════════ PRD 5: ENRICHMENT BADGES ═══════════ */
+/* Render enrichment section inside an info modal body or lead detail panel.
+   Called with the full lead object (including enrichment Map as an object). */
+function renderEnrichmentSection(lead, containerId) {
+  const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
+  if (!container) return;
+
+  const enrichment = lead.enrichment || {};
+  const enrichedFields = Object.entries(enrichment);
+  if (!enrichedFields.length) return;
+
+  const fieldsHtml = enrichedFields.map(([field, info]) => {
+    const val = info?.value ?? info;
+    const provider = info?.provider || 'auto';
+    let displayVal = escapeHtml(String(val || ''));
+    if (field === 'logoUrl' && val) {
+      displayVal = `<img class="enrichment-logo" src="${escapeHtml(val)}" alt="Logo" onerror="this.style.display='none'"/>`;
+    } else if ((field === 'linkedinUrl' || field === 'website') && val) {
+      displayVal = `<a href="${escapeHtml(val)}" target="_blank" rel="noopener">${escapeHtml(val)}</a>`;
+    }
+
+    const label = {
+      website:'Website', industry:'Industry', employeeCount:'Employees',
+      hqCountry:'HQ Country', linkedinUrl:'LinkedIn', logoUrl:'Logo',
+    }[field] || field;
+
+    return `
+      <div class="enrichment-field">
+        <div class="enrichment-field-label">${label}</div>
+        <div class="enrichment-field-value">${displayVal}</div>
+        <button class="auto-badge" title="Auto-filled by ${escapeHtml(provider)} — click to remove"
+                data-enrich-field="${field}" data-lead-id="${lead.id || lead._id}">auto</button>
+      </div>`;
+  }).join('');
+
+  const section = document.createElement('div');
+  section.className = 'enrichment-section';
+  section.innerHTML = `<div class="enrichment-section-header">// AUTO-ENRICHMENT</div><div class="enrichment-grid">${fieldsHtml}</div>`;
+  container.appendChild(section);
+
+  /* Roll-back: click the "auto" badge */
+  section.querySelectorAll('.auto-badge').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const field  = btn.dataset.enrichField;
+      const leadId = btn.dataset.leadId;
+      if (!field || !leadId) return;
+      const conf = window.confirm(`Remove auto-enriched "${field}" and mark it do-not-enrich?`);
+      if (!conf) return;
+      try {
+        await api('DELETE', `/leads/${leadId}/enrich/${field}`);
+        logTelemetry('enrichment_field_overridden', { field });
+        btn.closest('.enrichment-field')?.remove();
+        flash(`"${field}" cleared`, 'success');
+      } catch (err) {
+        flash(err.message || 'Rollback failed', 'error');
+      }
+    });
+  });
+}
+
+/* Patch normalizeLead to include enrichment data */
+const _origNormalizeLead = normalizeLead;
+/* eslint-disable-next-line no-global-assign */
+normalizeLead = function(l) {
+  const base = _origNormalizeLead(l);
+  base.enrichment   = l.enrichment   || {};
+  base.company      = l.company      || '';
+  base.website      = l.website      || '';
+  base.industry     = l.industry     || '';
+  base.employeeCount= l.employeeCount|| '';
+  base.hqCountry    = l.hqCountry    || '';
+  base.linkedinUrl  = l.linkedinUrl  || '';
+  base.logoUrl      = l.logoUrl      || '';
+  base.jobTitle     = l.jobTitle     || '';
+  return base;
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   PRD 6 — Voice Memo (MediaRecorder + Web Speech API)
+   ══════════════════════════════════════════════════════════════════ */
+
+const _vm = {
+  mediaRecorder:  null,
+  audioChunks:    [],
+  recognition:    null,
+  transcript:     '',
+  interimTranscript: '',
+  startTime:      null,
+  timerInterval:  null,
+  currentLeadId:  null,
+  blob:           null,
+};
+
+function _vmSetStatus(msg) {
+  const el = document.getElementById('vmStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+function _vmFormatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function _vmStartTimer() {
+  _vm.startTime = Date.now();
+  const timerEl = document.getElementById('vmTimer');
+  if (timerEl) timerEl.hidden = false;
+  _vm.timerInterval = setInterval(() => {
+    const el = document.getElementById('vmTimer');
+    if (el) el.textContent = _vmFormatTime(Date.now() - _vm.startTime);
+  }, 500);
+}
+
+function _vmStopTimer() {
+  clearInterval(_vm.timerInterval);
+  _vm.timerInterval = null;
+}
+
+/* Rule-based extraction — mirrors backend extractFromTranscript exactly */
+function vmExtractFields(transcript) {
+  const t = transcript.toLowerCase();
+
+  const PAIN_TRIGGERS = ['problem','issue','challenge','struggle','pain','difficult','frustrat','concern','worry','bottleneck','slow','manual'];
+  const sentences = transcript.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+  const painSentences = sentences.filter(s => PAIN_TRIGGERS.some(kw => s.toLowerCase().includes(kw)));
+  const painPoints = painSentences.length
+    ? { value: painSentences.join('. '), confidence: painSentences.length >= 2 ? 'high' : 'med' }
+    : null;
+
+  let budgetSignal = null;
+  const bHigh = /\b(large|big|high|enterprise|unlimited)\s*(budget|spend|invest)/i.test(transcript) || /[$£€₹]\s*[\d,]{5,}/.test(transcript);
+  const bMid  = /\b(mid|medium|moderate|reasonable)\s*(budget|spend)/i.test(transcript) || /[$£€₹]\s*[\d,]{3,4}/.test(transcript);
+  const bLow  = /\b(small|tight|limited|low|no)\s*(budget|spend)/i.test(transcript) || /\bno\s+budget\b/i.test(transcript);
+  if      (bHigh) budgetSignal = { value: 'high',    confidence: 'high' };
+  else if (bMid)  budgetSignal = { value: 'mid',     confidence: 'med'  };
+  else if (bLow)  budgetSignal = { value: 'low',     confidence: 'med'  };
+  else if (/budget|spend|invest/i.test(transcript)) budgetSignal = { value: 'unknown', confidence: 'low' };
+
+  let timeline = null;
+  const tmatch = transcript.match(/\b(immediately|asap|urgent|this\s+(week|month|quarter|year)|next\s+(week|month|quarter|year|\d+\s+months?)|\d+\s+(days?|weeks?|months?))\b/i);
+  if (tmatch) timeline = { value: tmatch[0], confidence: 'high' };
+
+  let decisionMakers = null;
+  const dmMatch = transcript.match(/(?:decision\s*maker|approver|approves|sign off|sign-off|ceo|cfo|cto|vp|director|head of)[^.!?]{0,80}/i);
+  if (dmMatch) decisionMakers = { value: dmMatch[0].trim(), confidence: 'med' };
+
+  const NEXT_TRIGGERS = ['follow up','follow-up','send','schedule','call back','demo','proposal','meeting','trial','pilot','next step','action'];
+  const nextSentences = sentences.filter(s => NEXT_TRIGGERS.some(kw => s.toLowerCase().includes(kw)));
+  const nextStep = nextSentences.length ? { value: nextSentences[0], confidence: 'high' } : null;
+
+  let interestLevel = null;
+  const hot  = /\b(very\s+interest|definitely|love\s+(it|this)|ready\s+to\s+buy|want\s+to\s+proceed|sign\s+(up|today)|go\s+ahead)\b/i.test(transcript);
+  const cold = /\b(not\s+interest|no\s+thanks|don't\s+need|not\s+now|maybe\s+later|just\s+looking)\b/i.test(transcript);
+  const warm = /\b(interest|consider|look\s+into|tell\s+me\s+more|sounds\s+good|makes\s+sense)\b/i.test(transcript);
+  if      (hot)  interestLevel = { value: 'hot',  confidence: 'high' };
+  else if (cold) interestLevel = { value: 'cold', confidence: 'high' };
+  else if (warm) interestLevel = { value: 'warm', confidence: 'med'  };
+
+  return { painPoints, budgetSignal, timeline, decisionMakers, nextStep, interestLevel };
+}
+
+const VM_FIELD_LABELS = {
+  painPoints:     'Pain Points',
+  budgetSignal:   'Budget',
+  timeline:       'Timeline',
+  decisionMakers: 'Decision Makers',
+  nextStep:       'Next Step',
+  interestLevel:  'Interest',
+};
+
+function vmRenderExtracted(extracted) {
+  const grid = document.getElementById('vmExtractedGrid');
+  const wrap = document.getElementById('vmExtracted');
+  if (!grid || !wrap) return;
+
+  const entries = Object.entries(extracted).filter(([, v]) => v !== null);
+  if (!entries.length) { wrap.hidden = true; return; }
+
+  grid.innerHTML = entries.map(([field, info]) => `
+    <div class="vm-field-card conf-${info.confidence}">
+      <div class="vm-field-label">${VM_FIELD_LABELS[field] || field}</div>
+      <div class="vm-field-value">${escapeHtml(String(info.value))}</div>
+      <span class="vm-conf-badge ${info.confidence}">${info.confidence}</span>
+    </div>
+  `).join('');
+
+  wrap.hidden = false;
+}
+
+async function vmStartRecording() {
+  if (!_vm.currentLeadId) return;
+  _vm.transcript = '';
+  _vm.interimTranscript = '';
+  _vm.audioChunks = [];
+  _vm.blob = null;
+
+  const transcriptEl = document.getElementById('vmTranscript');
+  const transcriptWrap = document.getElementById('vmTranscriptWrap');
+  if (transcriptEl) { transcriptEl.textContent = ''; transcriptEl.contentEditable = 'false'; }
+  if (transcriptWrap) transcriptWrap.hidden = true;
+  const vmExtracted = document.getElementById('vmExtracted');
+  if (vmExtracted) vmExtracted.hidden = true;
+
+  /* SpeechRecognition (Web Speech API) */
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRec) {
+    _vm.recognition = new SpeechRec();
+    _vm.recognition.continuous = true;
+    _vm.recognition.interimResults = true;
+    _vm.recognition.lang = 'en-IN';
+
+    _vm.recognition.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          _vm.transcript += e.results[i][0].transcript + ' ';
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+      if (transcriptEl) {
+        transcriptEl.textContent = _vm.transcript + (interim ? `[${interim}]` : '');
+      }
+      if (transcriptWrap) transcriptWrap.hidden = false;
+    };
+
+    _vm.recognition.onerror = (e) => {
+      if (e.error !== 'no-speech') _vmSetStatus(`Speech error: ${e.error}`);
+    };
+
+    _vm.recognition.start();
+  }
+
+  /* MediaRecorder for audio capture */
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _vm.mediaRecorder = new MediaRecorder(stream);
+    _vm.mediaRecorder.ondataavailable = e => { if (e.data.size) _vm.audioChunks.push(e.data); };
+    _vm.mediaRecorder.onstop = () => {
+      _vm.blob = new Blob(_vm.audioChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t => t.stop());
+    };
+    _vm.mediaRecorder.start(250);
+  } catch {
+    /* Mic permission denied — transcription-only mode */
+    _vmSetStatus('Mic unavailable — transcript only mode');
+  }
+
+  document.getElementById('vmRecordBtn').hidden = true;
+  document.getElementById('vmStopBtn').hidden = false;
+  _vmStartTimer();
+  _vmSetStatus('Recording…');
+
+  logTelemetry('voice_memo_recorded', { leadId: _vm.currentLeadId });
+}
+
+async function vmStopRecording() {
+  _vmStopTimer();
+
+  if (_vm.recognition) { try { _vm.recognition.stop(); } catch {} _vm.recognition = null; }
+  if (_vm.mediaRecorder && _vm.mediaRecorder.state !== 'inactive') _vm.mediaRecorder.stop();
+
+  document.getElementById('vmRecordBtn').hidden = false;
+  document.getElementById('vmStopBtn').hidden = true;
+  const timerEl = document.getElementById('vmTimer');
+  if (timerEl) timerEl.hidden = true;
+
+  _vmSetStatus('Processing…');
+
+  /* Small delay to let final speech results arrive */
+  await new Promise(r => setTimeout(r, 600));
+
+  const finalTranscript = _vm.transcript.trim();
+  const transcriptEl = document.getElementById('vmTranscript');
+  if (transcriptEl) {
+    transcriptEl.textContent = finalTranscript;
+    transcriptEl.contentEditable = 'true';
+  }
+  const transcriptWrap = document.getElementById('vmTranscriptWrap');
+  if (transcriptWrap) transcriptWrap.hidden = !finalTranscript;
+
+  if (finalTranscript) {
+    const extracted = vmExtractFields(finalTranscript);
+    vmRenderExtracted(extracted);
+    logTelemetry('voice_memo_transcribed', { leadId: _vm.currentLeadId, charCount: finalTranscript.length });
+  }
+
+  _vmSetStatus(finalTranscript ? 'Review transcript and extracted fields below.' : 'No speech detected. Type notes manually above.');
+}
+
+async function vmSaveMemo() {
+  const leadId = _vm.currentLeadId;
+  if (!leadId) return;
+
+  const transcriptEl = document.getElementById('vmTranscript');
+  const transcript = (transcriptEl?.textContent || _vm.transcript || '').trim();
+
+  const durationSec = _vm.startTime ? Math.round((Date.now() - _vm.startTime) / 1000) : null;
+
+  const btn = document.getElementById('vmSaveMemoBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  try {
+    let body;
+    if (_vm.blob && _vm.blob.size > 0) {
+      const fd = new FormData();
+      fd.append('transcript', transcript);
+      fd.append('transcriptLang', 'en');
+      if (durationSec) fd.append('audioDurationSec', durationSec);
+      fd.append('audio', _vm.blob, 'memo.webm');
+      await fetch(`${API_BASE}/leads/${leadId}/voice-memos`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      }).then(r => r.json());
+    } else {
+      await api('POST', `/leads/${leadId}/voice-memos`, { transcript, transcriptLang: 'en', audioDurationSec: durationSec });
+    }
+
+    flash('Voice note saved', 'success');
+
+    /* Clear UI */
+    if (transcriptEl) { transcriptEl.textContent = ''; transcriptEl.contentEditable = 'false'; }
+    document.getElementById('vmTranscriptWrap').hidden = true;
+    document.getElementById('vmExtracted').hidden = true;
+    _vm.transcript = ''; _vm.blob = null;
+    _vmSetStatus('');
+
+    vmLoadSavedMemos(leadId);
+  } catch (err) {
+    flash(err.message || 'Save failed', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Voice Note →'; }
+  }
+}
+
+async function vmLoadSavedMemos(leadId) {
+  const list = document.getElementById('vmSavedList');
+  if (!list) return;
+  try {
+    const memos = await api('GET', `/leads/${leadId}/voice-memos`);
+    if (!memos || !memos.length) { list.innerHTML = ''; return; }
+
+    list.innerHTML = memos.map(m => {
+      const date = new Date(m.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const by   = m.recordedBy?.name || 'Unknown';
+      const excerpt = m.transcript ? escapeHtml(m.transcript.slice(0, 120)) + (m.transcript.length > 120 ? '…' : '') : '<em style="color:var(--text-3)">No transcript</em>';
+      const extractedTags = ['painPoints','budgetSignal','timeline','decisionMakers','nextStep','interestLevel']
+        .filter(f => m[f]?.value)
+        .map(f => `<span class="vm-tag">${VM_FIELD_LABELS[f]}: ${escapeHtml(String(m[f].value).slice(0,20))}</span>`)
+        .join('');
+
+      return `
+        <div class="vm-saved-item">
+          <div class="vm-saved-meta">${escapeHtml(date)} · ${escapeHtml(by)}${m.audioDurationSec ? ` · ${_vmFormatTime(m.audioDurationSec * 1000)}` : ''}</div>
+          <div class="vm-saved-excerpt">${excerpt}</div>
+          ${extractedTags ? `<div class="vm-saved-fields">${extractedTags}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch {
+    list.innerHTML = '';
+  }
+}
+
+/* Wire up Voice Memo button in lead modal header */
+document.getElementById('voiceMemoBtn')?.addEventListener('click', () => {
+  const panel = document.getElementById('voiceMemoPanel');
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden && _vm.currentLeadId) vmLoadSavedMemos(_vm.currentLeadId);
+});
+
+document.getElementById('vmRecordBtn')?.addEventListener('click', vmStartRecording);
+document.getElementById('vmStopBtn')?.addEventListener('click',   vmStopRecording);
+document.getElementById('vmSaveMemoBtn')?.addEventListener('click', vmSaveMemo);
+
+/* Patch openLeadModal to wire voice memo panel */
+const _origOpenLeadModal = openLeadModal;
+openLeadModal = function(leadId) {
+  _origOpenLeadModal(leadId);
+  _vm.currentLeadId = leadId;
+
+  const vBtn   = document.getElementById('voiceMemoBtn');
+  const vPanel = document.getElementById('voiceMemoPanel');
+  const isNew  = !leadId;
+
+  if (vBtn)   vBtn.classList.toggle('hidden', isNew);
+  if (vPanel) { vPanel.hidden = true; }
+
+  /* Reset recorder state */
+  if (_vm.mediaRecorder && _vm.mediaRecorder.state !== 'inactive') { try { _vm.mediaRecorder.stop(); } catch {} }
+  if (_vm.recognition) { try { _vm.recognition.stop(); } catch {} _vm.recognition = null; }
+  _vmStopTimer();
+  document.getElementById('vmRecordBtn').hidden = false;
+  document.getElementById('vmStopBtn').hidden   = true;
+  const timerEl = document.getElementById('vmTimer'); if (timerEl) timerEl.hidden = true;
+  _vmSetStatus('');
+  const tw = document.getElementById('vmTranscriptWrap'); if (tw) tw.hidden = true;
+  const ex = document.getElementById('vmExtracted');      if (ex) ex.hidden = true;
+  const sl = document.getElementById('vmSavedList');      if (sl) sl.innerHTML = '';
+};
 
 console.log('%c IINVSYS Sales OS v2.0 ', 'background:#F0BE18;color:#000;font-weight:bold;padding:4px 12px;letter-spacing:2px');
 console.log('%c Keyboard: 1-6 navigate · N = new lead · Esc = close modal', 'color:#555;font-size:11px');

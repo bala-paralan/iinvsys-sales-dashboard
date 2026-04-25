@@ -315,6 +315,7 @@
         </select>
       </div>
       <button class="neo-btn outline" id="bulkImportBtn">⬆ Bulk Import</button>
+      <button class="neo-btn outline" id="bulkScanBtn">📷 Bulk Scan</button>
       <button class="neo-btn yellow" id="newLeadBtn">+ New Lead</button>
     </div>
     <div class="kanban-board" id="kanbanBoard"><!-- rendered by JS --></div>
@@ -618,29 +619,51 @@
       <div class="modal-header-actions">
         <button type="button" class="neo-btn outline sm hidden" id="cameraScanBtn">📷 Scan Card</button>
         <input type="file" id="cardCameraInput" accept="image/*" capture="environment" style="display:none"/>
+        <button type="button" class="neo-btn outline sm hidden" id="voiceMemoBtn">🎙 Voice Note</button>
         <button class="neo-btn outline sm danger-btn hidden" id="deleteLeadBtn">🗑 Delete</button>
         <button class="modal-close" id="leadModalClose">✕</button>
       </div>
     </div>
     <form class="lead-form" id="leadForm">
       <input type="hidden" id="leadIdInput"/>
+
+      <!-- PRD 1: Re-scan CTA when >50% of fields are low-confidence -->
+      <div class="scan-rescan-banner" id="scanRescanBanner" role="status" aria-live="polite" hidden>
+        <span class="srb-icon" aria-hidden="true">⚠</span>
+        <span class="srb-text">Most fields look uncertain. Try re-scanning?</span>
+        <button type="button" class="neo-btn outline xs" id="scanRescanBtn">📷 Re-scan</button>
+      </div>
+
+      <!-- PRD 4: Duplicate match panel (filled by JS) -->
+      <div class="dupe-match-panel" id="dupeMatchPanel" role="status" aria-live="polite" hidden></div>
+
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Full Name <span class="req">*</span></label>
-          <input type="text" id="leadName" class="form-input" placeholder="e.g. Rajesh Sharma"/>
+          <label class="form-label" for="leadName">Full Name <span class="req">*</span></label>
+          <input type="text" id="leadName" class="form-input" placeholder="e.g. Rajesh Sharma" aria-describedby="leadName-band"/>
+          <span class="confidence-hint" id="leadName-band" hidden></span>
         </div>
         <div class="form-group">
-          <label class="form-label">Phone <span class="req">*</span></label>
-          <input type="tel" id="leadPhone" class="form-input" placeholder="+91 98200 00000"/>
+          <label class="form-label" for="leadPhone">Phone <span class="req">*</span></label>
+          <input type="tel" id="leadPhone" class="form-input" placeholder="+91 98200 00000" aria-describedby="leadPhone-band"/>
+          <span class="confidence-hint" id="leadPhone-band" hidden></span>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Email <span class="opt">(optional)</span></label>
-          <input type="email" id="leadEmail" class="form-input" placeholder="email@example.com"/>
+          <label class="form-label" for="leadEmail">Email <span class="opt">(optional)</span></label>
+          <input type="email" id="leadEmail" class="form-input" placeholder="email@example.com" aria-describedby="leadEmail-band"/>
+          <span class="confidence-hint" id="leadEmail-band" hidden></span>
         </div>
         <div class="form-group">
-          <label class="form-label">Stage <span class="req">*</span></label>
+          <label class="form-label" for="leadCompany">Company <span class="opt">(optional)</span></label>
+          <input type="text" id="leadCompany" class="form-input" placeholder="e.g. Acme Pvt Ltd" aria-describedby="leadCompany-band"/>
+          <span class="confidence-hint" id="leadCompany-band" hidden></span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="leadStage">Stage <span class="req">*</span></label>
           <select id="leadStage" class="form-input">
             <option value="new">New</option>
             <option value="contacted">Contacted</option>
@@ -695,6 +718,30 @@
         <button type="submit" class="neo-btn yellow" id="leadSubmitBtn">Capture Lead →</button>
       </div>
     </form>
+
+    <!-- PRD 6: Voice Memo Panel (shown for existing leads only) -->
+    <div class="voice-memo-panel" id="voiceMemoPanel" hidden>
+      <div class="vmp-header">
+        <span class="card-eyebrow">// VOICE NOTES</span>
+        <div class="vmp-controls">
+          <button type="button" class="neo-btn yellow sm" id="vmRecordBtn">🎙 Record</button>
+          <button type="button" class="neo-btn outline sm hidden" id="vmStopBtn">⏹ Stop</button>
+          <span class="vm-timer" id="vmTimer" hidden>0:00</span>
+        </div>
+      </div>
+      <div class="vm-status" id="vmStatus" hidden></div>
+      <div class="vm-transcript-wrap" id="vmTranscriptWrap" hidden>
+        <div class="vm-transcript-label">Transcript</div>
+        <div class="vm-transcript" id="vmTranscript" contenteditable="false"></div>
+      </div>
+      <div class="vm-extracted" id="vmExtracted" hidden>
+        <div class="vm-extracted-label">// EXTRACTED FIELDS</div>
+        <div class="vm-extracted-grid" id="vmExtractedGrid"></div>
+        <button type="button" class="neo-btn yellow sm" id="vmSaveMemoBtn">Save Voice Note →</button>
+      </div>
+      <!-- PRD 6: Saved memos list -->
+      <div class="vm-saved-list" id="vmSavedList"></div>
+    </div>
   </div>
 </div>
 
@@ -970,6 +1017,107 @@
     <div class="form-actions" style="justify-content:center;gap:12px">
       <button class="neo-btn outline" id="confirmCancel">Cancel</button>
       <button class="neo-btn" id="confirmOk" style="background:var(--coral);border-color:#000;color:#fff;box-shadow:4px 4px 0 #000">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL: MERGE LEADS (PRD 4) ══════ -->
+<div class="modal-overlay" id="mergeModal">
+  <div class="modal-box" style="max-width:760px;width:92vw">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow">// DUPLICATE FOUND</span>
+        <h2 class="modal-title">Merge into <em>Existing Lead</em></h2>
+      </div>
+      <button class="modal-close" id="mergeModalClose">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 24px 24px">
+      <p class="merge-intro" style="color:var(--text-2);margin:0 0 16px;font-size:14px">
+        Pick which value should win for each field. Activity history is migrated to the existing lead.
+      </p>
+      <div class="merge-grid" id="mergeGrid"><!-- rendered by JS --></div>
+      <div class="form-actions" style="margin-top:18px">
+        <button type="button" class="neo-btn outline" id="mergeCancelBtn">Cancel</button>
+        <button type="button" class="neo-btn yellow" id="mergeConfirmBtn">Merge & Save →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL: SAVE-AS-NEW REASON (PRD 4 AC6) ══════ -->
+<div class="modal-overlay" id="dupeReasonModal">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow">// CREATE DUPLICATE</span>
+        <h2 class="modal-title">Why a <em>new lead</em>?</h2>
+      </div>
+      <button class="modal-close" id="dupeReasonClose">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 24px 24px">
+      <div class="form-group">
+        <label class="form-label">Reason <span class="req">*</span></label>
+        <select id="dupeReasonSelect" class="form-input">
+          <option value="">— Select —</option>
+          <option value="different-person">Different person, same name</option>
+          <option value="different-role">Different role at same company</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Detail <span class="opt">(optional)</span></label>
+        <textarea id="dupeReasonDetail" class="form-input" rows="2" placeholder="Add a note for ops…"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="neo-btn outline" id="dupeReasonCancel">Cancel</button>
+        <button type="button" class="neo-btn yellow" id="dupeReasonConfirm">Save as new →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL: BULK SCAN (PRD 3) ══════ -->
+<div class="modal-overlay" id="bulkScanModal">
+  <div class="modal-box wide-modal" style="max-width:900px">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <span class="card-eyebrow">// PRD 3 — PHASE 1</span>
+        <h2 class="modal-title">Bulk <em>Scan</em></h2>
+      </div>
+      <button class="modal-close" id="bulkScanClose">✕</button>
+    </div>
+
+    <!-- Step 1: Upload zone (shown when queue is empty) -->
+    <div id="bulkScanUploadZone" class="bulk-upload-zone" role="region" aria-label="Image upload area">
+      <div class="buz-icon" aria-hidden="true">📷</div>
+      <div class="buz-title">Drop up to 50 card images here</div>
+      <div class="buz-sub">or click to select files — JPG, PNG, WEBP, up to 8 MB each</div>
+      <button type="button" class="neo-btn yellow" id="bulkScanSelectBtn">Select Images</button>
+      <input type="file" id="bulkScanFileInput" accept="image/*" multiple style="display:none"/>
+    </div>
+
+    <!-- Step 2: Queue + review (shown after images are added) -->
+    <div id="bulkScanQueueWrap" hidden>
+      <div class="bulk-queue-toolbar">
+        <span class="bq-summary" id="bulkQueueSummary">0 images</span>
+        <div class="bulk-queue-toolbar-actions">
+          <button type="button" class="neo-btn outline sm" id="bulkScanAddMoreBtn">+ Add more</button>
+          <input type="file" id="bulkScanAddMoreInput" accept="image/*" multiple style="display:none"/>
+        </div>
+      </div>
+
+      <!-- Review queue: left = thumbnail + status, right = fields -->
+      <div class="bulk-queue-list" id="bulkQueueList"></div>
+
+      <!-- Batch name + save -->
+      <div class="bulk-queue-footer">
+        <div class="form-group" style="flex:1;min-width:220px">
+          <label class="form-label" for="bulkBatchName">Batch / Event Name <span class="opt">(optional)</span></label>
+          <input type="text" id="bulkBatchName" class="form-input" placeholder="e.g. Mumbai IoT Expo 2026"/>
+        </div>
+        <button type="button" class="neo-btn outline" id="bulkScanCancelBtn">Cancel</button>
+        <button type="button" class="neo-btn yellow" id="bulkScanSaveAllBtn" disabled>Save Ready Leads →</button>
+      </div>
     </div>
   </div>
 </div>
