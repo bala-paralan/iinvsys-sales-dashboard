@@ -170,20 +170,26 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   const signBtn = e.target.querySelector('[type=submit]');
   btnLoad(signBtn, true, 'Signing in…');
   showLoader('Signing in…');
+
+  // ── Step 1: authenticate only — catch shows "Invalid credentials"
+  let loginRes;
   try {
-    const res = await api('POST', '/auth/login', { email, password: pass });
-    _token = res.data.token;
-    localStorage.setItem('ii_token', _token);
-    S.session = { ...res.data.user, id: res.data.user.id };
-    document.getElementById('loginPage').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    await initApp();
+    loginRes = await api('POST', '/auth/login', { email, password: pass });
   } catch (err) {
     hideLoader();
     btnLoad(signBtn, false);
     errEl.classList.remove('hidden');
-    setTimeout(() => errEl.classList.add('hidden'), 3000);
+    setTimeout(() => errEl.classList.add('hidden'), 4000);
+    return;
   }
+
+  // ── Step 2: session setup + app init — separate from auth catch
+  _token = loginRes.data.token;
+  localStorage.setItem('ii_token', _token);
+  S.session = { ...loginRes.data.user, id: loginRes.data.user._id || loginRes.data.user.id };
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  await initApp();
 });
 
 
@@ -244,23 +250,29 @@ async function initApp() {
     flash('Failed to load data. Check server connection.', 'error');
     return;
   }
-  applyRole();
-  updateSidebarUser();
-  updateDate();
-  if (isReferrer()) {
-    renderReferrerView();
-    goToPage('referrer');
-  } else if (isAdmin()) {
-    populateAgentDropdowns();
-    renderOverview();
-    goToPage('overview');
-  } else {
-    populateAgentDropdowns();
-    renderMyLeads();
-    goToPage('myLeads');
+  try {
+    applyRole();
+    updateSidebarUser();
+    updateDate();
+    if (isReferrer()) {
+      renderReferrerView();
+      goToPage('referrer');
+    } else if (isAdmin()) {
+      populateAgentDropdowns();
+      renderOverview();
+      goToPage('overview');
+    } else {
+      populateAgentDropdowns();
+      renderMyLeads();
+      goToPage('myLeads');
+    }
+    updateNavCounts();
+  } catch (err) {
+    console.error('[initApp render error]', err);
+    flash('Dashboard loaded but a display error occurred. Try refreshing.', 'error');
+  } finally {
+    hideLoader();
   }
-  updateNavCounts();
-  hideLoader();
 }
 
 function applyRole() {
