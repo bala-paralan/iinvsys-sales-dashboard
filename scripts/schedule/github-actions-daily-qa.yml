@@ -1,0 +1,44 @@
+name: Daily QA
+
+on:
+  schedule:
+    # 06:00 IST = 00:30 UTC
+    - cron: '30 0 * * *'
+  workflow_dispatch:        # allow manual trigger from the Actions tab
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      QA_REPORT_RECIPIENTS: balap@iinvsys.com
+      RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM:          ${{ secrets.RESEND_FROM }}
+      QA_REPORT_PROD_URL:   https://sales.iinvsys.com:8413
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            package-lock.json
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: .playwright-browsers
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Run daily QA suite
+        run: bash scripts/daily-qa-report.sh
+
+      - name: Upload qa-output as artifact (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-output-${{ github.run_id }}
+          path: qa-output/
+          retention-days: 30

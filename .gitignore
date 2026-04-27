@@ -26,3 +26,8 @@ Thumbs.db
 
 # Playwright browsers (large binaries, not needed in repo)
 .playwright-browsers/
+
+# Daily QA run artefacts (regenerated each run, see TESTING_STRATEGY.md)
+qa-output/
+playwright-report/
+test-results/

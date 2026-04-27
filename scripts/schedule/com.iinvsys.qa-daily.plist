@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IINVSYS Daily QA — macOS launchd job.
+
+  Install (run from Sales_Dashboard repo root):
+    sed "s|REPO_ROOT|$(pwd)|g" scripts/schedule/com.iinvsys.qa-daily.plist \
+      > ~/Library/LaunchAgents/com.iinvsys.qa-daily.plist
+    launchctl load -w ~/Library/LaunchAgents/com.iinvsys.qa-daily.plist
+    launchctl list | grep iinvsys     # verify
+    launchctl start com.iinvsys.qa-daily   # one-off test fire
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.iinvsys.qa-daily.plist
+    rm ~/Library/LaunchAgents/com.iinvsys.qa-daily.plist
+
+  Logs: /tmp/iinvsys-qa-daily.{out,err}.log
+  Schedule: every day at 06:00 local time.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+        "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.iinvsys.qa-daily</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd REPO_ROOT &amp;&amp; bash scripts/daily-qa-report.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>   <integer>6</integer>
+    <key>Minute</key> <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>          <false/>
+  <key>StandardOutPath</key>    <string>/tmp/iinvsys-qa-daily.out.log</string>
+  <key>StandardErrorPath</key>  <string>/tmp/iinvsys-qa-daily.err.log</string>
+  <key>WorkingDirectory</key>   <string>REPO_ROOT</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
