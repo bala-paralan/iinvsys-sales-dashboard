@@ -1,0 +1,8 @@
+# IINVSYS Daily QA — Linux on-premise cron
+# Install:
+#   crontab -e          # then paste the line below (adjust paths)
+#   crontab -l          # verify
+#
+# Schedule: every day at 06:00 IST (00:30 UTC). Tweak the time as needed.
+
+30 0 * * *  cd /opt/iinvsys/Sales_Dashboard && /usr/bin/bash scripts/daily-qa-report.sh >> /var/log/iinvsys-qa.log 2>&1
