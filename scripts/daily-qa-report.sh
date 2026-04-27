@@ -48,11 +48,27 @@ cd "$REPO_ROOT/backend"
 if [ -d node_modules ] && [ -f node_modules/.qa-installed ]; then
   log "node_modules cached — skipping ci (delete node_modules/.qa-installed to force)"
 else
-  npm ci --omit=optional --no-audit --no-fund >> "$OUT_DIR/run.log" 2>&1 \
+  # Use a runner-local cache to avoid permission issues in shared ~/.npm
+  NPM_CACHE_DIR="${QA_NPM_CACHE:-/tmp/iinvsys-qa-npm-cache}"
+  mkdir -p "$NPM_CACHE_DIR"
+  npm ci --omit=optional --no-audit --no-fund --cache "$NPM_CACHE_DIR" >> "$OUT_DIR/run.log" 2>&1 \
     && touch node_modules/.qa-installed \
-    && log "npm ci OK" \
+    && log "npm ci OK (cache: $NPM_CACHE_DIR)" \
     || log "npm ci FAILED — see run.log"
 fi
+
+# Source backend/.env so the Jest suite + email sender both see RESEND_API_KEY,
+# JWT_SECRET, etc. — works even if dotenv is missing from node_modules.
+if [ -f "$REPO_ROOT/backend/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$REPO_ROOT/backend/.env"
+  set +a
+  log "loaded backend/.env into shell environment"
+fi
+
+# Make `require('resend')` etc. resolve against backend/node_modules from any cwd.
+export NODE_PATH="$REPO_ROOT/backend/node_modules"
 
 # ── 2. npm audit (high+ only) ─────────────────────────────────────────────────
 step "2/8 npm audit"
