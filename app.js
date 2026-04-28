@@ -2514,12 +2514,16 @@ async function renderReferrerView() {
 
   /* ── Camera / OCR (single card scan) ── */
   const REF_FIELDMAP = {
-    name:    'refLeadName',
-    phone:   'refLeadPhone',
-    email:   'refLeadEmail',
-    company: 'refLeadCompany',
-    notes:   'refLeadNotes',
-    rescanBanner: 'refScanRescanBanner',
+    name:             'refLeadName',
+    phone:            'refLeadPhone',
+    email:            'refLeadEmail',
+    company:          'refLeadCompany',
+    city:             'refLeadCity',
+    state:            'refLeadState',
+    natureOfBusiness: 'refLeadNatureOfBusiness',
+    interestedIn:     'refLeadInterestedIn',
+    notes:            'refLeadNotes',
+    rescanBanner:     'refScanRescanBanner',
   };
   document.getElementById('refCameraBtn')?.addEventListener('click', () => {
     document.getElementById('refCardInput').click();
@@ -3454,7 +3458,6 @@ async function processCardImage(file, fieldMap) {
     const detected     = detectScripts(engText);
     const enabledLangs = getEnabledOcrLangs();
 
-    /* Check if any detected script is NOT enabled for this tenant (AC edge case) */
     const disabledDetected = detected.filter(d => d !== 'eng' && !enabledLangs.includes(d));
     if (disabledDetected.length) {
       const labels = disabledDetected.map(c => OCR_LANG_DEFS.find(d => d.code === c)?.label || c).join(', ');
@@ -3462,7 +3465,6 @@ async function processCardImage(file, fieldMap) {
       logTelemetry('scan_language_mismatch', { detected, enabled: enabledLangs, disabled: disabledDetected });
     }
 
-    /* AC3 — if non-Latin script detected AND the language is enabled, re-run with combined langs */
     const enabledNonLatin = detected.filter(d => d !== 'eng' && enabledLangs.includes(d));
     let result = engResult;
     let detectedLang = 'eng';
@@ -3479,69 +3481,37 @@ async function processCardImage(file, fieldMap) {
       logTelemetry('scan_language_detected', { detected: detectedLang, langStr });
     }
 
-    const text  = result.data.text || '';
+    const text  = result.data.text  || '';
     const words = result.data.words || [];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    /* ── Field extraction (unchanged heuristics) ── */
-    const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+    const extracted = extractCardFields(text, words, lines);
+    const bands     = applyExtractedFields(extracted, fieldMap, words);
 
-    let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
-    if (!phoneRaw) {
-      for (const ln of lines) {
-        const m = ln.match(/\b\d[\d \-]{8,11}\d\b/);
-        if (m) { phoneRaw = m; break; }
-      }
-    }
-    const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g, '') : null;
-    const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
-
-    const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
-
-    const allCapsMatch = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
-    const fallbackName = lines.find(l =>
-      l.length > 2 && l.length < 60 &&
-      !l.match(/^\//) &&
-      !l.match(/[@\\]/) &&
-      !l.toLowerCase().includes('www') &&
-      !/^\+?[\d\s\-().]+$/.test(l) &&
-      l !== companyLine
-    );
-    const nameLine = allCapsMatch ? (allCapsMatch[1] + ' ' + allCapsMatch[2]) : fallbackName;
-
-    /* PRD 2 AC4 — Latin transliteration for non-Latin name/company.
-       Store native script in the field value; append transliteration to notes. */
-    const nameTranslit    = detectedLang !== 'eng' ? transliterateText(nameLine    || '') : '';
-    const companyTranslit = detectedLang !== 'eng' ? transliterateText(companyLine || '') : '';
-    if ((nameTranslit || companyTranslit) && fieldMap.notes) {
-      const notesEl = document.getElementById(fieldMap.notes);
-      if (notesEl) {
-        const translit = [nameTranslit && `Name (en): ${nameTranslit}`, companyTranslit && `Company (en): ${companyTranslit}`].filter(Boolean).join('\n');
-        notesEl.value = translit + (notesEl.value ? '\n\n' + notesEl.value : '');
-      }
-    }
-
-    /* ── Apply per-field confidence (PRD 1) ── */
-    const fieldValues = {
-      name:    { id: fieldMap.name,    value: nameLine,         conf: confidenceForPhrase(words, nameLine) },
-      phone:   { id: fieldMap.phone,   value: phone,            conf: confidenceForPhrase(words, phoneRaw?.[0]) },
-      email:   { id: fieldMap.email,   value: emailMatch?.[0],  conf: confidenceForPhrase(words, emailMatch?.[0]) },
-      company: { id: fieldMap.company, value: companyLine,      conf: confidenceForPhrase(words, companyLine) },
-    };
-    const bands = {};
-    for (const [key, f] of Object.entries(fieldValues)) {
-      if (f.id) bands[key] = applyConfidence(f.id, f.value, f.conf);
-    }
-
-    /* Notes always gets the raw text for fallback verification */
+    /* Notes — write once with everything we want to surface for review:
+       raw OCR text (truncated), alt phone if found, and Latin
+       transliteration for non-Latin name/company. */
     if (fieldMap.notes) {
       const notesEl = document.getElementById(fieldMap.notes);
-      if (notesEl) notesEl.value = text.trim().substring(0, 400);
+      if (notesEl) {
+        const parts = [];
+        if (detectedLang !== 'eng') {
+          const nameTranslit    = transliterateText(extracted.name    || '');
+          const companyTranslit = transliterateText(extracted.company || '');
+          const translit = [
+            nameTranslit    && `Name (en): ${nameTranslit}`,
+            companyTranslit && `Company (en): ${companyTranslit}`,
+          ].filter(Boolean).join('\n');
+          if (translit) parts.push(translit);
+        }
+        if (extracted.phone2) parts.push(`Alt phone: ${extracted.phone2}`);
+        if (text.trim())      parts.push(text.trim().substring(0, 400));
+        notesEl.value = parts.join('\n\n');
+      }
     }
 
-    /* AC5 — re-scan CTA when >50% of fields are Low. fieldMap may supply
-       a custom banner ID (the referrer view uses #refScanRescanBanner). */
-    const bandValues = Object.values(bands);
+    /* AC5 — re-scan CTA when >50% of fields are Low. */
+    const bandValues = Object.values(bands).filter(b => b);
     const lowCount   = bandValues.filter(b => b === 'low').length;
     const bannerId   = fieldMap.rescanBanner || 'scanRescanBanner';
     const banner     = document.getElementById(bannerId);
@@ -3561,6 +3531,7 @@ async function processCardImage(file, fieldMap) {
     flash('Could not read card — please fill in manually', 'error');
     logTelemetry('scan_abandoned', { error: String(err?.message || err) });
   } finally {
+    _ocrLogger = null;
     hideLoader();
     scanBtns.forEach(b => btnLoad(b, false));
   }
@@ -3762,11 +3733,13 @@ async function confirmMerge(existingLeadId, incoming) {
   }
 }
 
-/* Wire the Re-scan banner button */
+/* Wire the Re-scan banner button + warm up the OCR worker. The worker
+   download is ~15MB; doing it on idle removes that cost from first-scan. */
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('scanRescanBtn')?.addEventListener('click', () => {
     document.getElementById('cardCameraInput')?.click();
   });
+  prewarmOcrWorker();
 });
 
 /* Wire up the lead modal camera button */
@@ -3775,7 +3748,17 @@ document.getElementById('cameraScanBtn')?.addEventListener('click', () => {
 });
 document.getElementById('cardCameraInput')?.addEventListener('change', e => {
   const file = e.target.files[0];
-  if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail', notes:'leadNotes' });
+  if (file) processCardImage(file, {
+    name:             'leadName',
+    phone:            'leadPhone',
+    email:            'leadEmail',
+    company:          'leadCompany',
+    city:             'leadCity',
+    state:            'leadState',
+    natureOfBusiness: 'leadNatureOfBusiness',
+    interestedIn:     'leadInterestedIn',
+    notes:            'leadNotes',
+  });
   e.target.value = ''; // reset so same file can re-trigger
 });
 
@@ -3847,7 +3830,8 @@ async function processBulkQueue() {
     item.status = 'scanning';
     renderBulkQueueItem(item);
     try {
-      /* PRD 2 — two-pass multilingual OCR for bulk items */
+      /* PRD 2 — two-pass multilingual OCR for bulk items, but with the
+         shared warm worker so we don't re-bootstrap Tesseract per item. */
       const logStatus = pct => {
         const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
         if (statusEl) statusEl.textContent = 'scanning ' + pct + '%';
@@ -3893,6 +3877,7 @@ async function processBulkQueue() {
       const nonLatinBulk   = detectedBulk.filter(d => d !== 'eng' && getEnabledOcrLangs().includes(d));
       let result = engRes;
       if (nonLatinBulk.length) {
+        _ocrLogger = m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); };
         const langStr = buildLangString(nonLatinBulk);
         result = await Tesseract.recognize(item.file, langStr, {
           ...TESSERACT_PATHS,
@@ -3900,32 +3885,28 @@ async function processBulkQueue() {
         });
       }
       item.detectedLang = nonLatinBulk[0] || 'eng';
-      const text  = result.data.text || '';
+
+      const text  = result.data.text  || '';
       const words = result.data.words || [];
       const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-      /* Same extraction heuristics as single scan */
-      const emailM = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
-      let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
-      if (!phoneRaw) for (const ln of lines) { const m = ln.match(/\b\d[\d \-]{8,11}\d\b/); if (m) { phoneRaw = m; break; } }
-      const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g,'') : null;
-      const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
-      const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
-      const allCaps = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
-      const fallbackName = lines.find(l => l.length > 2 && l.length < 60 && !l.match(/^\//) && !l.match(/[@\\]/) && !l.toLowerCase().includes('www') && !/^\+?[\d\s\-().]+$/.test(l) && l !== companyLine);
-      const nameLine = allCaps ? allCaps[1] + ' ' + allCaps[2] : fallbackName;
+      const extracted = extractCardFields(text, words, lines);
 
       item.fields = {
-        name:    nameLine    || '',
-        phone:   phone       || '',
-        email:   emailM?.[0] || '',
-        company: companyLine || '',
+        name:             extracted.name             || '',
+        phone:            extracted.phone            || '',
+        email:            extracted.email            || '',
+        company:          extracted.company          || '',
+        city:             extracted.city             || '',
+        state:            extracted.state            || '',
+        natureOfBusiness: extracted.natureOfBusiness || '',
+        interestedIn:     extracted.interestedIn     || '',
       };
       item.bands = {
-        name:    bandFor(confidenceForPhrase(words, nameLine)),
-        phone:   bandFor(confidenceForPhrase(words, phoneRaw?.[0])),
-        email:   bandFor(confidenceForPhrase(words, emailM?.[0])),
-        company: bandFor(confidenceForPhrase(words, companyLine)),
+        name:    bandFor(confidenceForPhrase(words, extracted.name)),
+        phone:   bandFor(confidenceForPhrase(words, extracted.phone)),
+        email:   bandFor(confidenceForPhrase(words, extracted.email)),
+        company: bandFor(confidenceForPhrase(words, extracted.company)),
       };
       item.ocrCapture = {
         scannedAt:  new Date().toISOString(),
@@ -3948,6 +3929,7 @@ async function processBulkQueue() {
     renderBulkQueueItem(item);
     refreshBulkSummary();
   }
+  _ocrLogger = null;
   _bulk.processing = false;
 }
 
@@ -4013,12 +3995,16 @@ async function saveBulkLeads() {
   try {
     const batchName = document.getElementById('bulkBatchName')?.value?.trim() || '';
     const leads = readyItems.map(item => ({
-      name:       item.fields.name    || 'Unknown',
-      phone:      item.fields.phone   || '0000000000',
-      email:      item.fields.email   || '',
-      company:    item.fields.company || '',
-      source:     'direct',
-      ocrCapture: item.ocrCapture,
+      name:             item.fields.name             || 'Unknown',
+      phone:            item.fields.phone            || '0000000000',
+      email:            item.fields.email            || '',
+      company:          item.fields.company          || '',
+      city:             item.fields.city             || '',
+      state:            item.fields.state            || '',
+      natureOfBusiness: item.fields.natureOfBusiness || '',
+      interestedIn:     item.fields.interestedIn     || '',
+      source:           'direct',
+      ocrCapture:       item.ocrCapture,
     }));
 
     const res = await api('POST', '/leads/bulk-scan', { leads, batchName });
