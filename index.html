@@ -473,6 +473,51 @@
           <label class="form-label">Email <span class="opt">(optional)</span></label>
           <input type="email" id="expoLeadEmail" class="form-input" placeholder="email@example.com"/>
         </div>
+        <!-- City + State -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">City <span class="opt">(optional)</span></label>
+            <input type="text" id="expoLeadCity" class="form-input" placeholder="e.g. Pune"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">State <span class="opt">(optional)</span></label>
+            <input type="text" id="expoLeadState" class="form-input" placeholder="e.g. Maharashtra"/>
+          </div>
+        </div>
+        <!-- Nature of Business + Interested In -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nature of Business <span class="opt">(optional)</span></label>
+            <select id="expoLeadNatureOfBusiness" class="form-input">
+              <option value="">— Select —</option>
+              <option value="distribution">Distribution</option>
+              <option value="reseller">Reseller</option>
+              <option value="builder">Builder</option>
+              <option value="service-and-installation">Service & Installation</option>
+              <option value="system-integrator">System Integrator</option>
+              <option value="solution-provider">Solution Provider</option>
+              <option value="oem">OEM</option>
+              <option value="manufacturer">Manufacturer</option>
+              <option value="component-vendor">Component Vendor</option>
+              <option value="product-fabricator">Product Fabricator</option>
+              <option value="marketing">Marketing</option>
+              <option value="sales-and-service-support">Sales & Service Support</option>
+              <option value="end-consumer">End Consumer / Customer</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Interested In <span class="opt">(optional)</span></label>
+            <select id="expoLeadInterestedIn" class="form-input">
+              <option value="">— Select —</option>
+              <option value="dealership">Dealership</option>
+              <option value="collaboration">Collaboration</option>
+              <option value="product-integration">Product Integration</option>
+              <option value="direct-purchase">Direct Purchase</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
         <!-- Products Interested -->
         <div class="form-group">
           <label class="form-label">Products Interested <span class="opt">(multi-select)</span></label>
@@ -663,6 +708,49 @@
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label class="form-label" for="leadCity">City <span class="opt">(optional)</span></label>
+          <input type="text" id="leadCity" class="form-input" placeholder="e.g. Pune"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="leadState">State <span class="opt">(optional)</span></label>
+          <input type="text" id="leadState" class="form-input" placeholder="e.g. Maharashtra"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="leadNatureOfBusiness">Nature of Business <span class="opt">(optional)</span></label>
+          <select id="leadNatureOfBusiness" class="form-input">
+            <option value="">— Select —</option>
+            <option value="distribution">Distribution</option>
+            <option value="reseller">Reseller</option>
+            <option value="builder">Builder</option>
+            <option value="service-and-installation">Service & Installation</option>
+            <option value="system-integrator">System Integrator</option>
+            <option value="solution-provider">Solution Provider</option>
+            <option value="oem">OEM</option>
+            <option value="manufacturer">Manufacturer</option>
+            <option value="component-vendor">Component Vendor</option>
+            <option value="product-fabricator">Product Fabricator</option>
+            <option value="marketing">Marketing</option>
+            <option value="sales-and-service-support">Sales & Service Support</option>
+            <option value="end-consumer">End Consumer / Customer</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="leadInterestedIn">Interested In <span class="opt">(optional)</span></label>
+          <select id="leadInterestedIn" class="form-input">
+            <option value="">— Select —</option>
+            <option value="dealership">Dealership</option>
+            <option value="collaboration">Collaboration</option>
+            <option value="product-integration">Product Integration</option>
+            <option value="direct-purchase">Direct Purchase</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
           <label class="form-label" for="leadStage">Stage <span class="req">*</span></label>
           <select id="leadStage" class="form-input">
             <option value="new">New</option>
@@ -795,6 +883,10 @@
         <div class="csv-col-row"><span class="col-name">expo</span><span>Text</span><span class="opt">No</span><span>Pune Realty Expo 2025</span></div>
         <div class="csv-col-row"><span class="col-name">products</span><span>Pipe-separated SKUs</span><span class="opt">No</span><span>PRD-001|PRD-002</span></div>
         <div class="csv-col-row"><span class="col-name">value</span><span>Number (₹)</span><span class="opt">No</span><span>250000</span></div>
+        <div class="csv-col-row"><span class="col-name">city</span><span>Text</span><span class="opt">No</span><span>Pune</span></div>
+        <div class="csv-col-row"><span class="col-name">state</span><span>Text</span><span class="opt">No</span><span>Maharashtra</span></div>
+        <div class="csv-col-row"><span class="col-name">natureOfBusiness</span><span>distribution / reseller / builder / …</span><span class="opt">No</span><span>system-integrator</span></div>
+        <div class="csv-col-row"><span class="col-name">interestedIn</span><span>dealership / collaboration / …</span><span class="opt">No</span><span>direct-purchase</span></div>
         <div class="csv-col-row"><span class="col-name">notes</span><span>Text</span><span class="opt">No</span><span>Met at booth #14</span></div>
       </div>
       <div class="wz-rules">

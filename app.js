@@ -23,25 +23,30 @@ async function api(method, path, body) {
 /* ═══════════ NORMALIZERS ═══════════ */
 function normalizeLead(l) {
   return {
-    id:              l._id,
-    name:            l.name,
-    phone:           l.phone,
-    email:           l.email || '',
-    source:          l.source,
-    expo:            l.expo ? (l.expo.name || '') : '',
-    expoId:          l.expo ? (l.expo._id || l.expo) : null,
-    stage:           l.stage,
-    agentId:         l.assignedAgent?._id || (typeof l.assignedAgent === 'string' ? l.assignedAgent : null),
-    products:        (l.products || []).map(p => p._id || p),
-    value:           l.value || 0,
-    score:           l.score || 50,
-    followUps:       Array.isArray(l.followUps) ? l.followUps.length : (l.followUps || 0),
-    notes:           l.notes || '',
-    createdAt:       l.createdAt ? l.createdAt.split('T')[0] : null,
-    lastContact:     l.lastContact ? l.lastContact.split('T')[0] : null,
-    createdById:     l.createdBy?._id || l.createdBy || null,
-    createdByName:   l.createdBy?.name  || null,
-    createdByRole:   l.createdBy?.role  || null,
+    id:               l._id,
+    name:             l.name,
+    phone:            l.phone,
+    email:            l.email || '',
+    company:          l.company || '',
+    city:             l.city || '',
+    state:            l.state || '',
+    natureOfBusiness: l.natureOfBusiness || '',
+    interestedIn:     l.interestedIn || '',
+    source:           l.source,
+    expo:             l.expo ? (l.expo.name || '') : '',
+    expoId:           l.expo ? (l.expo._id || l.expo) : null,
+    stage:            l.stage,
+    agentId:          l.assignedAgent?._id || (typeof l.assignedAgent === 'string' ? l.assignedAgent : null),
+    products:         (l.products || []).map(p => p._id || p),
+    value:            l.value || 0,
+    score:            l.score || 50,
+    followUps:        Array.isArray(l.followUps) ? l.followUps.length : (l.followUps || 0),
+    notes:            l.notes || '',
+    createdAt:        l.createdAt ? l.createdAt.split('T')[0] : null,
+    lastContact:      l.lastContact ? l.lastContact.split('T')[0] : null,
+    createdById:      l.createdBy?._id || l.createdBy || null,
+    createdByName:    l.createdBy?.name  || null,
+    createdByRole:    l.createdBy?.role  || null,
   };
 }
 
@@ -773,16 +778,21 @@ function openLeadModal(leadId) {
   } else {
     const l = S.leads.find(x => x.id === leadId);
     if (!l) return;
-    document.getElementById('leadIdInput').value  = l.id;
-    document.getElementById('leadName').value     = l.name;
-    document.getElementById('leadPhone').value    = l.phone;
-    document.getElementById('leadEmail').value    = l.email;
-    document.getElementById('leadStage').value    = l.stage;
-    document.getElementById('leadSource').value   = l.source;
-    document.getElementById('leadExpo').value     = l.expoId || '';
-    document.getElementById('leadAgent').value    = l.agentId || '';
-    document.getElementById('leadValue').value    = l.value   || '';
-    document.getElementById('leadNotes').value    = l.notes   || '';
+    document.getElementById('leadIdInput').value             = l.id;
+    document.getElementById('leadName').value                = l.name;
+    document.getElementById('leadPhone').value               = l.phone;
+    document.getElementById('leadEmail').value               = l.email;
+    document.getElementById('leadCompany').value             = l.company || '';
+    document.getElementById('leadCity').value                = l.city    || '';
+    document.getElementById('leadState').value               = l.state   || '';
+    document.getElementById('leadNatureOfBusiness').value    = l.natureOfBusiness || '';
+    document.getElementById('leadInterestedIn').value        = l.interestedIn     || '';
+    document.getElementById('leadStage').value               = l.stage;
+    document.getElementById('leadSource').value              = l.source;
+    document.getElementById('leadExpo').value                = l.expoId || '';
+    document.getElementById('leadAgent').value               = l.agentId || '';
+    document.getElementById('leadValue').value               = l.value   || '';
+    document.getElementById('leadNotes').value               = l.notes   || '';
     tagWrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
       cb.checked = (l.products||[]).includes(cb.value);
     });
@@ -891,14 +901,18 @@ document.getElementById('leadForm').addEventListener('submit', async e => {
   const ocrCapture = collectOcrCapture();
   const payload  = {
     name, phone,
-    email:         document.getElementById('leadEmail').value.trim(),
-    company:       document.getElementById('leadCompany')?.value?.trim() || '',
-    stage:         document.getElementById('leadStage').value,
-    source:        document.getElementById('leadSource').value  || 'direct',
-    expo:          expoVal || undefined,
-    assignedAgent: document.getElementById('leadAgent').value   || S.agents.find(a=>a.status==='active')?.id,
-    value:         parseInt(document.getElementById('leadValue').value) || 0,
-    notes:         document.getElementById('leadNotes').value.trim(),
+    email:            document.getElementById('leadEmail').value.trim(),
+    company:          document.getElementById('leadCompany')?.value?.trim() || '',
+    city:             document.getElementById('leadCity')?.value?.trim() || '',
+    state:            document.getElementById('leadState')?.value?.trim() || '',
+    natureOfBusiness: document.getElementById('leadNatureOfBusiness')?.value || '',
+    interestedIn:     document.getElementById('leadInterestedIn')?.value || '',
+    stage:            document.getElementById('leadStage').value,
+    source:           document.getElementById('leadSource').value  || 'direct',
+    expo:             expoVal || undefined,
+    assignedAgent:    document.getElementById('leadAgent').value   || S.agents.find(a=>a.status==='active')?.id,
+    value:            parseInt(document.getElementById('leadValue').value) || 0,
+    notes:            document.getElementById('leadNotes').value.trim(),
     products,
     ocrCapture,
   };
@@ -1658,6 +1672,10 @@ document.getElementById('expoLeadForm')?.addEventListener('submit', async e => {
   const name      = document.getElementById('expoLeadName').value.trim();
   const phone     = document.getElementById('expoLeadPhone').value.trim();
   const email     = document.getElementById('expoLeadEmail').value.trim();
+  const city             = document.getElementById('expoLeadCity')?.value?.trim() || '';
+  const state            = document.getElementById('expoLeadState')?.value?.trim() || '';
+  const natureOfBusiness = document.getElementById('expoLeadNatureOfBusiness')?.value || '';
+  const interestedIn     = document.getElementById('expoLeadInterestedIn')?.value || '';
   const presenter = document.getElementById('expoLeadPresenter').value;
   const notes     = document.getElementById('expoLeadNotes').value.trim();
 
@@ -1683,6 +1701,10 @@ document.getElementById('expoLeadForm')?.addEventListener('submit', async e => {
     name,
     phone,
     email,
+    city,
+    state,
+    natureOfBusiness,
+    interestedIn,
     source:        'expo',
     expo:          expoId,
     products:      selectedProductIds,
@@ -1786,8 +1808,8 @@ document.getElementById('bulkImportBtn')?.addEventListener('click', () => {
 document.getElementById('bulkImportClose')?.addEventListener('click', () => document.getElementById('bulkImportModal').classList.remove('open'));
 
 document.getElementById('downloadTemplateBtn')?.addEventListener('click', () => {
-  const header  = 'name,phone,email,source,expo,products,value,notes';
-  const example = 'Rajesh Sharma,+91 98200 00000,raj@example.com,expo,Pune Realty Expo 2025,PRD-001|PRD-002,250000,Met at booth 14';
+  const header  = 'name,phone,email,source,expo,products,value,city,state,natureOfBusiness,interestedIn,notes';
+  const example = 'Rajesh Sharma,+91 98200 00000,raj@example.com,expo,Pune Realty Expo 2025,PRD-001|PRD-002,250000,Pune,Maharashtra,system-integrator,direct-purchase,Met at booth 14';
   const blob = new Blob([header+'\n'+example], {type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1877,6 +1899,10 @@ document.getElementById('confirmImportBtn')?.addEventListener('click', async () 
       name: r.name, phone: r.phone, email: r.email||'',
       source: r.source||'direct', stage: 'new',
       products, value: parseInt(r.value)||0,
+      city:             r.city  || '',
+      state:            r.state || '',
+      natureOfBusiness: r.natureofbusiness || '',
+      interestedIn:     r.interestedin    || '',
       notes: r.notes||'',
     };
     /* For non-referrers, default to an active agent. Backend force-strips this for referrers. */
@@ -2402,6 +2428,47 @@ async function renderReferrerView() {
           <input type="text" id="refLeadCompany" class="form-input" placeholder="Company name" aria-describedby="refLeadCompany-band"/>
           <span class="confidence-hint" id="refLeadCompany-band" hidden></span>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">City <span class="opt">(optional)</span></label>
+            <input type="text" id="refLeadCity" class="form-input" placeholder="e.g. Pune"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">State <span class="opt">(optional)</span></label>
+            <input type="text" id="refLeadState" class="form-input" placeholder="e.g. Maharashtra"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nature of Business <span class="opt">(optional)</span></label>
+          <select id="refLeadNatureOfBusiness" class="form-input">
+            <option value="">— Select —</option>
+            <option value="distribution">Distribution</option>
+            <option value="reseller">Reseller</option>
+            <option value="builder">Builder</option>
+            <option value="service-and-installation">Service & Installation</option>
+            <option value="system-integrator">System Integrator</option>
+            <option value="solution-provider">Solution Provider</option>
+            <option value="oem">OEM</option>
+            <option value="manufacturer">Manufacturer</option>
+            <option value="component-vendor">Component Vendor</option>
+            <option value="product-fabricator">Product Fabricator</option>
+            <option value="marketing">Marketing</option>
+            <option value="sales-and-service-support">Sales & Service Support</option>
+            <option value="end-consumer">End Consumer / Customer</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Interested In <span class="opt">(optional)</span></label>
+          <select id="refLeadInterestedIn" class="form-input">
+            <option value="">— Select —</option>
+            <option value="dealership">Dealership</option>
+            <option value="collaboration">Collaboration</option>
+            <option value="product-integration">Product Integration</option>
+            <option value="direct-purchase">Direct Purchase</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
         <div class="form-group">
           <label class="form-label">Notes <span class="opt">(optional)</span></label>
           <textarea id="refLeadNotes" class="form-input" rows="2" placeholder="Product interest, booth interaction…"></textarea>
@@ -2504,7 +2571,11 @@ async function renderReferrerView() {
     const ocrCapture = collectOcrCapture(REF_FIELDMAP);
     const payload = {
       name, phone,
-      email:   document.getElementById('refLeadEmail').value.trim(),
+      email:            document.getElementById('refLeadEmail').value.trim(),
+      city:             document.getElementById('refLeadCity')?.value?.trim() || '',
+      state:            document.getElementById('refLeadState')?.value?.trim() || '',
+      natureOfBusiness: document.getElementById('refLeadNatureOfBusiness')?.value || '',
+      interestedIn:     document.getElementById('refLeadInterestedIn')?.value || '',
       stage:   'new',
       source:  'expo',
       notes:   company ? `[${company}] ${notes}` : notes,

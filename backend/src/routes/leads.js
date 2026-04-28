@@ -5,6 +5,7 @@ const ctrl     = require('../controllers/leadController');
 const vmCtrl   = require('../controllers/voiceMemoController');
 const { authenticate }    = require('../middleware/auth');
 const { requireMinRole, scopeToAgent, allowReferrer } = require('../middleware/rbac');
+const Lead     = require('../models/Lead');
 
 const auth = [authenticate, requireMinRole('agent'), scopeToAgent];
 
@@ -19,6 +20,10 @@ const createValidation = [
   body('phone').trim().notEmpty(),
   body('source').isIn(['expo', 'referral', 'direct', 'digital']),
   body('assignedAgent').isMongoId().optional(),
+  body('city').optional().trim(),
+  body('state').optional().trim(),
+  body('natureOfBusiness').optional().isIn(Lead.NATURE_OF_BUSINESS),
+  body('interestedIn').optional().isIn(Lead.INTERESTED_IN),
 ];
 
 /* PUT validators are all optional — RBAC runs inside the controller */
@@ -27,6 +32,10 @@ const updateValidation = [
   body('phone').optional().trim().notEmpty(),
   body('source').optional().isIn(['expo', 'referral', 'direct', 'digital']),
   body('assignedAgent').optional().isMongoId(),
+  body('city').optional().trim(),
+  body('state').optional().trim(),
+  body('natureOfBusiness').optional().isIn(Lead.NATURE_OF_BUSINESS),
+  body('interestedIn').optional().isIn(Lead.INTERESTED_IN),
 ];
 
 /* POST /api/leads/bulk — manager+ unrestricted; referrers capped to 100 rows + force-tagged to their expo (controller enforces) */
