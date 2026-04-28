@@ -16,7 +16,7 @@ async function api(method, path, body) {
   if (body)   opts.body = JSON.stringify(body);
   const res  = await fetch(API_BASE + path, opts);
   const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.message || 'API error'), { status: res.status, data });
+  if (!res.ok) throw Object.assign(new Error(data.message || data.error || `API error (${res.status})`), { status: res.status, data });
   return data;
 }
 
