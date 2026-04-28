@@ -49,6 +49,10 @@
 
 /* ── RESET ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* The HTML [hidden] attribute must beat any class-level `display:` rule.
+   Without this, .neo-btn, .scan-rescan-banner, .confidence-hint etc. with
+   `display: flex/block` render even when `hidden` is set. */
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 body {
   background: var(--bg);

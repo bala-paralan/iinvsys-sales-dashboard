@@ -2362,23 +2362,23 @@ async function renderReferrerView() {
     <div class="ref-add-lead-header">
       <span>// ADD NEW LEAD</span>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        <button class="neo-btn outline xs" id="refBulkScanBtn" type="button">📷 Bulk Scan</button>
-        <button class="neo-btn outline xs" id="refBulkImportBtn" type="button">⬆ Bulk CSV</button>
-        <button class="neo-btn yellow xs" id="refToggleFormBtn" type="button">+ New Lead</button>
+        <button class="neo-btn outline xs" id="refBulkScanBtn" type="button" aria-label="Bulk scan business cards"><span aria-hidden="true">📷</span> Bulk Scan</button>
+        <button class="neo-btn outline xs" id="refBulkImportBtn" type="button" aria-label="Bulk import leads from CSV"><span aria-hidden="true">⬆</span> Bulk CSV</button>
+        <button class="neo-btn yellow xs" id="refToggleFormBtn" type="button" aria-expanded="false" aria-controls="refFormCard">+ New Lead</button>
       </div>
     </div>
     <div class="referrer-form-card" id="refFormCard" style="display:none">
       <form id="referrerLeadForm">
         <div class="referrer-camera-row">
-          <button type="button" class="neo-btn outline full-w" id="refCameraBtn">📷 Scan Business Card</button>
-          <input type="file" id="refCardInput" accept="image/*" capture="environment" style="display:none"/>
+          <button type="button" class="neo-btn outline full-w" id="refCameraBtn" aria-label="Scan business card with camera"><span aria-hidden="true">📷</span> Scan Business Card</button>
+          <input type="file" id="refCardInput" accept="image/*" capture="environment" aria-label="Business card image" style="display:none"/>
         </div>
 
         <!-- Mirrored rescan banner — surfaces when >50% of OCR fields are low confidence -->
         <div class="scan-rescan-banner" id="refScanRescanBanner" role="status" aria-live="polite" hidden style="margin-top:8px">
           <span class="srb-icon" aria-hidden="true">⚠</span>
           <span class="srb-text">Most fields look uncertain. Try re-scanning?</span>
-          <button type="button" class="neo-btn outline xs" id="refScanRescanBtn">📷 Re-scan</button>
+          <button type="button" class="neo-btn outline xs" id="refScanRescanBtn" aria-label="Re-scan business card"><span aria-hidden="true">📷</span> Re-scan</button>
         </div>
 
         <div class="ref-divider">— or enter manually —</div>
@@ -2409,15 +2409,15 @@ async function renderReferrerView() {
 
         <!-- Voice note (recorded inline; attached to the lead after POST /leads) -->
         <div class="ref-voice-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px">
-          <button type="button" class="neo-btn outline sm" id="refVmRecordBtn">🎙 Record Voice Note</button>
-          <button type="button" class="neo-btn outline sm" id="refVmStopBtn" hidden>⏹ Stop</button>
-          <span class="vm-timer" id="refVmTimer" hidden>0:00</span>
-          <span class="vm-status" id="refVmStatus" style="font-size:11px;color:var(--text-3)" hidden></span>
+          <button type="button" class="neo-btn outline sm" id="refVmRecordBtn" aria-label="Record a voice note for this lead"><span aria-hidden="true">🎙</span> Record Voice Note</button>
+          <button type="button" class="neo-btn outline sm" id="refVmStopBtn" hidden aria-label="Stop recording voice note"><span aria-hidden="true">⏹</span> Stop</button>
+          <span class="vm-timer" id="refVmTimer" hidden aria-label="Recording duration">0:00</span>
+          <span class="vm-status" id="refVmStatus" role="status" aria-live="polite" style="font-size:11px;color:var(--text-3)" hidden></span>
         </div>
         <div class="vm-transcript-wrap" id="refVmTranscriptWrap" hidden style="margin-top:8px">
-          <div class="vm-transcript-label">Transcript (attached on save)</div>
-          <div class="vm-transcript" id="refVmTranscript" contenteditable="false"></div>
-          <button type="button" class="neo-btn outline xs" id="refVmClearBtn" style="margin-top:6px">✕ Discard voice note</button>
+          <div class="vm-transcript-label" id="refVmTranscriptLabel">Transcript (attached on save)</div>
+          <div class="vm-transcript" id="refVmTranscript" contenteditable="false" role="textbox" aria-multiline="true" aria-labelledby="refVmTranscriptLabel"></div>
+          <button type="button" class="neo-btn outline xs" id="refVmClearBtn" style="margin-top:6px" aria-label="Discard voice note"><span aria-hidden="true">✕</span> Discard voice note</button>
         </div>
 
         <button type="submit" class="neo-btn yellow full-w" id="refLeadSubmit" style="padding:16px;font-size:14px;margin-top:12px">
@@ -2426,7 +2426,7 @@ async function renderReferrerView() {
       </form>
 
       <!-- Success card — replaces the form briefly to show captured + auto-enrichment -->
-      <div id="refSuccessCard" hidden style="margin-top:12px;padding:14px;border:1px solid var(--surface-3);border-radius:6px;background:var(--bg-2)"></div>
+      <div id="refSuccessCard" role="region" aria-live="polite" aria-label="Capture confirmation" hidden style="margin-top:12px;padding:14px;border:1px solid var(--surface-3);border-radius:6px;background:var(--bg-2)"></div>
 
       <div id="refTodayCount" class="ref-today-count"></div>
     </div>
@@ -2442,6 +2442,7 @@ async function renderReferrerView() {
     const open = card.style.display === 'none';
     card.style.display = open ? '' : 'none';
     btn.textContent    = open ? '✕ Close' : '+ New Lead';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
 
   /* ── Camera / OCR (single card scan) ── */
@@ -2558,10 +2559,12 @@ async function renderReferrerView() {
    with state held across the form lifecycle and attached to the new
    lead via POST /leads/:id/voice-memos after the lead is created. */
 const _refVm = {
-  recognition:  null,
-  transcript:   '',
-  startTime:    null,
-  timerInterval:null,
+  recognition:    null,
+  transcript:     '',
+  startTime:      null,
+  timerInterval:  null,
+  transcriptInputHandler: null,
+  successCardToken: 0,
 };
 
 function _refVmFmt(ms) {
@@ -2575,10 +2578,18 @@ function _refVmReset() {
   _refVm.transcript = '';
   _refVm.startTime  = null;
 
+  const tEl = document.getElementById('refVmTranscript');
+  if (tEl) {
+    /* Drop any prior input listener so record→stop→record doesn't stack handlers */
+    if (_refVm.transcriptInputHandler) tEl.removeEventListener('input', _refVm.transcriptInputHandler);
+    _refVm.transcriptInputHandler = null;
+    tEl.textContent     = '';
+    tEl.contentEditable = 'false';
+  }
+
   const els = ['refVmTimer','refVmStopBtn','refVmStatus','refVmTranscriptWrap'].map(id => document.getElementById(id));
   els.forEach(el => { if (el) el.hidden = true; });
   const recBtn = document.getElementById('refVmRecordBtn'); if (recBtn) recBtn.hidden = false;
-  const tEl = document.getElementById('refVmTranscript');   if (tEl)  tEl.textContent = '';
 }
 
 async function refVmStart() {
@@ -2645,9 +2656,12 @@ async function refVmStop() {
   await new Promise(r => setTimeout(r, 500));
   const text = _refVm.transcript.trim();
   if (transcriptEl) {
-    transcriptEl.textContent = text;
+    transcriptEl.textContent     = text;
     transcriptEl.contentEditable = 'true';
-    transcriptEl.addEventListener('input', () => { _refVm.transcript = transcriptEl.textContent || ''; }, { once: false });
+    /* Replace any prior listener — addEventListener doesn't dedupe arrow fns */
+    if (_refVm.transcriptInputHandler) transcriptEl.removeEventListener('input', _refVm.transcriptInputHandler);
+    _refVm.transcriptInputHandler = () => { _refVm.transcript = transcriptEl.textContent || ''; };
+    transcriptEl.addEventListener('input', _refVm.transcriptInputHandler);
   }
   if (statusEl) {
     statusEl.textContent = text ? 'Voice note will attach when you save the lead.' : 'No speech detected — try again or save without it.';
@@ -2669,17 +2683,24 @@ async function renderRefSuccessCard(leadId, name) {
   if (!card) { flash('Lead captured!'); return; }
   if (form) form.style.display = 'none';
 
+  /* Bump a token so any in-flight poll from a previous capture knows it's stale */
+  const myToken = ++_refVm.successCardToken;
+  const isCurrent = () => _refVm.successCardToken === myToken && !card.hidden;
+
   card.hidden = false;
   card.innerHTML = `
     <div style="font-weight:700;color:var(--emerald);margin-bottom:6px">✓ ${escapeHtml(name)} captured</div>
-    <div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Looking up company details… <span class="ref-enrich-spinner">⏳</span></div>
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Looking up company details… <span class="ref-enrich-spinner" aria-hidden="true">⏳</span></div>
     <button type="button" class="neo-btn outline xs" id="refSuccessNextBtn">+ Capture another</button>`;
 
-  document.getElementById('refSuccessNextBtn')?.addEventListener('click', () => {
+  const dismiss = () => {
+    /* Bump the token on dismiss so the polling loop won't repaint after we close */
+    _refVm.successCardToken++;
     card.hidden = true;
     card.innerHTML = '';
     if (form) form.style.display = '';
-  });
+  };
+  document.getElementById('refSuccessNextBtn')?.addEventListener('click', dismiss);
 
   if (!leadId) return;
 
@@ -2695,9 +2716,11 @@ async function renderRefSuccessCard(leadId, name) {
   let lead = null;
   for (const wait of [1000, 1000]) {
     await new Promise(r => setTimeout(r, wait));
+    if (!isCurrent()) return; // user dismissed or a newer capture started
     lead = await tryFetch();
     if (lead) break;
   }
+  if (!isCurrent()) return;
 
   if (!lead) {
     const sub = card.querySelector('div:nth-child(2)');
@@ -2713,11 +2736,7 @@ async function renderRefSuccessCard(leadId, name) {
   if (typeof renderEnrichmentSection === 'function') {
     renderEnrichmentSection(lead, document.getElementById('refEnrichmentMount'));
   }
-  document.getElementById('refSuccessNextBtn')?.addEventListener('click', () => {
-    card.hidden = true;
-    card.innerHTML = '';
-    if (form) form.style.display = '';
-  });
+  document.getElementById('refSuccessNextBtn')?.addEventListener('click', dismiss);
 }
 
 async function loadRefLeadsList() {

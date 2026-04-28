@@ -113,10 +113,11 @@ async function createLead(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
-    /* Referrers: auto-tag expo and source, no agent assignment */
+    /* Referrers: auto-tag expo and source, never let the client pick an agent */
     if (req.referrerExpoId) {
       req.body.expo   = req.referrerExpoId;
       req.body.source = 'expo';
+      delete req.body.assignedAgent;
     }
 
     /* Agents can only create leads assigned to themselves */
@@ -239,15 +240,18 @@ async function bulkImport(req, res, next) {
     const existing  = await Lead.find({ phone: { $in: phones } }).select('phone').lean();
     const dupPhones = new Set(existing.map(l => l.phone));
 
+    /* Referrers: hard-restrict the imported field set so nothing in the CSV
+       (stage, value, score, enrichment, etc.) can sneak through the spread. */
+    const REFERRER_BULK_FIELDS = ['name', 'phone', 'email', 'company', 'notes'];
+
     const toInsert  = leads.filter(l => !dupPhones.has(l.phone))
                            .map(l => {
-                             const row = { ...l, createdBy: req.user._id };
                              if (req.referrerExpoId) {
-                               row.expo   = req.referrerExpoId;
-                               row.source = 'expo';
-                               delete row.assignedAgent;
+                               const row = { createdBy: req.user._id, expo: req.referrerExpoId, source: 'expo' };
+                               for (const k of REFERRER_BULK_FIELDS) if (l[k] !== undefined) row[k] = l[k];
+                               return row;
                              }
-                             return row;
+                             return { ...l, createdBy: req.user._id };
                            });
 
     let inserted = [];
@@ -290,8 +294,9 @@ async function checkDuplicate(req, res, next) {
       if (firstChar) candidateFilter.$or.push({ name: { $regex: '^' + firstChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
     }
 
-    /* Respect agent scoping; managers see all */
-    if (req.agentScope) candidateFilter.assignedAgent = req.agentScope;
+    /* Respect agent scoping; managers see all; referrers see only their expo */
+    if (req.agentScope)         candidateFilter.assignedAgent = req.agentScope;
+    else if (req.referrerExpoId) candidateFilter.expo          = req.referrerExpoId;
 
     const candidates = await Lead.find(candidateFilter)
       .populate('assignedAgent', 'name initials')
@@ -480,6 +485,7 @@ async function triggerEnrich(req, res, next) {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return notFound(res, 'Lead not found');
     if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
+    if (req.referrerExpoId && String(lead.expo) !== String(req.referrerExpoId)) return forbidden(res, 'Access denied');
 
     /* Fire async; respond immediately (AC1: rep never blocked) */
     setImmediate(() => enrichLead(lead._id, req.user._id).catch(() => {}));
@@ -525,7 +531,8 @@ async function getBatch(req, res, next) {
   try {
     const { batchId } = req.params;
     const filter = { 'batch.batchId': batchId };
-    if (req.agentScope) filter.assignedAgent = req.agentScope;
+    if (req.agentScope)         filter.assignedAgent = req.agentScope;
+    else if (req.referrerExpoId) filter.expo          = req.referrerExpoId;
 
     const leads = await Lead.find(filter)
       .select('name phone email company stage ocrCapture batch enrichment createdAt')
