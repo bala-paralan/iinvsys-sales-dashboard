@@ -24,7 +24,8 @@ const TELEMETRY_EVENTS = new Set([
 /* ── helpers ─────────────────────────────────────────────────────── */
 
 function buildFilter(query, agentScope) {
-  const { stage, source, assignedAgent, expo, q, overdue } = query;
+  const { stage, source, assignedAgent, expo, q, overdue,
+          city, state, natureOfBusiness, interestedIn } = query;
   const filter = {};
 
   /* Agent scoping: agents see only their own leads */
@@ -35,6 +36,10 @@ function buildFilter(query, agentScope) {
   if (source) filter.source = source;
   if (expo)   filter.expo   = expo;
   if (q)      filter.$text  = { $search: q };
+  if (city)             filter.city             = city;
+  if (state)            filter.state            = state;
+  if (natureOfBusiness) filter.natureOfBusiness = natureOfBusiness;
+  if (interestedIn)     filter.interestedIn     = interestedIn;
 
   if (overdue === 'true') {
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);

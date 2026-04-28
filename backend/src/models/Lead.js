@@ -49,11 +49,28 @@ const EnrichmentFieldSchema = new mongoose.Schema({
   enrichedAt:  { type: Date, default: Date.now },
 }, { _id: false });
 
+/* Filter taxonomy — mirrored in routes/leads.js, app.js LEAD_TAXONOMY,
+   and the <select> options in index.html. */
+const NATURE_OF_BUSINESS = [
+  '', 'distribution', 'reseller', 'builder', 'service-and-installation',
+  'system-integrator', 'solution-provider', 'oem', 'manufacturer',
+  'component-vendor', 'product-fabricator', 'marketing',
+  'sales-and-service-support', 'end-consumer', 'other',
+];
+const INTERESTED_IN = [
+  '', 'dealership', 'collaboration', 'product-integration',
+  'direct-purchase', 'other',
+];
+
 const LeadSchema = new mongoose.Schema({
-  name:          { type: String, required: true, trim: true },
-  phone:         { type: String, required: true, trim: true },
-  email:         { type: String, lowercase: true, trim: true, default: '' },
-  company:       { type: String, trim: true, default: '' },
+  name:             { type: String, required: true, trim: true },
+  phone:            { type: String, required: true, trim: true },
+  email:            { type: String, lowercase: true, trim: true, default: '' },
+  company:          { type: String, trim: true, default: '' },
+  city:             { type: String, trim: true, default: '' },
+  state:            { type: String, trim: true, default: '' },
+  natureOfBusiness: { type: String, enum: NATURE_OF_BUSINESS, default: '' },
+  interestedIn:     { type: String, enum: INTERESTED_IN, default: '' },
   source:        { type: String, enum: ['expo','referral','direct','digital'], required: true },
   expo:          { type: mongoose.Schema.Types.ObjectId, ref: 'Expo', default: null },
   stage:         { type: String, enum: ['new','contacted','interested','proposal','negotiation','won','lost'], default: 'new' },
@@ -92,6 +109,10 @@ LeadSchema.index({ phone: 1 });
 LeadSchema.index({ score: -1 });
 LeadSchema.index({ createdAt: -1 });
 LeadSchema.index({ lastContact: 1 });
+LeadSchema.index({ city: 1 });
+LeadSchema.index({ state: 1 });
+LeadSchema.index({ natureOfBusiness: 1 });
+LeadSchema.index({ interestedIn: 1 });
 /* Text search */
 LeadSchema.index({ name: 'text', phone: 'text', email: 'text' });
 
@@ -118,3 +139,5 @@ LeadSchema.methods.toJSON = function() {
 };
 
 module.exports = mongoose.model('Lead', LeadSchema);
+module.exports.NATURE_OF_BUSINESS = NATURE_OF_BUSINESS;
+module.exports.INTERESTED_IN      = INTERESTED_IN;
