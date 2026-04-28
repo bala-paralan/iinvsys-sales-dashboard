@@ -229,12 +229,26 @@ async function bulkImport(req, res, next) {
       return badRequest(res, 'leads array is required');
     }
 
+    /* Referrers capped at 100 rows/request and force-tagged to their expo */
+    const REFERRER_BULK_CAP = 100;
+    if (req.referrerExpoId && leads.length > REFERRER_BULK_CAP) {
+      return badRequest(res, `Referrers can import at most ${REFERRER_BULK_CAP} rows per request (got ${leads.length})`);
+    }
+
     const phones    = leads.map(l => l.phone);
     const existing  = await Lead.find({ phone: { $in: phones } }).select('phone').lean();
     const dupPhones = new Set(existing.map(l => l.phone));
 
     const toInsert  = leads.filter(l => !dupPhones.has(l.phone))
-                           .map(l => ({ ...l, createdBy: req.user._id }));
+                           .map(l => {
+                             const row = { ...l, createdBy: req.user._id };
+                             if (req.referrerExpoId) {
+                               row.expo   = req.referrerExpoId;
+                               row.source = 'expo';
+                               delete row.assignedAgent;
+                             }
+                             return row;
+                           });
 
     let inserted = [];
     if (toInsert.length) inserted = await Lead.insertMany(toInsert);
@@ -412,19 +426,27 @@ async function bulkScan(req, res, next) {
 
     const toInsert = leads
       .filter(l => !dupPhones.has((l.phone || '').replace(/\D/g,'').slice(-10)))
-      .map(l => ({
-        name:          l.name,
-        phone:         l.phone,
-        email:         l.email  || '',
-        company:       l.company || '',
-        notes:         l.notes  || '',
-        source:        l.source || 'direct',
-        stage:         'new',
-        assignedAgent: agentId,
-        ocrCapture:    l.ocrCapture || null,
-        batch:         { batchId, batchName },
-        createdBy:     req.user._id,
-      }));
+      .map(l => {
+        const row = {
+          name:          l.name,
+          phone:         l.phone,
+          email:         l.email  || '',
+          company:       l.company || '',
+          notes:         l.notes  || '',
+          source:        l.source || 'direct',
+          stage:         'new',
+          assignedAgent: agentId,
+          ocrCapture:    l.ocrCapture || null,
+          batch:         { batchId, batchName },
+          createdBy:     req.user._id,
+        };
+        if (req.referrerExpoId) {
+          row.expo          = req.referrerExpoId;
+          row.source        = 'expo';
+          row.assignedAgent = null;
+        }
+        return row;
+      });
 
     let inserted = [];
     if (toInsert.length) inserted = await Lead.insertMany(toInsert);

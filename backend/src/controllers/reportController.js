@@ -33,7 +33,7 @@ async function updateConfig(req, res, next) {
       // Validate emails
       const invalid = recipients.filter(e => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
       if (invalid.length) {
-        return res.status(400).json({ success: false, error: `Invalid email(s): ${invalid.join(', ')}` });
+        return res.status(400).json({ success: false, message: `Invalid email(s): ${invalid.join(', ')}` });
       }
       cfg.recipients = recipients.map(e => e.trim().toLowerCase());
     }
@@ -41,14 +41,14 @@ async function updateConfig(req, res, next) {
     if (periodicity !== undefined) {
       const allowed = ['disabled', 'daily', 'weekly', 'monthly'];
       if (!allowed.includes(periodicity)) {
-        return res.status(400).json({ success: false, error: 'Invalid periodicity' });
+        return res.status(400).json({ success: false, message: 'Invalid periodicity' });
       }
       cfg.periodicity = periodicity;
     }
 
     if (sendTime !== undefined) {
       if (!/^\d{2}:\d{2}$/.test(sendTime)) {
-        return res.status(400).json({ success: false, error: 'sendTime must be HH:MM' });
+        return res.status(400).json({ success: false, message: 'sendTime must be HH:MM' });
       }
       cfg.sendTime = sendTime;
     }
@@ -78,7 +78,7 @@ async function sendNow(req, res, next) {
     const cfg = await getOrCreateConfig();
 
     if (!cfg.recipients.length) {
-      return res.status(400).json({ success: false, error: 'No recipients configured' });
+      return res.status(400).json({ success: false, message: 'No recipients configured' });
     }
 
     // Step 1: build Excel
@@ -86,7 +86,7 @@ async function sendNow(req, res, next) {
     try {
       buffer = await generateReportBuffer();
     } catch (excelErr) {
-      return res.status(500).json({ success: false, error: `Excel generation failed: ${excelErr.message}` });
+      return res.status(500).json({ success: false, message: `Excel generation failed: ${excelErr.message}` });
     }
 
     // Step 2: send email
@@ -99,7 +99,7 @@ async function sendNow(req, res, next) {
         excelBuffer: buffer,
       });
     } catch (mailErr) {
-      return res.status(503).json({ success: false, error: `Email delivery failed: ${mailErr.message}` });
+      return res.status(503).json({ success: false, message: `Email delivery failed: ${mailErr.message}` });
     }
 
     cfg.lastSentAt = new Date();

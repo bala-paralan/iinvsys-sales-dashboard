@@ -98,6 +98,15 @@ async function createVoiceMemo(req, res, next) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
+    /* Referrers can only memo leads they created, scoped to their expo */
+    if (req.user.role === 'referrer') {
+      const sameCreator = String(lead.createdBy) === String(req.user._id);
+      const sameExpo    = String(lead.expo) === String(req.referrerExpoId);
+      if (!sameCreator || !sameExpo) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+    }
+
     const { transcript = '', transcriptLang = 'en', retentionDays, audioDurationSec } = req.body;
 
     /* audio file — optional multipart upload */
