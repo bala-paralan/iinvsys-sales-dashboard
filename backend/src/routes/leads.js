@@ -29,16 +29,13 @@ const updateValidation = [
   body('assignedAgent').optional().isMongoId(),
 ];
 
-/* POST /api/leads/bulk — manager+ */
-router.post('/bulk',
-  authenticate, requireMinRole('manager'),
-  ctrl.bulkImport
-);
+/* POST /api/leads/bulk — manager+ unrestricted; referrers capped to 100 rows + force-tagged to their expo (controller enforces) */
+router.post('/bulk', ...referrerAuth, ctrl.bulkImport);
 
 /* PRD 3–5 static routes — must be declared before /:id patterns */
 router.post('/check-duplicate', ...referrerAuth, ctrl.checkDuplicate);
 router.post('/telemetry',       authenticate,    ctrl.logTelemetry);
-router.post('/bulk-scan',       ...auth,          ctrl.bulkScan);
+router.post('/bulk-scan',       ...referrerAuth, ctrl.bulkScan);
 router.get('/batch/:batchId',   ...referrerAuth,  ctrl.getBatch);
 
 router.get('/',   ...referrerAuth, ctrl.listLeads);   // referrers see their expo's leads
@@ -61,10 +58,10 @@ router.post('/:id/followups',
   ctrl.addFollowUp
 );
 
-/* PRD 6 — Voice Memos */
-router.post('/:id/voice-memos/extract', ...auth, vmCtrl.extractPreview);
-router.get( '/:id/voice-memos',         ...auth, vmCtrl.listVoiceMemos);
-router.post('/:id/voice-memos',         ...auth, vmCtrl.createVoiceMemo);
-router.patch('/:id/voice-memos/:memoId',...auth, vmCtrl.updateVoiceMemo);
+/* PRD 6 — Voice Memos. Referrers can memo leads they created in their expo (controller enforces). */
+router.post('/:id/voice-memos/extract', ...referrerAuth, vmCtrl.extractPreview);
+router.get( '/:id/voice-memos',         ...referrerAuth, vmCtrl.listVoiceMemos);
+router.post('/:id/voice-memos',         ...referrerAuth, vmCtrl.createVoiceMemo);
+router.patch('/:id/voice-memos/:memoId',...auth,         vmCtrl.updateVoiceMemo);
 
 module.exports = router;
