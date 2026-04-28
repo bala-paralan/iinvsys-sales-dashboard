@@ -16,7 +16,7 @@ async function api(method, path, body) {
   if (body)   opts.body = JSON.stringify(body);
   const res  = await fetch(API_BASE + path, opts);
   const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.message || 'API error'), { status: res.status, data });
+  if (!res.ok) throw Object.assign(new Error(data.message || data.error || `API error (${res.status})`), { status: res.status, data });
   return data;
 }
 
@@ -2464,6 +2464,28 @@ async function renderReferrerView() {
   document.getElementById('refScanRescanBtn')?.addEventListener('click', () => {
     document.getElementById('refCardInput').click();
   });
+  document.getElementById('refBulkImportBtn')?.addEventListener('click', () => {
+    /* Mirror the main app's open-handler, plus a referrer-only cap notice */
+    if (typeof goWizardStep === 'function') goWizardStep(1);
+    S.csvParsed = [];
+    const ta  = document.getElementById('csvPasteArea');         if (ta)  ta.value = '';
+    const err = document.getElementById('csvUploadError');       if (err) err.classList.add('hidden');
+    /* Annotate the wizard with the 100-row referrer cap (idempotent). */
+    const rules = document.querySelector('#wzPanel1 .wz-rules');
+    if (rules && !rules.querySelector('[data-ref-cap]')) {
+      const r = document.createElement('div');
+      r.className = 'wz-rule';
+      r.dataset.refCap = '1';
+      r.textContent = '⚠ Referrer accounts: max 100 rows per import. All rows auto-tagged to your expo.';
+      rules.appendChild(r);
+    }
+    document.getElementById('bulkImportModal')?.classList.add('open');
+  });
+
+  /* ── Voice note recording (referrer-scoped state, see _refVm below) ── */
+  document.getElementById('refVmRecordBtn')?.addEventListener('click', refVmStart);
+  document.getElementById('refVmStopBtn')?.addEventListener('click',   refVmStop);
+  document.getElementById('refVmClearBtn')?.addEventListener('click',  refVmClear);
 
   /* ── Bulk Scan / Bulk Import (reuse main-app modals) ── */
   document.getElementById('refBulkScanBtn')?.addEventListener('click', () => {
