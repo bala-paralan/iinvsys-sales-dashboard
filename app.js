@@ -2514,12 +2514,16 @@ async function renderReferrerView() {
 
   /* ── Camera / OCR (single card scan) ── */
   const REF_FIELDMAP = {
-    name:    'refLeadName',
-    phone:   'refLeadPhone',
-    email:   'refLeadEmail',
-    company: 'refLeadCompany',
-    notes:   'refLeadNotes',
-    rescanBanner: 'refScanRescanBanner',
+    name:             'refLeadName',
+    phone:            'refLeadPhone',
+    email:            'refLeadEmail',
+    company:          'refLeadCompany',
+    city:             'refLeadCity',
+    state:            'refLeadState',
+    natureOfBusiness: 'refLeadNatureOfBusiness',
+    interestedIn:     'refLeadInterestedIn',
+    notes:            'refLeadNotes',
+    rescanBanner:     'refScanRescanBanner',
   };
   document.getElementById('refCameraBtn')?.addEventListener('click', () => {
     document.getElementById('refCardInput').click();
@@ -3284,6 +3288,345 @@ function transliterateText(text) {
   return text; // Tamil, Arabic, CJK: leave as-is (full library needed)
 }
 
+/* ═══════════ OCR WORKER POOL (singleton with reuse) ═══════════
+   Tesseract.recognize() spins up a fresh worker every call and re-fetches
+   ~5MB of WASM core + ~10MB language data from CDN each time. We keep one
+   warm worker around and re-use it across scans (and reinitialize for
+   secondary languages when needed). This is the single biggest speed win. */
+let _ocrWorkerPromise = null;
+let _ocrWorkerLangs   = '';
+let _ocrLogger        = null; // dynamic per-scan logger
+
+async function getOcrWorker(langs = 'eng') {
+  if (!_ocrWorkerPromise) {
+    _ocrWorkerPromise = (async () => {
+      const w = await Tesseract.createWorker(langs, 1, {
+        logger: m => { try { _ocrLogger?.(m); } catch (_) {} },
+      });
+      // Use Tesseract's default PSM (auto layout). PSM 6 ("uniform block")
+      // tends to merge left/right columns on multi-column cards.
+      _ocrWorkerLangs = langs;
+      return w;
+    })();
+  }
+  const worker = await _ocrWorkerPromise;
+  if (_ocrWorkerLangs !== langs) {
+    try {
+      await worker.reinitialize(langs);
+      _ocrWorkerLangs = langs;
+    } catch (err) {
+      try { await worker.terminate(); } catch (_) {}
+      _ocrWorkerPromise = null;
+      return getOcrWorker(langs);
+    }
+  }
+  return worker;
+}
+
+function prewarmOcrWorker() {
+  if (_ocrWorkerPromise) return;
+  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1500));
+  idle(() => { getOcrWorker('eng').catch(() => {}); });
+}
+
+/* ═══════════ IMAGE PREPROCESSING ═══════════
+   Tesseract performs poorly on raw phone-camera input — glare, low
+   contrast, and small effective DPI all hurt accuracy. We upscale small
+   images, convert to grayscale, and stretch contrast (5th–95th percentile)
+   before passing to the OCR engine. */
+async function preprocessCardImage(file) {
+  const img = await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im  = new Image();
+    im.onload  = () => { URL.revokeObjectURL(url); resolve(im); };
+    im.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    im.src = url;
+  });
+
+  // ~300 dpi equivalent for a typical card frame is 1500-2000px on the
+  // long side. Upscale anything smaller; never downscale (Tesseract handles
+  // big images fine and downscaling loses information).
+  const targetMin = 1500;
+  const longest   = Math.max(img.naturalWidth, img.naturalHeight);
+  const scale     = longest < targetMin ? targetMin / longest : 1;
+  const w         = Math.max(1, Math.round(img.naturalWidth  * scale));
+  const h         = Math.max(1, Math.round(img.naturalHeight * scale));
+
+  const canvas    = document.createElement('canvas');
+  canvas.width    = w;
+  canvas.height   = h;
+  const ctx       = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data    = imgData.data;
+  const N       = data.length;
+
+  // Pass 1 — grayscale (ITU-style integer coeffs: 77+150+29 = 256) and histogram.
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < N; i += 4) {
+    const g = (data[i] * 77 + data[i+1] * 150 + data[i+2] * 29) >> 8;
+    data[i] = data[i+1] = data[i+2] = g;
+    hist[g]++;
+  }
+
+  // Find 5th / 95th percentile for contrast stretch.
+  const totalPx = N >> 2;
+  const lowCut  = totalPx * 0.05;
+  const highCut = totalPx * 0.95;
+  let acc = 0, lo = 0, hi = 255;
+  for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= lowCut)  { lo = i; break; } }
+  acc = 0;
+  for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc >= (totalPx - highCut)) { hi = i; break; } }
+  if (hi <= lo) hi = Math.min(255, lo + 1);
+  const range = hi - lo;
+
+  // Pass 2 — stretch.
+  for (let i = 0; i < N; i += 4) {
+    const g = data[i];
+    const v = g <= lo ? 0 : g >= hi ? 255 : Math.round(((g - lo) * 255) / range);
+    data[i] = data[i+1] = data[i+2] = v;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return canvas;
+}
+
+/* ═══════════ FIELD EXTRACTION ═══════════
+   Replaces the old single-regex-per-field approach. Adds:
+   - multiple-phone capture
+   - city + state extraction (incl. Indian "(M.P.)"-style abbreviations)
+   - Nature-of-business / Interested-In keyword classification
+   - largest-text-line fallback for company (when no biz-suffix matches) */
+const STATE_LOOKUP = {
+  AP:'Andhra Pradesh', AR:'Arunachal Pradesh', AS:'Assam', BR:'Bihar',
+  CG:'Chhattisgarh', GA:'Goa', GJ:'Gujarat', HR:'Haryana', HP:'Himachal Pradesh',
+  JH:'Jharkhand', KA:'Karnataka', KL:'Kerala', MP:'Madhya Pradesh',
+  MH:'Maharashtra', MN:'Manipur', ML:'Meghalaya', MZ:'Mizoram', NL:'Nagaland',
+  OD:'Odisha', OR:'Odisha', PB:'Punjab', RJ:'Rajasthan', SK:'Sikkim',
+  TN:'Tamil Nadu', TS:'Telangana', TG:'Telangana', TR:'Tripura',
+  UK:'Uttarakhand', UA:'Uttarakhand', UP:'Uttar Pradesh', WB:'West Bengal',
+  DL:'Delhi', JK:'Jammu and Kashmir',
+};
+const STATE_NAMES = Array.from(new Set(Object.values(STATE_LOOKUP)));
+
+const NATURE_KEYWORDS = [
+  { re: /\b(distribut(?:or|ion)|wholesale)\b/i,                                value: 'distribution' },
+  { re: /\b(reseller|trader|trading)\b/i,                                       value: 'reseller' },
+  { re: /\b(builder|construction)\b/i,                                          value: 'builder' },
+  { re: /\b(install(?:er|ation)|service\s*(?:&|and)?\s*installation)\b/i,       value: 'service-and-installation' },
+  { re: /\b(integrat(?:or|ion|ed)|consultant|consulting|automation)\b/i,        value: 'system-integrator' },
+  { re: /\b(solution\s*provider|solutions)\b/i,                                 value: 'solution-provider' },
+  { re: /\boem\b/i,                                                             value: 'oem' },
+  { re: /\b(manufactur(?:er|ing)|mfg)\b/i,                                      value: 'manufacturer' },
+  { re: /\bcomponent\s*vendor\b/i,                                              value: 'component-vendor' },
+  { re: /\bfabricat(?:or|ion)\b/i,                                              value: 'product-fabricator' },
+  { re: /\b(marketing|advertising)\b/i,                                         value: 'marketing' },
+  { re: /\b(sales\s*&?\s*service\s*support|sales\s*and\s*service)\b/i,          value: 'sales-and-service-support' },
+];
+
+const INTEREST_KEYWORDS = [
+  { re: /\bdealer(?:ship)?\b/i,                                                                           value: 'dealership' },
+  { re: /\bcollaborat(?:e|ion|ing)\b/i,                                                                   value: 'collaboration' },
+  { re: /\bdirect\s*purchase\b/i,                                                                         value: 'direct-purchase' },
+  { re: /\b(cctv|ip\s*camera|access\s*control|fire\s*alarm|surveillance|security\s*alarm|home\s*automation|biometric|attendance)\b/i, value: 'product-integration' },
+];
+
+/* Tesseract groups words by baseline; on multi-column cards (logo on left,
+   name on right) it can collapse a row into one "line" string. Re-derive
+   lines from word bboxes: cluster by y-center, then split each y-band on
+   horizontal gaps wider than ~2.5x the median word height. */
+function reconstructLinesFromWords(words) {
+  if (!words?.length) return null;
+  const wb = words.filter(w => w?.bbox && w.text && typeof w.bbox.y0 === 'number');
+  if (!wb.length) return null;
+
+  const sorted = [...wb].sort((a, b) => (a.bbox.y0 + a.bbox.y1) - (b.bbox.y0 + b.bbox.y1));
+  const yBands = [];
+  for (const w of sorted) {
+    const yc = (w.bbox.y0 + w.bbox.y1) / 2;
+    const h  = w.bbox.y1 - w.bbox.y0;
+    const last = yBands[yBands.length - 1];
+    if (last && Math.abs(yc - last.yc) < Math.max(8, h * 0.6)) {
+      last.words.push(w);
+      last.yc = (last.yc * (last.words.length - 1) + yc) / last.words.length;
+    } else {
+      yBands.push({ yc, words: [w] });
+    }
+  }
+
+  const out = [];
+  for (const band of yBands) {
+    const ws = band.words.slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    if (ws.length <= 1) {
+      if (ws.length) out.push(ws[0].text.trim());
+      continue;
+    }
+    // Detect column breaks by relative gap size: a gap that is dramatically
+    // wider than the typical inter-word spacing in this band signals a
+    // column boundary. Anchored to a 30px floor for very short lines.
+    const gaps = [];
+    for (let i = 1; i < ws.length; i++) gaps.push(ws[i].bbox.x0 - ws[i - 1].bbox.x1);
+    const sortedGaps = [...gaps].sort((a, b) => a - b);
+    const medGap = sortedGaps[Math.floor(sortedGaps.length / 2)] || 0;
+    const splitThreshold = Math.max(30, medGap * 2.5);
+
+    let segment = [ws[0]];
+    for (let i = 1; i < ws.length; i++) {
+      if (gaps[i - 1] > splitThreshold) {
+        out.push(segment.map(w => w.text).join(' ').trim());
+        segment = [ws[i]];
+      } else {
+        segment.push(ws[i]);
+      }
+    }
+    if (segment.length) out.push(segment.map(w => w.text).join(' ').trim());
+  }
+  return out.filter(Boolean);
+}
+
+/* For each text line, find the words that fall on it (matched by text)
+   and compute the line's median word height. Bigger = more prominent;
+   the top-ranked line is usually the company logo / brand name. */
+function computeLineGeometry(lines, words) {
+  const fallback = lines.map(t => ({ text: t, height: 0 }));
+  if (!words?.length) return fallback;
+  const wb = words.filter(w => w?.bbox && typeof w.bbox.y0 === 'number');
+  if (!wb.length) return fallback;
+  return lines.map(text => {
+    const tokens = text.toLowerCase().match(/[\w@.+-]+/g) || [];
+    if (!tokens.length) return { text, height: 0 };
+    const heights = [];
+    for (const tok of tokens) {
+      const w = wb.find(w => (w.text || '').toLowerCase() === tok);
+      if (w) heights.push(w.bbox.y1 - w.bbox.y0);
+    }
+    if (!heights.length) return { text, height: 0 };
+    heights.sort((a, b) => a - b);
+    return { text, height: heights[Math.floor(heights.length / 2)] };
+  });
+}
+
+const COMPANY_KEYWORDS = /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises|automation|systems?|industries|electronics|consultants?|integrators?|infotech|networks?|security)\b/i;
+
+function extractCardFields(text, words, lines) {
+  const out = {};
+
+  // Prefer column-aware reconstructed lines when we have word bboxes;
+  // fall back to Tesseract's own line splits otherwise.
+  const reconstructed = reconstructLinesFromWords(words);
+  const effLines = (reconstructed && reconstructed.length >= lines.length) ? reconstructed : lines;
+
+  // ── Email ──
+  const emailM = text.match(/\b[\w.+\-]+@[\w-]+\.[a-z]{2,}\b/i);
+  out.email = emailM ? emailM[0] : null;
+
+  // ── Phones (collect all, dedupe by last-10, return up to 2) ──
+  const phones = new Set();
+  const phoneRegex = /(?:\+91[-\s.]?)?\b[6-9]\d{9}\b|\b\d{2,4}[-\s.]?\d{6,8}\b/g;
+  for (const m of text.matchAll(phoneRegex)) {
+    const digits = m[0].replace(/[^\d]/g, '');
+    if (digits.length >= 10 && digits.length <= 13) phones.add(digits.slice(-10));
+  }
+  const phoneList = Array.from(phones);
+  out.phone  = phoneList[0] || null;
+  out.phone2 = phoneList[1] || null;
+
+  // ── Company candidate ──
+  // Prefer a line containing a biz-suffix keyword; else the line with the
+  // largest median word height (typically the logo).
+  const linesWithMeta = computeLineGeometry(effLines, words);
+  let companyLine = effLines.find(l => COMPANY_KEYWORDS.test(l)) || null;
+  if (!companyLine && linesWithMeta.length) {
+    const ranked = [...linesWithMeta]
+      .filter(l => l.text && !/[@\\]/.test(l.text) && !/^\+?[\d\s\-().]+$/.test(l.text) && !l.text.toLowerCase().includes('www'))
+      .sort((a, b) => b.height - a.height);
+    if (ranked[0]?.height > 0) companyLine = ranked[0].text;
+  }
+  out.company = companyLine;
+
+  // ── Name candidate ──
+  // Prefer a "mostly-uppercase" line (≥80% caps tolerates OCR noise like
+  // a stray lowercase letter prefix) that isn't the company or an address.
+  const looksLikeAddress = (l) => /\([A-Za-z\.\s]+\)/.test(l) || /\b(road|street|st\.|lane|sector|block|nagar|colony|compound|compund|po\b|pin\b)\b/i.test(l);
+  const allCapsLines = effLines.filter(l => {
+    const letters = l.replace(/[^A-Za-z]/g, '');
+    if (letters.length < 4) return false;
+    const upperRatio = (letters.match(/[A-Z]/g) || []).length / letters.length;
+    return upperRatio >= 0.8
+      && l !== companyLine
+      && !COMPANY_KEYWORDS.test(l)
+      && !looksLikeAddress(l);
+  });
+  let nameLine = allCapsLines[0] || null;
+  if (!nameLine) {
+    nameLine = effLines.find(l =>
+      l.length > 2 && l.length < 60 &&
+      !COMPANY_KEYWORDS.test(l) &&
+      !l.match(/[@\\]/) &&
+      !l.toLowerCase().includes('www') &&
+      !/^\+?[\d\s\-().]+$/.test(l) &&
+      !looksLikeAddress(l) &&
+      l !== companyLine
+    ) || null;
+  }
+  // Strip a stray lowercase prefix that OCR sometimes glues onto a name
+  // word (e.g. "nNITESSH" → "NITESSH").
+  if (nameLine) {
+    nameLine = nameLine.split(/\s+/).map(w => w.replace(/^[a-z](?=[A-Z])/, '')).join(' ').trim();
+  }
+  out.name = nameLine;
+
+  // ── City + State ──
+  // Match "INDORE (M.P.)", "Pune (Maharashtra)", etc.
+  let city = null, state = null;
+  const cityStateM = text.match(/\b([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)?)\s*\(\s*([A-Za-z][A-Za-z .]{0,30})\s*\)/);
+  if (cityStateM) {
+    city = cityStateM[1].trim();
+    const rawState = cityStateM[2].replace(/[.\s]/g, '').toUpperCase();
+    if (STATE_LOOKUP[rawState]) {
+      state = STATE_LOOKUP[rawState];
+    } else {
+      const fullMatch = STATE_NAMES.find(n => n.toUpperCase() === cityStateM[2].trim().toUpperCase());
+      state = fullMatch || cityStateM[2].trim();
+    }
+  } else {
+    for (const n of STATE_NAMES) {
+      if (new RegExp('\\b' + n + '\\b', 'i').test(text)) { state = n; break; }
+    }
+  }
+  out.city  = city;
+  out.state = state;
+
+  // ── Nature of business ──
+  let nature = '';
+  for (const k of NATURE_KEYWORDS) {
+    if (k.re.test(text)) { nature = k.value; break; }
+  }
+  out.natureOfBusiness = nature;
+
+  // ── Interested in ──
+  let interest = '';
+  for (const k of INTEREST_KEYWORDS) {
+    if (k.re.test(text)) { interest = k.value; break; }
+  }
+  out.interestedIn = interest;
+
+  return out;
+}
+
+/* Apply extracted values to form fields and return per-field bands. */
+function applyExtractedFields(out, fieldMap, words) {
+  const bands = {};
+  const setField = (key) => {
+    if (!fieldMap[key]) return;
+    const conf = confidenceForPhrase(words, out[key]);
+    bands[key] = applyConfidence(fieldMap[key], out[key], conf);
+  };
+  ['name','phone','email','company','city','state','natureOfBusiness','interestedIn'].forEach(setField);
+  return bands;
+}
+
 async function processCardImage(file, fieldMap) {
   const scanBtns = [
     document.getElementById('cameraScanBtn'),
@@ -3294,22 +3637,24 @@ async function processCardImage(file, fieldMap) {
   scanBtns.forEach(b => btnLoad(b, true, '🔍 Scanning…'));
   logTelemetry('scan_started', { fieldMap });
   try {
-    /* PRD 2 — Phase 1: run English OCR first (fast), detect scripts, then
-       re-run with additional languages if non-Latin script found. */
-    const engResult = await Tesseract.recognize(file, 'eng', {
-      logger: m => {
-        if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
-        else if (m.status === 'loading language traineddata') showLoader('Downloading language data…');
-        else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
-        else if (m.status === 'recognizing text')             showLoader('Recognising (pass 1)… ' + Math.round((m.progress || 0) * 100) + '%');
-      },
-    });
+    showLoader('Preparing image…');
+    const canvas = await preprocessCardImage(file);
+
+    /* PRD 2 — Phase 1: English first; detect scripts; reinit worker for
+       extra languages only if needed. Worker is reused across scans. */
+    _ocrLogger = m => {
+      if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
+      else if (m.status === 'loading language traineddata') showLoader('Downloading language data…');
+      else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
+      else if (m.status === 'recognizing text')             showLoader('Recognising… ' + Math.round((m.progress || 0) * 100) + '%');
+    };
+    const worker = await getOcrWorker('eng');
+    const engResult = await worker.recognize(canvas);
 
     const engText      = engResult.data.text || '';
     const detected     = detectScripts(engText);
     const enabledLangs = getEnabledOcrLangs();
 
-    /* Check if any detected script is NOT enabled for this tenant (AC edge case) */
     const disabledDetected = detected.filter(d => d !== 'eng' && !enabledLangs.includes(d));
     if (disabledDetected.length) {
       const labels = disabledDetected.map(c => OCR_LANG_DEFS.find(d => d.code === c)?.label || c).join(', ');
@@ -3317,85 +3662,49 @@ async function processCardImage(file, fieldMap) {
       logTelemetry('scan_language_mismatch', { detected, enabled: enabledLangs, disabled: disabledDetected });
     }
 
-    /* AC3 — if non-Latin script detected AND the language is enabled, re-run with combined langs */
     const enabledNonLatin = detected.filter(d => d !== 'eng' && enabledLangs.includes(d));
     let result = engResult;
     let detectedLang = 'eng';
     if (enabledNonLatin.length) {
       const langStr = buildLangString(enabledNonLatin);
-      showLoader(`Recognising ${langStr.replace(/\+/g, ' + ')}… pass 2`);
-      result = await Tesseract.recognize(file, langStr, {
-        logger: m => {
-          if (m.status === 'recognizing text') showLoader('Recognising (pass 2)… ' + Math.round((m.progress || 0) * 100) + '%');
-        },
-      });
+      showLoader(`Recognising ${langStr.replace(/\+/g, ' + ')}…`);
+      const w2 = await getOcrWorker(langStr);
+      result = await w2.recognize(canvas);
       detectedLang = enabledNonLatin[0];
       logTelemetry('scan_language_detected', { detected: detectedLang, langStr });
     }
 
-    const text  = result.data.text || '';
+    const text  = result.data.text  || '';
     const words = result.data.words || [];
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    /* ── Field extraction (unchanged heuristics) ── */
-    const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+    const extracted = extractCardFields(text, words, lines);
+    const bands     = applyExtractedFields(extracted, fieldMap, words);
 
-    let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
-    if (!phoneRaw) {
-      for (const ln of lines) {
-        const m = ln.match(/\b\d[\d \-]{8,11}\d\b/);
-        if (m) { phoneRaw = m; break; }
-      }
-    }
-    const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g, '') : null;
-    const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
-
-    const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
-
-    const allCapsMatch = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
-    const fallbackName = lines.find(l =>
-      l.length > 2 && l.length < 60 &&
-      !l.match(/^\//) &&
-      !l.match(/[@\\]/) &&
-      !l.toLowerCase().includes('www') &&
-      !/^\+?[\d\s\-().]+$/.test(l) &&
-      l !== companyLine
-    );
-    const nameLine = allCapsMatch ? (allCapsMatch[1] + ' ' + allCapsMatch[2]) : fallbackName;
-
-    /* PRD 2 AC4 — Latin transliteration for non-Latin name/company.
-       Store native script in the field value; append transliteration to notes. */
-    const nameTranslit    = detectedLang !== 'eng' ? transliterateText(nameLine    || '') : '';
-    const companyTranslit = detectedLang !== 'eng' ? transliterateText(companyLine || '') : '';
-    if ((nameTranslit || companyTranslit) && fieldMap.notes) {
-      const notesEl = document.getElementById(fieldMap.notes);
-      if (notesEl) {
-        const translit = [nameTranslit && `Name (en): ${nameTranslit}`, companyTranslit && `Company (en): ${companyTranslit}`].filter(Boolean).join('\n');
-        notesEl.value = translit + (notesEl.value ? '\n\n' + notesEl.value : '');
-      }
-    }
-
-    /* ── Apply per-field confidence (PRD 1) ── */
-    const fieldValues = {
-      name:    { id: fieldMap.name,    value: nameLine,         conf: confidenceForPhrase(words, nameLine) },
-      phone:   { id: fieldMap.phone,   value: phone,            conf: confidenceForPhrase(words, phoneRaw?.[0]) },
-      email:   { id: fieldMap.email,   value: emailMatch?.[0],  conf: confidenceForPhrase(words, emailMatch?.[0]) },
-      company: { id: fieldMap.company, value: companyLine,      conf: confidenceForPhrase(words, companyLine) },
-    };
-    const bands = {};
-    for (const [key, f] of Object.entries(fieldValues)) {
-      if (f.id) bands[key] = applyConfidence(f.id, f.value, f.conf);
-    }
-
-    /* Notes always gets the raw text for fallback verification */
+    /* Notes — write once with everything we want to surface for review:
+       raw OCR text (truncated), alt phone if found, and Latin
+       transliteration for non-Latin name/company. */
     if (fieldMap.notes) {
       const notesEl = document.getElementById(fieldMap.notes);
-      if (notesEl) notesEl.value = text.trim().substring(0, 400);
+      if (notesEl) {
+        const parts = [];
+        if (detectedLang !== 'eng') {
+          const nameTranslit    = transliterateText(extracted.name    || '');
+          const companyTranslit = transliterateText(extracted.company || '');
+          const translit = [
+            nameTranslit    && `Name (en): ${nameTranslit}`,
+            companyTranslit && `Company (en): ${companyTranslit}`,
+          ].filter(Boolean).join('\n');
+          if (translit) parts.push(translit);
+        }
+        if (extracted.phone2) parts.push(`Alt phone: ${extracted.phone2}`);
+        if (text.trim())      parts.push(text.trim().substring(0, 400));
+        notesEl.value = parts.join('\n\n');
+      }
     }
 
-    /* AC5 — re-scan CTA when >50% of fields are Low. fieldMap may supply
-       a custom banner ID (the referrer view uses #refScanRescanBanner). */
-    const bandValues = Object.values(bands);
+    /* AC5 — re-scan CTA when >50% of fields are Low. */
+    const bandValues = Object.values(bands).filter(b => b);
     const lowCount   = bandValues.filter(b => b === 'low').length;
     const bannerId   = fieldMap.rescanBanner || 'scanRescanBanner';
     const banner     = document.getElementById(bannerId);
@@ -3415,6 +3724,7 @@ async function processCardImage(file, fieldMap) {
     flash('Could not read card — please fill in manually', 'error');
     logTelemetry('scan_abandoned', { error: String(err?.message || err) });
   } finally {
+    _ocrLogger = null;
     hideLoader();
     scanBtns.forEach(b => btnLoad(b, false));
   }
@@ -3616,11 +3926,13 @@ async function confirmMerge(existingLeadId, incoming) {
   }
 }
 
-/* Wire the Re-scan banner button */
+/* Wire the Re-scan banner button + warm up the OCR worker. The worker
+   download is ~15MB; doing it on idle removes that cost from first-scan. */
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('scanRescanBtn')?.addEventListener('click', () => {
     document.getElementById('cardCameraInput')?.click();
   });
+  prewarmOcrWorker();
 });
 
 /* Wire up the lead modal camera button */
@@ -3629,7 +3941,17 @@ document.getElementById('cameraScanBtn')?.addEventListener('click', () => {
 });
 document.getElementById('cardCameraInput')?.addEventListener('change', e => {
   const file = e.target.files[0];
-  if (file) processCardImage(file, { name:'leadName', phone:'leadPhone', email:'leadEmail', notes:'leadNotes' });
+  if (file) processCardImage(file, {
+    name:             'leadName',
+    phone:            'leadPhone',
+    email:            'leadEmail',
+    company:          'leadCompany',
+    city:             'leadCity',
+    state:            'leadState',
+    natureOfBusiness: 'leadNatureOfBusiness',
+    interestedIn:     'leadInterestedIn',
+    notes:            'leadNotes',
+  });
   e.target.value = ''; // reset so same file can re-trigger
 });
 
@@ -3701,50 +4023,48 @@ async function processBulkQueue() {
     item.status = 'scanning';
     renderBulkQueueItem(item);
     try {
-      /* PRD 2 — two-pass multilingual OCR for bulk items */
+      /* PRD 2 — two-pass multilingual OCR for bulk items, but with the
+         shared warm worker so we don't re-bootstrap Tesseract per item. */
       const logStatus = pct => {
         const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
         if (statusEl) statusEl.textContent = 'scanning ' + pct + '%';
       };
-      const engRes = await Tesseract.recognize(item.file, 'eng', {
-        logger: m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); },
-      });
-      const detectedBulk   = detectScripts(engRes.data.text || '');
-      const nonLatinBulk   = detectedBulk.filter(d => d !== 'eng' && getEnabledOcrLangs().includes(d));
+      _ocrLogger = m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); };
+      const canvas = await preprocessCardImage(item.file);
+      const worker = await getOcrWorker('eng');
+      const engRes = await worker.recognize(canvas);
+      const detectedBulk = detectScripts(engRes.data.text || '');
+      const nonLatinBulk = detectedBulk.filter(d => d !== 'eng' && getEnabledOcrLangs().includes(d));
       let result = engRes;
       if (nonLatinBulk.length) {
+        _ocrLogger = m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); };
         const langStr = buildLangString(nonLatinBulk);
-        result = await Tesseract.recognize(item.file, langStr, {
-          logger: m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); },
-        });
+        const w2 = await getOcrWorker(langStr);
+        result = await w2.recognize(canvas);
       }
       item.detectedLang = nonLatinBulk[0] || 'eng';
-      const text  = result.data.text || '';
+
+      const text  = result.data.text  || '';
       const words = result.data.words || [];
       const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-      /* Same extraction heuristics as single scan */
-      const emailM = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
-      let phoneRaw = text.match(/(?:\+91[-\s]?)?[6-9][\d](?:[ \-]?\d){8,9}/);
-      if (!phoneRaw) for (const ln of lines) { const m = ln.match(/\b\d[\d \-]{8,11}\d\b/); if (m) { phoneRaw = m; break; } }
-      const phoneDigits = phoneRaw ? phoneRaw[0].replace(/[ \-]/g,'') : null;
-      const phone = (phoneDigits && phoneDigits.length >= 10 && phoneDigits.length <= 13) ? phoneDigits : null;
-      const companyLine = lines.find(l => /\b(ltd|pvt|inc|corp|llp|solutions|technologies|services|group|design|studio|associates|enterprises)\b/i.test(l));
-      const allCaps = text.match(/\b([A-Z]{2,20})\s+([A-Z]{2,20})\b/);
-      const fallbackName = lines.find(l => l.length > 2 && l.length < 60 && !l.match(/^\//) && !l.match(/[@\\]/) && !l.toLowerCase().includes('www') && !/^\+?[\d\s\-().]+$/.test(l) && l !== companyLine);
-      const nameLine = allCaps ? allCaps[1] + ' ' + allCaps[2] : fallbackName;
+      const extracted = extractCardFields(text, words, lines);
 
       item.fields = {
-        name:    nameLine    || '',
-        phone:   phone       || '',
-        email:   emailM?.[0] || '',
-        company: companyLine || '',
+        name:             extracted.name             || '',
+        phone:            extracted.phone            || '',
+        email:            extracted.email            || '',
+        company:          extracted.company          || '',
+        city:             extracted.city             || '',
+        state:            extracted.state            || '',
+        natureOfBusiness: extracted.natureOfBusiness || '',
+        interestedIn:     extracted.interestedIn     || '',
       };
       item.bands = {
-        name:    bandFor(confidenceForPhrase(words, nameLine)),
-        phone:   bandFor(confidenceForPhrase(words, phoneRaw?.[0])),
-        email:   bandFor(confidenceForPhrase(words, emailM?.[0])),
-        company: bandFor(confidenceForPhrase(words, companyLine)),
+        name:    bandFor(confidenceForPhrase(words, extracted.name)),
+        phone:   bandFor(confidenceForPhrase(words, extracted.phone)),
+        email:   bandFor(confidenceForPhrase(words, extracted.email)),
+        company: bandFor(confidenceForPhrase(words, extracted.company)),
       };
       item.ocrCapture = {
         scannedAt:  new Date().toISOString(),
@@ -3767,6 +4087,7 @@ async function processBulkQueue() {
     renderBulkQueueItem(item);
     refreshBulkSummary();
   }
+  _ocrLogger = null;
   _bulk.processing = false;
 }
 
@@ -3832,12 +4153,16 @@ async function saveBulkLeads() {
   try {
     const batchName = document.getElementById('bulkBatchName')?.value?.trim() || '';
     const leads = readyItems.map(item => ({
-      name:       item.fields.name    || 'Unknown',
-      phone:      item.fields.phone   || '0000000000',
-      email:      item.fields.email   || '',
-      company:    item.fields.company || '',
-      source:     'direct',
-      ocrCapture: item.ocrCapture,
+      name:             item.fields.name             || 'Unknown',
+      phone:            item.fields.phone            || '0000000000',
+      email:            item.fields.email            || '',
+      company:          item.fields.company          || '',
+      city:             item.fields.city             || '',
+      state:            item.fields.state            || '',
+      natureOfBusiness: item.fields.natureOfBusiness || '',
+      interestedIn:     item.fields.interestedIn     || '',
+      source:           'direct',
+      ocrCapture:       item.ocrCapture,
     }));
 
     const res = await api('POST', '/leads/bulk-scan', { leads, batchName });
