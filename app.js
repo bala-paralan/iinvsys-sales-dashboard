@@ -3284,6 +3284,120 @@ function transliterateText(text) {
   return text; // Tamil, Arabic, CJK: leave as-is (full library needed)
 }
 
+/* Self-hosted Tesseract assets — splat into every recognize() options object so
+   the worker, WASM core, and language data load from this origin. Removes the
+   first-scan dependency on jsdelivr. */
+const TESSERACT_PATHS = {
+  workerPath: 'vendor/tesseract/worker.min.js',
+  corePath:   'vendor/tesseract/',
+  langPath:   'vendor/tesseract/lang-data',
+};
+
+/* ═══════════ QR PRE-PASS ═══════════
+   Many modern business cards print a vCard / MECARD QR. Decoding the QR
+   gives us structured contact fields instantly — far more accurate than
+   OCR — so we run jsQR before Tesseract and short-circuit on success. */
+
+/* Decode an image File into ImageData (full resolution, capped at ~2000px on
+   the long edge for jsQR perf). Returns null if decoding fails. */
+async function fileToImageData(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const MAX = 2000;
+    const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth  * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    return ctx.getImageData(0, 0, w, h);
+  } catch (_) {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/* Parse a vCard payload into our field shape. Handles VERSION 2.1/3.0/4.0,
+   line-folding, and parameter-prefixed properties (e.g. TEL;TYPE=CELL:...). */
+function parseVCard(payload) {
+  const unfolded = payload.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
+  const lines = unfolded.split(/\r\n|\r|\n/);
+  const out = { name: '', phone: '', email: '', company: '', title: '', url: '' };
+  for (const raw of lines) {
+    const idx = raw.indexOf(':');
+    if (idx < 0) continue;
+    const left  = raw.slice(0, idx);
+    const value = raw.slice(idx + 1).trim();
+    const prop  = left.split(';')[0].toUpperCase();
+    if (!value) continue;
+    if      (prop === 'FN'    && !out.name)    out.name    = value;
+    else if (prop === 'N'     && !out.name)    out.name    = value.split(';').filter(Boolean).reverse().join(' ').trim();
+    else if (prop === 'TEL'   && !out.phone)   out.phone   = value;
+    else if (prop === 'EMAIL' && !out.email)   out.email   = value;
+    else if (prop === 'ORG'   && !out.company) out.company = value.split(';')[0];
+    else if (prop === 'TITLE' && !out.title)   out.title   = value;
+    else if (prop === 'URL'   && !out.url)     out.url     = value;
+  }
+  return out;
+}
+
+/* MECARD format: MECARD:N:Doe,John;TEL:+1555...;EMAIL:a@b;ORG:Acme;; */
+function parseMeCard(payload) {
+  const body = payload.replace(/^MECARD:/i, '').replace(/;;\s*$/, '');
+  const out = { name: '', phone: '', email: '', company: '', title: '', url: '' };
+  for (const seg of body.split(';')) {
+    const idx = seg.indexOf(':');
+    if (idx < 0) continue;
+    const k = seg.slice(0, idx).toUpperCase();
+    const v = seg.slice(idx + 1);
+    if (!v) continue;
+    if      (k === 'N'     && !out.name)    out.name    = v.split(',').filter(Boolean).reverse().join(' ').trim();
+    else if (k === 'TEL'   && !out.phone)   out.phone   = v;
+    else if (k === 'EMAIL' && !out.email)   out.email   = v;
+    else if (k === 'ORG'   && !out.company) out.company = v;
+    else if (k === 'TITLE' && !out.title)   out.title   = v;
+    else if (k === 'URL'   && !out.url)     out.url     = v;
+  }
+  return out;
+}
+
+/* Decide whether a QR payload is a structured contact card we can use. Plain
+   URLs and arbitrary strings are ignored — only vCard / MECARD short-circuit OCR. */
+function parseContactQr(payload) {
+  if (!payload) return null;
+  const trimmed = payload.trim();
+  if (/^BEGIN:VCARD/i.test(trimmed)) {
+    const parsed = parseVCard(trimmed);
+    return (parsed.name || parsed.phone || parsed.email) ? { format: 'vcard', ...parsed } : null;
+  }
+  if (/^MECARD:/i.test(trimmed)) {
+    const parsed = parseMeCard(trimmed);
+    return (parsed.name || parsed.phone || parsed.email) ? { format: 'mecard', ...parsed } : null;
+  }
+  return null;
+}
+
+/* Try to decode a contact QR from the file. Returns parsed fields or null. */
+async function tryDecodeContactQr(file) {
+  if (typeof jsQR !== 'function') return null;
+  const imgData = await fileToImageData(file);
+  if (!imgData) return null;
+  let code = null;
+  try {
+    code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+  } catch (_) { return null; }
+  if (!code || !code.data) return null;
+  return parseContactQr(code.data);
+}
+
 async function processCardImage(file, fieldMap) {
   const scanBtns = [
     document.getElementById('cameraScanBtn'),
@@ -3294,12 +3408,43 @@ async function processCardImage(file, fieldMap) {
   scanBtns.forEach(b => btnLoad(b, true, '🔍 Scanning…'));
   logTelemetry('scan_started', { fieldMap });
   try {
+    /* QR pre-pass — vCard / MECARD short-circuit OCR entirely. */
+    showLoader('Checking for QR code…');
+    const qr = await tryDecodeContactQr(file);
+    if (qr) {
+      const qrFields = {
+        name:    { id: fieldMap.name,    value: qr.name },
+        phone:   { id: fieldMap.phone,   value: (qr.phone || '').replace(/[^\d+]/g, '') },
+        email:   { id: fieldMap.email,   value: qr.email },
+        company: { id: fieldMap.company, value: qr.company },
+      };
+      const bands = {};
+      for (const [key, f] of Object.entries(qrFields)) {
+        if (f.id) bands[key] = applyConfidence(f.id, f.value, 1.0);
+      }
+      if (fieldMap.notes && (qr.title || qr.url)) {
+        const notesEl = document.getElementById(fieldMap.notes);
+        if (notesEl) {
+          const extras = [qr.title && `Title: ${qr.title}`, qr.url && `Web: ${qr.url}`].filter(Boolean).join('\n');
+          notesEl.value = extras + (notesEl.value ? '\n\n' + notesEl.value : '');
+        }
+      }
+      const banner = document.getElementById(fieldMap.rescanBanner || 'scanRescanBanner');
+      if (banner) banner.hidden = true;
+      const filled = Object.values(bands).filter(b => b && b !== 'low').length;
+      flash(`QR contact decoded — ${filled} field${filled === 1 ? '' : 's'} populated. Review before saving.`);
+      logTelemetry('scan_qr_decoded', { format: qr.format, bands, filled });
+      runDuplicateCheck();
+      return;
+    }
+
     /* PRD 2 — Phase 1: run English OCR first (fast), detect scripts, then
        re-run with additional languages if non-Latin script found. */
     const engResult = await Tesseract.recognize(file, 'eng', {
+      ...TESSERACT_PATHS,
       logger: m => {
         if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
-        else if (m.status === 'loading language traineddata') showLoader('Downloading language data…');
+        else if (m.status === 'loading language traineddata') showLoader('Loading language data…');
         else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
         else if (m.status === 'recognizing text')             showLoader('Recognising (pass 1)… ' + Math.round((m.progress || 0) * 100) + '%');
       },
@@ -3325,6 +3470,7 @@ async function processCardImage(file, fieldMap) {
       const langStr = buildLangString(enabledNonLatin);
       showLoader(`Recognising ${langStr.replace(/\+/g, ' + ')}… pass 2`);
       result = await Tesseract.recognize(file, langStr, {
+        ...TESSERACT_PATHS,
         logger: m => {
           if (m.status === 'recognizing text') showLoader('Recognising (pass 2)… ' + Math.round((m.progress || 0) * 100) + '%');
         },
@@ -3706,7 +3852,41 @@ async function processBulkQueue() {
         const statusEl = document.querySelector(`[data-bq-id="${item.id}"] .bq-status-badge`);
         if (statusEl) statusEl.textContent = 'scanning ' + pct + '%';
       };
+
+      /* QR pre-pass — skip OCR entirely if a contact QR is decoded. */
+      const qr = await tryDecodeContactQr(item.file);
+      if (qr) {
+        item.fields = {
+          name:    qr.name    || '',
+          phone:   (qr.phone || '').replace(/[^\d+]/g, ''),
+          email:   qr.email   || '',
+          company: qr.company || '',
+        };
+        item.bands = { name: 'high', phone: 'high', email: 'high', company: 'high' };
+        for (const k of Object.keys(item.fields)) if (!item.fields[k]) item.bands[k] = 'low';
+        item.detectedLang = 'eng';
+        item.ocrCapture = {
+          scannedAt:    new Date().toISOString(),
+          ocrEngine:    'jsqr@1.4.0',
+          qrFormat:     qr.format,
+          detectedLang: 'eng',
+          fields: Object.fromEntries(
+            Object.entries(item.fields).map(([k, v]) => [k, {
+              band: item.bands[k] || 'low',
+              originalValue: v,
+              rawConfidence: v ? 1.0 : null,
+              corrected: false,
+            }])
+          ),
+        };
+        item.status = 'ready';
+        renderBulkQueueItem(item);
+        refreshBulkSummary();
+        continue;
+      }
+
       const engRes = await Tesseract.recognize(item.file, 'eng', {
+        ...TESSERACT_PATHS,
         logger: m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); },
       });
       const detectedBulk   = detectScripts(engRes.data.text || '');
@@ -3715,6 +3895,7 @@ async function processBulkQueue() {
       if (nonLatinBulk.length) {
         const langStr = buildLangString(nonLatinBulk);
         result = await Tesseract.recognize(item.file, langStr, {
+          ...TESSERACT_PATHS,
           logger: m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); },
         });
       }
