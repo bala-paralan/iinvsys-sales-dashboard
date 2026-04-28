@@ -825,10 +825,16 @@ document.getElementById('leadModalClose').addEventListener('click',  () => docum
 document.getElementById('leadModalCancel').addEventListener('click', () => document.getElementById('leadModal').classList.remove('open'));
 document.getElementById('leadModal').addEventListener('click', e => { if (e.target === document.getElementById('leadModal')) document.getElementById('leadModal').classList.remove('open'); });
 
-/* PRD 1 AC4 — gather OCR provenance from input dataset attrs into a Map-shaped object */
-function collectOcrCapture() {
+/* PRD 1 AC4 — gather OCR provenance from input dataset attrs into a Map-shaped object.
+   Accepts an optional fieldMap of { name, phone, email, company } input IDs so the
+   referrer view can reuse the same provenance pipeline against its own inputs. */
+const _MAIN_FIELDMAP = { name:'leadName', phone:'leadPhone', email:'leadEmail', company:'leadCompany' };
+function collectOcrCapture(fieldMap) {
+  const map    = fieldMap || _MAIN_FIELDMAP;
   const fields = {};
-  for (const [logical, inputId] of [['name','leadName'],['phone','leadPhone'],['email','leadEmail'],['company','leadCompany']]) {
+  for (const logical of ['name','phone','email','company']) {
+    const inputId = map[logical];
+    if (!inputId) continue;
     const el = document.getElementById(inputId);
     if (!el || !el.dataset.cband) continue;
     const conf = parseFloat(el.dataset.ocrConfidence);
@@ -1856,31 +1862,46 @@ document.getElementById('parseCSVBtn')?.addEventListener('click', () => {
 
 document.getElementById('confirmImportBtn')?.addEventListener('click', async () => {
   const toImport = S.csvParsed.filter(r => !r._dup);
+  const isRef = (typeof isReferrer === 'function') && isReferrer();
+
+  /* Referrer cap: 100 rows per request — surface before hitting the API */
+  if (isRef && toImport.length > 100) {
+    flash(`Referrer accounts can import at most 100 rows per request — got ${toImport.length}. Split into multiple files.`, 'error');
+    return;
+  }
+
   const leads = toImport.map(r => {
     const products = (r.products||'').split('|').map(s=>s.trim()).filter(Boolean)
       .map(sku => S.products.find(p=>p.sku===sku)?.id).filter(Boolean);
-    return {
+    const row = {
       name: r.name, phone: r.phone, email: r.email||'',
       source: r.source||'direct', stage: 'new',
-      assignedAgent: S.agents.find(a=>a.status==='active')?.id,
       products, value: parseInt(r.value)||0,
       notes: r.notes||'',
     };
+    /* For non-referrers, default to an active agent. Backend force-strips this for referrers. */
+    if (!isRef) row.assignedAgent = S.agents.find(a=>a.status==='active')?.id;
+    return row;
   });
   const btn = document.getElementById('confirmImportBtn');
   btnLoad(btn, true, 'Importing…');
   try {
     const res = await api('POST', '/leads/bulk', { leads });
-    await loadAllData(true);
-    updateNavCounts();
-    renderKanban(getFilters());
-    if (document.getElementById('page-overview').classList.contains('active')) renderKPIs();
+    if (isRef) {
+      /* Referrers don't have access to /agents·/products·/expos for a full reload — refresh their lead list only */
+      if (typeof loadRefLeadsList === 'function') await loadRefLeadsList();
+    } else {
+      await loadAllData(true);
+      updateNavCounts();
+      renderKanban(getFilters());
+      if (document.getElementById('page-overview').classList.contains('active')) renderKPIs();
+    }
     const imported = res.data?.imported   ?? toImport.length;
     const skipped  = res.data?.duplicates ?? S.csvParsed.filter(r=>r._dup).length;
     document.getElementById('importResults').innerHTML = `
       <div class="import-result-icon">✅</div>
       <div class="import-result-title">${imported} Leads Imported</div>
-      <div class="import-result-sub">${skipped} duplicates skipped · All leads assigned to active agents</div>`;
+      <div class="import-result-sub">${skipped} duplicates skipped${isRef ? ' · All rows tagged to your expo' : ' · All leads assigned to active agents'}</div>`;
     goWizardStep(4);
   } catch(err) {
     flash(err.message || 'Import failed', 'error');
@@ -2337,10 +2358,14 @@ async function renderReferrerView() {
       <div class="ref-expo-info-row"><span class="ref-expo-info-label">Products</span><div class="ref-expo-products-wrap">${productsList}</div></div>
     </div>
 
-    <!-- Add Lead Form (collapsible) -->
+    <!-- Add Lead Form (collapsible) — header includes bulk capture options -->
     <div class="ref-add-lead-header">
       <span>// ADD NEW LEAD</span>
-      <button class="neo-btn yellow xs" id="refToggleFormBtn">+ New Lead</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button class="neo-btn outline xs" id="refBulkScanBtn" type="button">📷 Bulk Scan</button>
+        <button class="neo-btn outline xs" id="refBulkImportBtn" type="button">⬆ Bulk CSV</button>
+        <button class="neo-btn yellow xs" id="refToggleFormBtn" type="button">+ New Lead</button>
+      </div>
     </div>
     <div class="referrer-form-card" id="refFormCard" style="display:none">
       <form id="referrerLeadForm">
@@ -2348,31 +2373,61 @@ async function renderReferrerView() {
           <button type="button" class="neo-btn outline full-w" id="refCameraBtn">📷 Scan Business Card</button>
           <input type="file" id="refCardInput" accept="image/*" capture="environment" style="display:none"/>
         </div>
+
+        <!-- Mirrored rescan banner — surfaces when >50% of OCR fields are low confidence -->
+        <div class="scan-rescan-banner" id="refScanRescanBanner" role="status" aria-live="polite" hidden style="margin-top:8px">
+          <span class="srb-icon" aria-hidden="true">⚠</span>
+          <span class="srb-text">Most fields look uncertain. Try re-scanning?</span>
+          <button type="button" class="neo-btn outline xs" id="refScanRescanBtn">📷 Re-scan</button>
+        </div>
+
         <div class="ref-divider">— or enter manually —</div>
         <div class="form-group">
           <label class="form-label">Full Name <span class="req">*</span></label>
-          <input type="text" id="refLeadName" class="form-input" placeholder="e.g. Rajesh Sharma" autocomplete="name"/>
+          <input type="text" id="refLeadName" class="form-input" placeholder="e.g. Rajesh Sharma" autocomplete="name" aria-describedby="refLeadName-band"/>
+          <span class="confidence-hint" id="refLeadName-band" hidden></span>
         </div>
         <div class="form-group">
           <label class="form-label">Phone <span class="req">*</span></label>
-          <input type="tel" id="refLeadPhone" class="form-input" placeholder="+91 98200 00000" autocomplete="tel"/>
+          <input type="tel" id="refLeadPhone" class="form-input" placeholder="+91 98200 00000" autocomplete="tel" aria-describedby="refLeadPhone-band"/>
+          <span class="confidence-hint" id="refLeadPhone-band" hidden></span>
         </div>
         <div class="form-group">
           <label class="form-label">Email <span class="opt">(optional)</span></label>
-          <input type="email" id="refLeadEmail" class="form-input" placeholder="email@example.com" autocomplete="email"/>
+          <input type="email" id="refLeadEmail" class="form-input" placeholder="email@example.com" autocomplete="email" aria-describedby="refLeadEmail-band"/>
+          <span class="confidence-hint" id="refLeadEmail-band" hidden></span>
         </div>
         <div class="form-group">
           <label class="form-label">Company <span class="opt">(optional)</span></label>
-          <input type="text" id="refLeadCompany" class="form-input" placeholder="Company name"/>
+          <input type="text" id="refLeadCompany" class="form-input" placeholder="Company name" aria-describedby="refLeadCompany-band"/>
+          <span class="confidence-hint" id="refLeadCompany-band" hidden></span>
         </div>
         <div class="form-group">
           <label class="form-label">Notes <span class="opt">(optional)</span></label>
           <textarea id="refLeadNotes" class="form-input" rows="2" placeholder="Product interest, booth interaction…"></textarea>
         </div>
-        <button type="submit" class="neo-btn yellow full-w" id="refLeadSubmit" style="padding:16px;font-size:14px;margin-top:8px">
+
+        <!-- Voice note (recorded inline; attached to the lead after POST /leads) -->
+        <div class="ref-voice-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px">
+          <button type="button" class="neo-btn outline sm" id="refVmRecordBtn">🎙 Record Voice Note</button>
+          <button type="button" class="neo-btn outline sm" id="refVmStopBtn" hidden>⏹ Stop</button>
+          <span class="vm-timer" id="refVmTimer" hidden>0:00</span>
+          <span class="vm-status" id="refVmStatus" style="font-size:11px;color:var(--text-3)" hidden></span>
+        </div>
+        <div class="vm-transcript-wrap" id="refVmTranscriptWrap" hidden style="margin-top:8px">
+          <div class="vm-transcript-label">Transcript (attached on save)</div>
+          <div class="vm-transcript" id="refVmTranscript" contenteditable="false"></div>
+          <button type="button" class="neo-btn outline xs" id="refVmClearBtn" style="margin-top:6px">✕ Discard voice note</button>
+        </div>
+
+        <button type="submit" class="neo-btn yellow full-w" id="refLeadSubmit" style="padding:16px;font-size:14px;margin-top:12px">
           Capture Lead →
         </button>
       </form>
+
+      <!-- Success card — replaces the form briefly to show captured + auto-enrichment -->
+      <div id="refSuccessCard" hidden style="margin-top:12px;padding:14px;border:1px solid var(--surface-3);border-radius:6px;background:var(--bg-2)"></div>
+
       <div id="refTodayCount" class="ref-today-count"></div>
     </div>
 
@@ -2389,14 +2444,53 @@ async function renderReferrerView() {
     btn.textContent    = open ? '✕ Close' : '+ New Lead';
   });
 
-  /* ── Camera / OCR ── */
+  /* ── Camera / OCR (single card scan) ── */
+  const REF_FIELDMAP = {
+    name:    'refLeadName',
+    phone:   'refLeadPhone',
+    email:   'refLeadEmail',
+    company: 'refLeadCompany',
+    notes:   'refLeadNotes',
+    rescanBanner: 'refScanRescanBanner',
+  };
   document.getElementById('refCameraBtn')?.addEventListener('click', () => {
     document.getElementById('refCardInput').click();
   });
   document.getElementById('refCardInput')?.addEventListener('change', e => {
     const file = e.target.files[0];
-    if (file) processCardImage(file, { name:'refLeadName', phone:'refLeadPhone', email:'refLeadEmail', notes:'refLeadNotes' });
+    if (file) processCardImage(file, REF_FIELDMAP);
   });
+  document.getElementById('refScanRescanBtn')?.addEventListener('click', () => {
+    document.getElementById('refCardInput').click();
+  });
+
+  /* ── Bulk Scan / Bulk Import (reuse main-app modals) ── */
+  document.getElementById('refBulkScanBtn')?.addEventListener('click', () => {
+    if (typeof openBulkScanModal === 'function') openBulkScanModal();
+    else document.getElementById('bulkScanModal')?.classList.add('open');
+  });
+  document.getElementById('refBulkImportBtn')?.addEventListener('click', () => {
+    /* Mirror the main app's open-handler, plus a referrer-only cap notice */
+    if (typeof goWizardStep === 'function') goWizardStep(1);
+    S.csvParsed = [];
+    const ta  = document.getElementById('csvPasteArea');         if (ta)  ta.value = '';
+    const err = document.getElementById('csvUploadError');       if (err) err.classList.add('hidden');
+    /* Annotate the wizard with the 100-row referrer cap (idempotent). */
+    const rules = document.querySelector('#wzPanel1 .wz-rules');
+    if (rules && !rules.querySelector('[data-ref-cap]')) {
+      const r = document.createElement('div');
+      r.className = 'wz-rule';
+      r.dataset.refCap = '1';
+      r.textContent = '⚠ Referrer accounts: max 100 rows per import. All rows auto-tagged to your expo.';
+      rules.appendChild(r);
+    }
+    document.getElementById('bulkImportModal')?.classList.add('open');
+  });
+
+  /* ── Voice note recording (referrer-scoped state, see _refVm below) ── */
+  document.getElementById('refVmRecordBtn')?.addEventListener('click', refVmStart);
+  document.getElementById('refVmStopBtn')?.addEventListener('click',   refVmStop);
+  document.getElementById('refVmClearBtn')?.addEventListener('click',  refVmClear);
 
   /* ── Submit new lead ── */
   document.getElementById('referrerLeadForm')?.addEventListener('submit', async ev => {
@@ -2407,25 +2501,46 @@ async function renderReferrerView() {
 
     const company = document.getElementById('refLeadCompany').value.trim();
     const notes   = document.getElementById('refLeadNotes').value.trim();
+    const ocrCapture = collectOcrCapture(REF_FIELDMAP);
     const payload = {
       name, phone,
-      email:  document.getElementById('refLeadEmail').value.trim(),
-      stage:  'new',
-      source: 'expo',
-      notes:  company ? `[${company}] ${notes}` : notes,
+      email:   document.getElementById('refLeadEmail').value.trim(),
+      stage:   'new',
+      source:  'expo',
+      notes:   company ? `[${company}] ${notes}` : notes,
+      ocrCapture,
     };
     const btn = document.getElementById('refLeadSubmit');
     btnLoad(btn, true, 'Capturing…');
     try {
-      const res = await api('POST', '/leads', payload);
-      document.getElementById('referrerLeadForm').reset();
-      flash('Lead captured!');
+      const res    = await api('POST', '/leads', payload);
+      const newId  = res.data?._id || res.data?.id || res._id;
+
+      /* (b) — voice note attaches AFTER the lead is created, in a follow-up call.
+         Errors are non-fatal: the lead is already saved, only the memo fails. */
+      if (newId && _refVm.transcript && _refVm.transcript.trim()) {
+        try {
+          const durationSec = _refVm.startTime ? Math.round((Date.now() - _refVm.startTime) / 1000) : null;
+          await api('POST', `/leads/${newId}/voice-memos`, {
+            transcript:       _refVm.transcript.trim(),
+            transcriptLang:   'en',
+            audioDurationSec: durationSec,
+          });
+        } catch (vmErr) {
+          flash(`Lead saved, but voice note failed: ${vmErr.message || 'unknown'}`, 'warn');
+        }
+      }
+
       S._refCount = (S._refCount || 0) + 1;
       const countEl = document.getElementById('refTodayCount');
       if (countEl) countEl.innerHTML = `<span class="ref-count-badge">${S._refCount} lead${S._refCount > 1 ? 's' : ''} captured today ✓</span>`;
-      /* Close form, refresh list */
-      document.getElementById('refFormCard').style.display = 'none';
-      document.getElementById('refToggleFormBtn').textContent = '+ New Lead';
+
+      /* Auto-enrichment is fired server-side on POST /leads (setImmediate).
+         Poll briefly so we can render whatever came back in the success card. */
+      document.getElementById('referrerLeadForm').reset();
+      _refVmReset();
+      await renderRefSuccessCard(newId, name);
+
       await loadRefLeadsList();
     } catch (err) {
       flash(err.message || 'Failed to save lead', 'error');
@@ -2436,6 +2551,173 @@ async function renderReferrerView() {
 
   /* ── Load leads list ── */
   await loadRefLeadsList();
+}
+
+/* ═══════════ REFERRER VOICE MEMO (inline, capture-time) ═══════════
+   Mirrors the main-app PRD 6 recorder but scoped to the referrer form,
+   with state held across the form lifecycle and attached to the new
+   lead via POST /leads/:id/voice-memos after the lead is created. */
+const _refVm = {
+  recognition:  null,
+  transcript:   '',
+  startTime:    null,
+  timerInterval:null,
+};
+
+function _refVmFmt(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function _refVmReset() {
+  if (_refVm.recognition) { try { _refVm.recognition.stop(); } catch {} _refVm.recognition = null; }
+  if (_refVm.timerInterval) { clearInterval(_refVm.timerInterval); _refVm.timerInterval = null; }
+  _refVm.transcript = '';
+  _refVm.startTime  = null;
+
+  const els = ['refVmTimer','refVmStopBtn','refVmStatus','refVmTranscriptWrap'].map(id => document.getElementById(id));
+  els.forEach(el => { if (el) el.hidden = true; });
+  const recBtn = document.getElementById('refVmRecordBtn'); if (recBtn) recBtn.hidden = false;
+  const tEl = document.getElementById('refVmTranscript');   if (tEl)  tEl.textContent = '';
+}
+
+async function refVmStart() {
+  _refVm.transcript = '';
+  const transcriptEl   = document.getElementById('refVmTranscript');
+  const transcriptWrap = document.getElementById('refVmTranscriptWrap');
+  const statusEl       = document.getElementById('refVmStatus');
+  const timerEl        = document.getElementById('refVmTimer');
+  const recBtn         = document.getElementById('refVmRecordBtn');
+  const stopBtn        = document.getElementById('refVmStopBtn');
+
+  if (transcriptEl) { transcriptEl.textContent = ''; transcriptEl.contentEditable = 'false'; }
+  if (transcriptWrap) transcriptWrap.hidden = true;
+
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    if (statusEl) { statusEl.textContent = 'Speech recognition unsupported in this browser.'; statusEl.hidden = false; }
+    return;
+  }
+  _refVm.recognition = new SpeechRec();
+  _refVm.recognition.continuous     = true;
+  _refVm.recognition.interimResults = true;
+  _refVm.recognition.lang           = 'en-IN';
+  _refVm.recognition.onresult = (e) => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) _refVm.transcript += e.results[i][0].transcript + ' ';
+      else                       interim          += e.results[i][0].transcript;
+    }
+    if (transcriptEl) transcriptEl.textContent = _refVm.transcript + (interim ? `[${interim}]` : '');
+    if (transcriptWrap) transcriptWrap.hidden  = false;
+  };
+  _refVm.recognition.onerror = (e) => {
+    if (e.error !== 'no-speech' && statusEl) { statusEl.textContent = `Speech error: ${e.error}`; statusEl.hidden = false; }
+  };
+  _refVm.recognition.start();
+
+  _refVm.startTime = Date.now();
+  if (timerEl) {
+    timerEl.hidden = false;
+    timerEl.textContent = '0:00';
+    _refVm.timerInterval = setInterval(() => { timerEl.textContent = _refVmFmt(Date.now() - _refVm.startTime); }, 500);
+  }
+  if (statusEl) { statusEl.textContent = 'Recording…'; statusEl.hidden = false; }
+  if (recBtn)  recBtn.hidden  = true;
+  if (stopBtn) stopBtn.hidden = false;
+}
+
+async function refVmStop() {
+  if (_refVm.recognition) { try { _refVm.recognition.stop(); } catch {} _refVm.recognition = null; }
+  if (_refVm.timerInterval) { clearInterval(_refVm.timerInterval); _refVm.timerInterval = null; }
+
+  const recBtn  = document.getElementById('refVmRecordBtn');
+  const stopBtn = document.getElementById('refVmStopBtn');
+  const timerEl = document.getElementById('refVmTimer');
+  const statusEl= document.getElementById('refVmStatus');
+  const transcriptEl = document.getElementById('refVmTranscript');
+
+  if (recBtn)  recBtn.hidden  = false;
+  if (stopBtn) stopBtn.hidden = true;
+  if (timerEl) timerEl.hidden = true;
+
+  /* Tail wait for trailing recognition results, then make transcript editable. */
+  await new Promise(r => setTimeout(r, 500));
+  const text = _refVm.transcript.trim();
+  if (transcriptEl) {
+    transcriptEl.textContent = text;
+    transcriptEl.contentEditable = 'true';
+    transcriptEl.addEventListener('input', () => { _refVm.transcript = transcriptEl.textContent || ''; }, { once: false });
+  }
+  if (statusEl) {
+    statusEl.textContent = text ? 'Voice note will attach when you save the lead.' : 'No speech detected — try again or save without it.';
+    statusEl.hidden = false;
+  }
+}
+
+function refVmClear() {
+  _refVmReset();
+}
+
+/* ═══════════ REFERRER SUCCESS CARD WITH AUTO-ENRICHMENT ═══════════
+   Polls GET /leads/:id twice (at +1s, +2s) so the mock provider's
+   50-300 ms latency is comfortably covered, then renders enriched
+   fields if any. Falls back to a plain "captured" card on timeout. */
+async function renderRefSuccessCard(leadId, name) {
+  const card = document.getElementById('refSuccessCard');
+  const form = document.getElementById('referrerLeadForm');
+  if (!card) { flash('Lead captured!'); return; }
+  if (form) form.style.display = 'none';
+
+  card.hidden = false;
+  card.innerHTML = `
+    <div style="font-weight:700;color:var(--emerald);margin-bottom:6px">✓ ${escapeHtml(name)} captured</div>
+    <div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Looking up company details… <span class="ref-enrich-spinner">⏳</span></div>
+    <button type="button" class="neo-btn outline xs" id="refSuccessNextBtn">+ Capture another</button>`;
+
+  document.getElementById('refSuccessNextBtn')?.addEventListener('click', () => {
+    card.hidden = true;
+    card.innerHTML = '';
+    if (form) form.style.display = '';
+  });
+
+  if (!leadId) return;
+
+  const tryFetch = async () => {
+    try {
+      const res = await api('GET', `/leads/${leadId}`);
+      const lead = res.data || res;
+      const enrichment = lead?.enrichment || {};
+      return Object.keys(enrichment).length ? lead : null;
+    } catch { return null; }
+  };
+
+  let lead = null;
+  for (const wait of [1000, 1000]) {
+    await new Promise(r => setTimeout(r, wait));
+    lead = await tryFetch();
+    if (lead) break;
+  }
+
+  if (!lead) {
+    const sub = card.querySelector('div:nth-child(2)');
+    if (sub) sub.textContent = 'No auto-enrichment data found — you can edit the lead later.';
+    return;
+  }
+
+  /* Render enrichment grid using the existing PRD-5 helper. */
+  card.innerHTML = `
+    <div style="font-weight:700;color:var(--emerald);margin-bottom:6px">✓ ${escapeHtml(name)} captured</div>
+    <div id="refEnrichmentMount"></div>
+    <button type="button" class="neo-btn outline xs" id="refSuccessNextBtn" style="margin-top:8px">+ Capture another</button>`;
+  if (typeof renderEnrichmentSection === 'function') {
+    renderEnrichmentSection(lead, document.getElementById('refEnrichmentMount'));
+  }
+  document.getElementById('refSuccessNextBtn')?.addEventListener('click', () => {
+    card.hidden = true;
+    card.innerHTML = '';
+    if (form) form.style.display = '';
+  });
 }
 
 async function loadRefLeadsList() {
@@ -2895,6 +3177,7 @@ async function processCardImage(file, fieldMap) {
     document.getElementById('cameraScanBtn'),
     document.getElementById('refCameraBtn'),
     document.getElementById('scanRescanBtn'),
+    document.getElementById('refScanRescanBtn'),
   ];
   scanBtns.forEach(b => btnLoad(b, true, '🔍 Scanning…'));
   logTelemetry('scan_started', { fieldMap });
@@ -2998,10 +3281,12 @@ async function processCardImage(file, fieldMap) {
       if (notesEl) notesEl.value = text.trim().substring(0, 400);
     }
 
-    /* AC5 — re-scan CTA when >50% of fields are Low */
+    /* AC5 — re-scan CTA when >50% of fields are Low. fieldMap may supply
+       a custom banner ID (the referrer view uses #refScanRescanBanner). */
     const bandValues = Object.values(bands);
     const lowCount   = bandValues.filter(b => b === 'low').length;
-    const banner = document.getElementById('scanRescanBanner');
+    const bannerId   = fieldMap.rescanBanner || 'scanRescanBanner';
+    const banner     = document.getElementById(bannerId);
     if (banner) banner.hidden = !(bandValues.length && lowCount / bandValues.length > 0.5);
 
     const filled = bandValues.filter(b => b !== 'low').length;
@@ -3449,9 +3734,13 @@ async function saveBulkLeads() {
     logTelemetry('scan_saved', { mode: 'bulk', inserted, duplicates });
     flash(`Saved ${inserted} lead${inserted !== 1 ? 's' : ''}${duplicates ? ` (${duplicates} duplicate${duplicates !== 1 ? 's' : ''} skipped)` : ''}`, 'success');
 
-    await loadAllData(true);
-    updateNavCounts();
-    renderKanban(getFilters());
+    if ((typeof isReferrer === 'function') && isReferrer()) {
+      if (typeof loadRefLeadsList === 'function') await loadRefLeadsList();
+    } else {
+      await loadAllData(true);
+      updateNavCounts();
+      renderKanban(getFilters());
+    }
     document.getElementById('bulkScanModal').classList.remove('open');
   } catch (err) {
     flash(err.message || 'Bulk save failed', 'error');

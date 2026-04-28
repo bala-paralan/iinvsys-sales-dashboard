@@ -47,7 +47,17 @@
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env pull /tmp/prod_env.env --environment production --yes)",
       "Bash(grep -v \"^$\")",
       "Bash(VERCEL=/tmp/vercel-local/node_modules/.bin/vercel $VERCEL env pull /tmp/prod_env2.env --environment production --yes)",
-      "Bash(grep \"Added\" __NEW_LINE_20763aa14d7da633__ git add -A)"
+      "Bash(grep \"Added\" __NEW_LINE_20763aa14d7da633__ git add -A)",
+      "Bash(curl -s http://localhost:5050/api/health)",
+      "Bash(lsof -iTCP -sTCP:LISTEN)",
+      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/controllers/reportController.js)",
+      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/app.js)",
+      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/controllers/leadController.js)",
+      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/controllers/voiceMemoController.js)",
+      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/routes/leads.js)",
+      "Bash(cp app.js /tmp/app.js.full)",
+      "Bash(git restore *)",
+      "Bash(node --check app.js)"
     ]
   }
 }
