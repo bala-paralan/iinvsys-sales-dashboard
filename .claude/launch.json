@@ -4,8 +4,8 @@
     {
       "name": "iinvsys-dashboard",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-p", "3456", "."],
-      "port": 3456
+      "runtimeArgs": ["serve", "."],
+      "autoPort": true
     }
   ]
 }

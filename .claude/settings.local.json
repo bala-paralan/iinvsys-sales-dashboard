@@ -50,14 +50,17 @@
       "Bash(grep \"Added\" __NEW_LINE_20763aa14d7da633__ git add -A)",
       "Bash(curl -s http://localhost:5050/api/health)",
       "Bash(lsof -iTCP -sTCP:LISTEN)",
-      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/controllers/reportController.js)",
-      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/app.js)",
-      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/controllers/leadController.js)",
-      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/controllers/voiceMemoController.js)",
-      "Bash(node --check /Users/mac_user_01/Desktop/Sales_Dashboard/.claude/worktrees/pensive-boyd-ac80d9/backend/src/routes/leads.js)",
       "Bash(cp app.js /tmp/app.js.full)",
       "Bash(git restore *)",
-      "Bash(node --check app.js)"
+      "Bash(node --check app.js)",
+      "Bash(node --check:*)",
+      "Bash(git fsck *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git stash *)",
+      "Bash(lsof -nP -iTCP:5050 -iTCP:5001 -iTCP:5500 -iTCP:8080 -sTCP:LISTEN)",
+      "Bash(gh pr *)",
+      "Bash(gh auth *)",
+      "Bash(git push *)"
     ]
   }
 }

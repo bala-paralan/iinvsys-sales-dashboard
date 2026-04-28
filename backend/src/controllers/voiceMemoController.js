@@ -162,6 +162,19 @@ async function listVoiceMemos(req, res, next) {
     const lead = await Lead.findById(req.params.id).lean();
     if (!lead) return notFound(res, 'Lead not found');
 
+    /* Agents can only read memos on their own leads */
+    if (req.user.role === 'agent' && String(lead.assignedAgent) !== String(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    /* Referrers can only read memos on leads they created in their own expo */
+    if (req.user.role === 'referrer') {
+      const sameCreator = String(lead.createdBy) === String(req.user._id);
+      const sameExpo    = String(lead.expo) === String(req.referrerExpoId);
+      if (!sameCreator || !sameExpo) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+    }
+
     const memos = await VoiceMemo.find({ leadId: req.params.id })
       .sort({ createdAt: -1 })
       .populate('recordedBy', 'name initials')
