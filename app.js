@@ -3289,13 +3289,86 @@ function transliterateText(text) {
 }
 
 /* Self-hosted Tesseract assets — splat into every recognize() options object so
-   the worker, WASM core, and language data load from this origin. Removes the
-   first-scan dependency on jsdelivr. */
+   the worker, WASM core, and language data load from this origin. Absolute URLs
+   are required because Tesseract.js wraps the worker in a Blob URL by default;
+   inside that Blob context, relative paths resolve to about:blank and importScripts
+   fails. Removes the first-scan dependency on jsdelivr. */
 const TESSERACT_PATHS = {
-  workerPath: 'vendor/tesseract/worker.min.js',
-  corePath:   'vendor/tesseract/',
-  langPath:   'vendor/tesseract/lang-data',
+  workerPath: new URL('vendor/tesseract/worker.min.js', document.baseURI).href,
+  corePath:   new URL('vendor/tesseract/',              document.baseURI).href,
+  langPath:   new URL('vendor/tesseract/lang-data',     document.baseURI).href,
 };
+
+/* Persistent OCR worker — created once, reused across every scan. Static
+   Tesseract.recognize() rebootstraps the worker (~3.5 MB WASM + ~10 MB lang
+   data) on every call; reusing one worker collapses subsequent scans from
+   ~8–15 s to ~1–3 s, and bulk scans from O(N × bootstrap) to O(N × recognize). */
+let _ocrLogger        = null;   // forwarder set per-call so progress lands in the right UI
+let _ocrWorker        = null;
+let _ocrWorkerLangs   = '';     // langs currently initialized on the worker
+let _ocrWorkerPromise = null;   // de-dupes concurrent create / reinitialize calls
+
+async function getOcrWorker(langs) {
+  if (typeof Tesseract === 'undefined') throw new Error('Tesseract not loaded');
+  if (_ocrWorkerPromise) await _ocrWorkerPromise;
+  if (!_ocrWorker) {
+    _ocrWorkerPromise = (async () => {
+      _ocrWorker = await Tesseract.createWorker(langs, 1, {
+        ...TESSERACT_PATHS,
+        logger: m => { if (_ocrLogger) _ocrLogger(m); },
+      });
+      _ocrWorkerLangs = langs;
+    })();
+    try { await _ocrWorkerPromise; } finally { _ocrWorkerPromise = null; }
+  } else if (_ocrWorkerLangs !== langs) {
+    _ocrWorkerPromise = (async () => {
+      await _ocrWorker.reinitialize(langs, 1);
+      _ocrWorkerLangs = langs;
+    })();
+    try { await _ocrWorkerPromise; } finally { _ocrWorkerPromise = null; }
+  }
+  return _ocrWorker;
+}
+
+/* Idle-time prewarm — starts the worker creation + initial language load
+   while the user is still navigating, so first scan skips the bootstrap. */
+function prewarmOcrWorker() {
+  const idle = window.requestIdleCallback || (cb => setTimeout(cb, 1500));
+  idle(() => {
+    const enabled = getEnabledOcrLangs();
+    const lang = enabled.includes('eng') ? 'eng' : (enabled[0] || 'eng');
+    getOcrWorker(lang).catch(() => { /* first real scan will retry */ });
+  }, { timeout: 3000 });
+}
+
+/* Downscale large camera captures before OCR. Recognition cost scales with
+   pixel count; 1500 px on the long edge is plenty for card text and ~4×
+   faster than a 3000 px source. Returns a canvas (Tesseract accepts it
+   directly) or the original file when no downscale is needed. */
+async function downscaleForOcr(file, maxEdge = 1500) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload  = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const longEdge = Math.max(img.naturalWidth, img.naturalHeight);
+    if (longEdge <= maxEdge) return file;
+    const scale = maxEdge / longEdge;
+    const w = Math.max(1, Math.round(img.naturalWidth  * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    return canvas;
+  } catch (_) {
+    return file;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 /* ═══════════ QR PRE-PASS ═══════════
    Many modern business cards print a vCard / MECARD QR. Decoding the QR
@@ -3443,16 +3516,20 @@ async function processCardImage(file, fieldMap) {
     }
 
     /* PRD 2 — Phase 1: run English OCR first (fast), detect scripts, then
-       re-run with additional languages if non-Latin script found. */
-    const engResult = await Tesseract.recognize(file, 'eng', {
-      ...TESSERACT_PATHS,
-      logger: m => {
-        if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
-        else if (m.status === 'loading language traineddata') showLoader('Loading language data…');
-        else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
-        else if (m.status === 'recognizing text')             showLoader('Recognising (pass 1)… ' + Math.round((m.progress || 0) * 100) + '%');
-      },
-    });
+       re-run with additional languages if non-Latin script found. The image
+       is downscaled once and reused across both passes; the OCR worker is
+       reused across scans so we don't pay the WASM/lang-data bootstrap. */
+    showLoader('Preparing image…');
+    const ocrInput = await downscaleForOcr(file);
+
+    _ocrLogger = m => {
+      if (m.status === 'loading tesseract core')            showLoader('Loading OCR engine…');
+      else if (m.status === 'loading language traineddata') showLoader('Loading language data…');
+      else if (m.status === 'initializing api')             showLoader('Initialising OCR…');
+      else if (m.status === 'recognizing text')             showLoader('Recognising (pass 1)… ' + Math.round((m.progress || 0) * 100) + '%');
+    };
+    const engWorker = await getOcrWorker('eng');
+    const engResult = await engWorker.recognize(ocrInput);
 
     const engText      = engResult.data.text || '';
     const detected     = detectScripts(engText);
@@ -3471,12 +3548,11 @@ async function processCardImage(file, fieldMap) {
     if (enabledNonLatin.length) {
       const langStr = buildLangString(enabledNonLatin);
       showLoader(`Recognising ${langStr.replace(/\+/g, ' + ')}… pass 2`);
-      result = await Tesseract.recognize(file, langStr, {
-        ...TESSERACT_PATHS,
-        logger: m => {
-          if (m.status === 'recognizing text') showLoader('Recognising (pass 2)… ' + Math.round((m.progress || 0) * 100) + '%');
-        },
-      });
+      _ocrLogger = m => {
+        if (m.status === 'recognizing text') showLoader('Recognising (pass 2)… ' + Math.round((m.progress || 0) * 100) + '%');
+      };
+      const multiWorker = await getOcrWorker(langStr);
+      result = await multiWorker.recognize(ocrInput);
       detectedLang = enabledNonLatin[0];
       logTelemetry('scan_language_detected', { detected: detectedLang, langStr });
     }
@@ -3869,20 +3945,18 @@ async function processBulkQueue() {
         continue;
       }
 
-      const engRes = await Tesseract.recognize(item.file, 'eng', {
-        ...TESSERACT_PATHS,
-        logger: m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); },
-      });
+      const ocrInput = await downscaleForOcr(item.file);
+      _ocrLogger = m => { if (m.status === 'recognizing text') logStatus(Math.round((m.progress || 0) * 50)); };
+      const engWorker = await getOcrWorker('eng');
+      const engRes    = await engWorker.recognize(ocrInput);
       const detectedBulk   = detectScripts(engRes.data.text || '');
       const nonLatinBulk   = detectedBulk.filter(d => d !== 'eng' && getEnabledOcrLangs().includes(d));
       let result = engRes;
       if (nonLatinBulk.length) {
         _ocrLogger = m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); };
-        const langStr = buildLangString(nonLatinBulk);
-        result = await Tesseract.recognize(item.file, langStr, {
-          ...TESSERACT_PATHS,
-          logger: m => { if (m.status === 'recognizing text') logStatus(50 + Math.round((m.progress || 0) * 50)); },
-        });
+        const langStr     = buildLangString(nonLatinBulk);
+        const multiWorker = await getOcrWorker(langStr);
+        result = await multiWorker.recognize(ocrInput);
       }
       item.detectedLang = nonLatinBulk[0] || 'eng';
 
