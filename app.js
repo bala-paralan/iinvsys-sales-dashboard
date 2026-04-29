@@ -2390,6 +2390,7 @@ async function renderReferrerView() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <button class="neo-btn outline xs" id="refBulkScanBtn" type="button" aria-label="Bulk scan business cards"><span aria-hidden="true">📷</span> Bulk Scan</button>
         <button class="neo-btn outline xs" id="refBulkImportBtn" type="button" aria-label="Bulk import leads from CSV"><span aria-hidden="true">⬆</span> Bulk CSV</button>
+        <button class="neo-btn outline xs" id="refExportLeadsBtn" type="button" aria-label="Export leads to Excel"><span aria-hidden="true">📥</span> Export Excel</button>
         <button class="neo-btn yellow xs" id="refToggleFormBtn" type="button" aria-expanded="false" aria-controls="refFormCard">+ New Lead</button>
       </div>
     </div>
@@ -2585,6 +2586,17 @@ async function renderReferrerView() {
   document.getElementById('refVmRecordBtn')?.addEventListener('click', refVmStart);
   document.getElementById('refVmStopBtn')?.addEventListener('click',   refVmStop);
   document.getElementById('refVmClearBtn')?.addEventListener('click',  refVmClear);
+
+  /* ── Export leads to Excel (this expo's leads only — backend already scopes by referrer's expo) ── */
+  document.getElementById('refExportLeadsBtn')?.addEventListener('click', async () => {
+    try {
+      const res   = await api('GET', '/leads?limit=500');
+      const leads = (res.data || []).map(normalizeLead);
+      exportLeadsToExcel(leads, expoName || 'expo_leads');
+    } catch (err) {
+      flash(err.message || 'Failed to fetch leads for export', 'error');
+    }
+  });
 
   /* ── Submit new lead ── */
   document.getElementById('referrerLeadForm')?.addEventListener('submit', async ev => {
@@ -3104,6 +3116,80 @@ window.downloadReferrerSheet = async function(expoId, expoName) {
   XLSX.writeFile(wb, `${safeName}_referrer_credentials.xlsx`);
   flash('Sheet downloaded!', 'success');
 };
+
+/* ═══════════ LEAD EXCEL EXPORT (template-matching) ═══════════ */
+/* Columns mirror the bulk-import template so the file is round-trippable. */
+const LEAD_EXPORT_COLUMNS = [
+  'name','phone','email','source','expo','products',
+  'value','city','state','natureOfBusiness','interestedIn','notes',
+];
+
+function leadToTemplateRow(l) {
+  const productSkus = (l.products || [])
+    .map(pid => productById(pid)?.sku)
+    .filter(Boolean)
+    .join('|');
+  return [
+    l.name || '',
+    l.phone || '',
+    l.email || '',
+    l.source || '',
+    l.expo || '',
+    productSkus,
+    l.value || 0,
+    l.city || '',
+    l.state || '',
+    l.natureOfBusiness || '',
+    l.interestedIn || '',
+    l.notes || '',
+  ];
+}
+
+window.exportLeadsToExcel = function(leads, filenameHint) {
+  if (typeof XLSX === 'undefined') {
+    flash('Excel library not loaded yet — try again in a moment', 'error');
+    return;
+  }
+  if (!leads || leads.length === 0) {
+    flash('No leads to export', 'warn');
+    return;
+  }
+
+  const rows = leads.map(leadToTemplateRow);
+  const ws   = XLSX.utils.aoa_to_sheet([LEAD_EXPORT_COLUMNS, ...rows]);
+  ws['!cols'] = [
+    { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 12 }, { wch: 28 }, { wch: 24 },
+    { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 40 },
+  ];
+  LEAD_EXPORT_COLUMNS.forEach((_, ci) => {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: ci })];
+    if (cell) cell.s = { font: { bold: true } };
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+
+  const stamp    = new Date().toISOString().slice(0, 10);
+  const safeHint = (filenameHint || 'leads').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  XLSX.writeFile(wb, `${safeHint}_leads_${stamp}.xlsx`);
+  flash(`${leads.length} leads exported`, 'success');
+};
+
+/* Admin: export filtered leads from the main leads page */
+document.getElementById('exportLeadsBtn')?.addEventListener('click', () => {
+  const leads = filteredLeads(S.leads, getFilters());
+  exportLeadsToExcel(leads, 'iinvsys_all');
+});
+
+/* Agent: export only their own leads */
+document.getElementById('agentExportLeadsBtn')?.addEventListener('click', () => {
+  const myLeads = S.leads.filter(l => l.agentId === S.session?.agentId);
+  const f = {
+    search: (document.getElementById('myLeadSearch')?.value || '').toLowerCase(),
+    stage:  document.getElementById('myFilterStage')?.value  || '',
+  };
+  exportLeadsToExcel(filteredLeads(myLeads, f), S.session?.name || 'my');
+});
 
 /* ═══════════ AGENT HARD DELETE ═══════════ */
 window.hardDeleteAgent = function(agentId, agentName) {
