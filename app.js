@@ -3118,17 +3118,34 @@ window.downloadReferrerSheet = async function(expoId, expoName) {
 };
 
 /* ═══════════ LEAD EXCEL EXPORT (template-matching) ═══════════ */
-/* Columns mirror the bulk-import template so the file is round-trippable. */
+/* First 12 columns mirror the bulk-import template so the file is round-trippable
+   (the importer reads by header name and ignores unknown columns). The trailing
+   columns add referrer attribution and PRD-5 auto-enrichment details. */
 const LEAD_EXPORT_COLUMNS = [
+  /* upload-template columns */
   'name','phone','email','source','expo','products',
   'value','city','state','natureOfBusiness','interestedIn','notes',
+  /* referrer attribution */
+  'referrer',
+  /* auto-enrichment */
+  'company','jobTitle','website','industry','employeeCount','hqCountry','linkedinUrl',
 ];
+
+/* Pull a value out of the enrichment Map first (PRD 5 provenance), falling
+   back to the top-level field if normalizeLead has mirrored it. */
+function enrichVal(l, field) {
+  const e = l.enrichment && l.enrichment[field];
+  if (e && typeof e === 'object' && 'value' in e) return e.value || '';
+  if (e && typeof e !== 'object') return e;
+  return l[field] || '';
+}
 
 function leadToTemplateRow(l) {
   const productSkus = (l.products || [])
     .map(pid => productById(pid)?.sku)
     .filter(Boolean)
     .join('|');
+  const referrerName = l.createdByRole === 'referrer' ? (l.createdByName || '') : '';
   return [
     l.name || '',
     l.phone || '',
@@ -3142,6 +3159,14 @@ function leadToTemplateRow(l) {
     l.natureOfBusiness || '',
     l.interestedIn || '',
     l.notes || '',
+    referrerName,
+    enrichVal(l, 'company'),
+    enrichVal(l, 'jobTitle'),
+    enrichVal(l, 'website'),
+    enrichVal(l, 'industry'),
+    enrichVal(l, 'employeeCount'),
+    enrichVal(l, 'hqCountry'),
+    enrichVal(l, 'linkedinUrl'),
   ];
 }
 
@@ -3158,8 +3183,13 @@ window.exportLeadsToExcel = function(leads, filenameHint) {
   const rows = leads.map(leadToTemplateRow);
   const ws   = XLSX.utils.aoa_to_sheet([LEAD_EXPORT_COLUMNS, ...rows]);
   ws['!cols'] = [
+    /* template columns */
     { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 12 }, { wch: 28 }, { wch: 24 },
     { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 20 }, { wch: 40 },
+    /* referrer */
+    { wch: 22 },
+    /* enrichment */
+    { wch: 24 }, { wch: 22 }, { wch: 28 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 32 },
   ];
   LEAD_EXPORT_COLUMNS.forEach((_, ci) => {
     const cell = ws[XLSX.utils.encode_cell({ r: 0, c: ci })];
