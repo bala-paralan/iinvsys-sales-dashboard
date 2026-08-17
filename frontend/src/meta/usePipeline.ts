@@ -45,7 +45,7 @@ export interface PipelineMeta {
   installation: { stages: StageDef[]; statuses: string[] };
   enums: Record<string, EnumEntry[]>;
   spenco: {
-    dimensions: Array<{ key: string; label: string }>;
+    dimensions: Array<{ key: string; label: string; hint?: string }>;
     maxPerDimension: number;
     maxTotal: number;
     minTotal: number;

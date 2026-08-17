@@ -18,10 +18,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { api } from '../../api/client';
-import { usePipeline } from '../../meta/usePipeline';
+import { api, apiUpload } from '../../api/client';
+import { usePipeline, can } from '../../meta/usePipeline';
 import { EnumSelect } from '../../components/EnumSelect';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
+import { SpencoPanel } from './SpencoPanel';
 
 const leadSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -44,6 +45,15 @@ const leadSchema = z.object({
   expectedCloseDate: z.string(),   // yyyy-mm-dd or ''
   nextFollowUpDate: z.string(),
   notes: z.string(),
+  /* Commercial Order gate — "no PO, no PO number and no AMC answer". */
+  poNumber: z.string().trim(),
+  subscriptionOffered: z.string(),
+  amcOffered: z.string(),
+  /* Order Lost gate. */
+  lostReason: z.string(),
+  lostReasonDetail: z.string().trim(),
+  lostTo: z.string(),
+  lostToName: z.string().trim(),
 });
 
 type LeadForm = z.infer<typeof leadSchema>;
@@ -59,6 +69,12 @@ interface StageHistoryEntry {
   missingAtOverride: string[];
 }
 
+interface Attachment {
+  docType: string;
+  filename: string;
+  sizeBytes: number;
+}
+
 interface LeadDoc extends Record<string, unknown> {
   _id: string;
   name: string;
@@ -68,6 +84,7 @@ interface LeadDoc extends Record<string, unknown> {
   needsReview?: boolean;
   reviewIssues?: string[];
   stageHistory?: StageHistoryEntry[];
+  attachments?: Attachment[];
 }
 
 const toDateInput = (v: unknown) =>
@@ -79,6 +96,9 @@ export function LeadDetailPage() {
   const { data: meta } = usePipeline();
   const [gateOpen, setGateOpen] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [docType, setDocType] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [docBanner, setDocBanner] = useState<string | null>(null);
 
   const lead = useQuery({
     queryKey: ['lead', id],
@@ -92,6 +112,8 @@ export function LeadDetailPage() {
       companyType: '', industrySegment: '', city: '', state: '',
       value: '', productPackage: '', competitor: '', nextAction: '',
       expectedCloseDate: '', nextFollowUpDate: '', notes: '',
+      poNumber: '', subscriptionOffered: '', amcOffered: '',
+      lostReason: '', lostReasonDetail: '', lostTo: '', lostToName: '',
     },
   });
 
@@ -116,6 +138,13 @@ export function LeadDetailPage() {
       expectedCloseDate: toDateInput(d.expectedCloseDate),
       nextFollowUpDate: toDateInput(d.nextFollowUpDate),
       notes: String(d.notes ?? ''),
+      poNumber: String(d.poNumber ?? ''),
+      subscriptionOffered: String(d.subscriptionOffered ?? ''),
+      amcOffered: String(d.amcOffered ?? ''),
+      lostReason: String(d.lostReason ?? ''),
+      lostReasonDetail: String(d.lostReasonDetail ?? ''),
+      lostTo: String(d.lostTo ?? ''),
+      lostToName: String(d.lostToName ?? ''),
     });
   }, [lead.data, form]);
 
@@ -134,6 +163,27 @@ export function LeadDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['hygiene'] });
       queryClient.invalidateQueries({ queryKey: ['lead-gate', id] });
     },
+  });
+
+  /* The Engagement → Negotiation gate wants a proposal or quotation "on file".
+     The route has existed since B2 (POST /leads/:id/upload, lead.write); only
+     the control was missing, so the gate could be met by override alone. */
+  const uploadDoc = useMutation({
+    mutationFn: () => {
+      const body = new FormData();
+      body.append('docType', docType);
+      body.append('file', file!);
+      return apiUpload(`/leads/${id}/upload`, body);
+    },
+    onSuccess: () => {
+      setFile(null);
+      setDocType('');
+      setDocBanner('Document attached.');
+      setTimeout(() => setDocBanner(null), 2500);
+      queryClient.invalidateQueries({ queryKey: ['lead', id] });
+      queryClient.invalidateQueries({ queryKey: ['gate', `/leads/${id}`] });
+    },
+    onError: (err: Error) => setDocBanner(err.message),
   });
 
   const stageLabel = (key: string | null) =>
@@ -170,6 +220,15 @@ export function LeadDetailPage() {
           className="card"
           style={{ padding: 20, flex: '1 1 460px', maxWidth: 640 }}
         >
+          {/* A rejected submit fires no request, and only three of the fields
+              below render their own error — so without this the gold Save
+              button simply appears to do nothing. Name the fields instead. */}
+          {Object.keys(form.formState.errors).length > 0 && (
+            <div className="offline-banner" style={{ borderColor: 'var(--coral)' }}>
+              Not saved — check {Object.keys(form.formState.errors).join(', ')}.
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Contact name" error={form.formState.errors.name?.message}>
               <input className="form-input" {...form.register('name')} />
@@ -241,6 +300,57 @@ export function LeadDetailPage() {
             <textarea className="form-input" rows={3} {...form.register('notes')} />
           </Field>
 
+          {/* Commercial Order and Order Lost each gate on fields that had no
+              control at all — the stage was reachable only by override. */}
+          <div className="form-label" style={{ marginTop: 22 }}>Commercial order</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Field label="PO number">
+              <input className="form-input" {...form.register('poNumber')} />
+            </Field>
+            <Field label="Subscription offered">
+              <Controller
+                control={form.control} name="subscriptionOffered"
+                render={({ field }) => (
+                  <EnumSelect enumName="subscriptionStates" value={field.value} onChange={field.onChange} />
+                )}
+              />
+            </Field>
+            <Field label="AMC offered">
+              <Controller
+                control={form.control} name="amcOffered"
+                render={({ field }) => (
+                  <EnumSelect enumName="amcStates" value={field.value} onChange={field.onChange} />
+                )}
+              />
+            </Field>
+          </div>
+
+          <div className="form-label" style={{ marginTop: 22 }}>If lost</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Field label="Lost reason">
+              <Controller
+                control={form.control} name="lostReason"
+                render={({ field }) => (
+                  <EnumSelect enumName="lostReasons" value={field.value} onChange={field.onChange} />
+                )}
+              />
+            </Field>
+            <Field label="Lost to">
+              <Controller
+                control={form.control} name="lostTo"
+                render={({ field }) => (
+                  <EnumSelect enumName="lostTo" value={field.value} onChange={field.onChange} />
+                )}
+              />
+            </Field>
+            <Field label="Lost to — name">
+              <input className="form-input" {...form.register('lostToName')} />
+            </Field>
+            <Field label="Lost reason detail">
+              <input className="form-input" {...form.register('lostReasonDetail')} />
+            </Field>
+          </div>
+
           <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
             <button type="submit" className="neo-btn gold" disabled={save.isPending}>
               {save.isPending ? 'Saving…' : 'Save'}
@@ -291,6 +401,47 @@ export function LeadDetailPage() {
           ))}
         </aside>
       </div>
+
+      <section className="card" style={{ padding: 20, flex: '1 1 460px', maxWidth: 640, marginTop: 24 }}>
+        <div className="form-label">Documents</div>
+        {docBanner && <div className="offline-banner">{docBanner}</div>}
+
+        {(d.attachments ?? []).length === 0 && (
+          <p style={{ color: 'var(--text-3)', fontSize: 13 }}>
+            Nothing on file yet — the proposal/quotation gate reads this list.
+          </p>
+        )}
+        {(d.attachments ?? []).map((a, i) => (
+          <div key={i} style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4 }}>
+            {a.docType} · {a.filename} · {(a.sizeBytes / 1024).toFixed(0)} KB
+          </div>
+        ))}
+
+        {can(meta, 'lead.write') && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ minWidth: 200 }}>
+              <EnumSelect enumName="docTypes" value={docType} onChange={setDocType} />
+            </div>
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              style={{ color: 'var(--text-2)', fontSize: 13 }}
+            />
+            <button
+              className="neo-btn"
+              disabled={!docType || !file || uploadDoc.isPending}
+              onClick={() => uploadDoc.mutate()}
+            >
+              {uploadDoc.isPending ? 'Uploading…' : 'Upload'}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <SpencoPanel
+        leadId={d._id}
+        spenco={(d.spenco as Record<string, unknown> | null) ?? null}
+      />
 
       {gateOpen && (
         <StageGateChecklist

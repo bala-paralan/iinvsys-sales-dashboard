@@ -11,10 +11,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
-import { usePipeline, PIPELINE_FALLBACK } from '../../meta/usePipeline';
+import { usePipeline, PIPELINE_FALLBACK, can } from '../../meta/usePipeline';
 import { KanbanBoard } from '../../components/KanbanBoard';
 import type { KanbanStage } from '../../components/KanbanBoard';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
+import { NewLeadModal } from './NewLeadModal';
 
 interface LeadRow {
   _id: string;
@@ -34,6 +35,7 @@ export function LeadsPage() {
   const pipeline = usePipeline();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<LeadRow | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const leads = useQuery({
     queryKey: ['leads'],
@@ -48,6 +50,12 @@ export function LeadsPage() {
     <>
       <h1 className="page-title">Lead <em>Pipeline</em></h1>
       <div className="page-sub">// SPENCO · STAGE GATES ENFORCED SERVER-SIDE</div>
+
+      {can(pipeline.data, 'lead.write') && (
+        <button className="neo-btn gold" style={{ margin: '12px 0' }} onClick={() => setCreating(true)}>
+          + New Lead
+        </button>
+      )}
 
       {pipeline.isError && (
         <div className="offline-banner">
@@ -92,6 +100,13 @@ export function LeadsPage() {
           if (lead) setSelected(lead);
         }}
       />
+
+      {creating && (
+        <NewLeadModal
+          onClose={() => setCreating(false)}
+          onCreated={() => { setCreating(false); void leads.refetch(); }}
+        />
+      )}
 
       {selected && (
         <StageGateChecklist

@@ -14,6 +14,12 @@
       "port": 5173
     },
     {
+      "name": "iinvsys-react-prodapi",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/mac_user_01/Desktop/Sales_Dashboard/frontend", "run", "dev:prodapi"],
+      "port": 5174
+    },
+    {
       "name": "iinvsys-api",
       "runtimeExecutable": "node",
       "runtimeArgs": ["/Users/mac_user_01/Desktop/Sales_Dashboard/backend/dev-local.js"],

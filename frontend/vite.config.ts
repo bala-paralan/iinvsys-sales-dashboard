@@ -18,7 +18,14 @@ export default defineConfig(({ command }) => ({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:5001', changeOrigin: true },
+      // API_PROXY_TARGET points the dev server at a different API — used to
+      // verify a build against the real production API before deploying it.
+      // `secure: false` only matters for that case; localhost is plain http.
+      '/api': {
+        target: process.env.API_PROXY_TARGET || 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 }));

@@ -157,7 +157,7 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
               {columns.map((c) => (
                 <th
                   key={c.key}
-                  className="form-label"
+                  className="table-th"
                   style={{ textAlign: 'left', padding: '10px 12px', margin: 0, whiteSpace: 'nowrap' }}
                 >
                   {c.label}

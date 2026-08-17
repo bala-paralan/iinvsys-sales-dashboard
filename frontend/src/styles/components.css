@@ -221,3 +221,15 @@
   font-size: 13px;
 }
 .login-field { margin-bottom: 16px; }
+
+/* Table header cells borrow the .form-label look, but must NOT borrow its
+   `display: block` — on a <th> that collapses the whole header row into a
+   single vertical stack while the <td>s below stay in columns. */
+.table-th {
+  display: table-cell;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
