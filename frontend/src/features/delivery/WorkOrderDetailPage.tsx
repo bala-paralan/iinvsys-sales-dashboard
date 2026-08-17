@@ -49,6 +49,8 @@ interface WorkOrderDoc {
   currentCommittedDate?: string | null;
   customerAck?: { acknowledged: boolean; method?: string };
   dispatchedAt?: string | null;
+  stockConfirmedAt?: string | null;
+  packingCheckedBy?: string;
   deliveredAt?: string | null;
   delayEvents: DelayEvent[];
   attachments: Attachment[];
@@ -88,6 +90,8 @@ export function WorkOrderDetailPage() {
   const [delayDate, setDelayDate] = useState('');
   const [carrier, setCarrier] = useState('');
   const [itemsDelivered, setItemsDelivered] = useState('');
+  const [stockConfirmed, setStockConfirmed] = useState(false);
+  const [packedBy, setPackedBy] = useState('');
   const [docType, setDocType] = useState('');
   const [file, setFile] = useState<File | null>(null);
 
@@ -259,6 +263,41 @@ export function WorkOrderDetailPage() {
           {/* ── Progression ── */}
           <section className="card" style={{ padding: 16 }}>
             <div className="form-label">Progression</div>
+
+            {/* stockConfirmedAt gates Procurement → Preparation & Packing and is
+                the one gate field in the whole pipeline with no endpoint of its
+                own — every other one is set by /accept, /commit-date, /dispatch,
+                /plan and friends. Delivery has no override, so without this the
+                stage was a dead end for everyone. It rides along as the
+                transition's patch, so the timestamp is only written if the move
+                actually succeeds. */}
+            {d.stage === 'procurement' && !d.stockConfirmedAt && can(meta, 'workorder.advance') && (
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={stockConfirmed}
+                  onChange={(e) => setStockConfirmed(e.target.checked)}
+                />
+                <span>All items available, quality-checked and tagged to this Work Order</span>
+              </label>
+            )}
+
+            {/* packingCheckedBy is the other orphan — same story, and it wants a
+                name rather than a timestamp because the sign-off is a person. */}
+            {d.stage === 'preparation_packing' && !d.packingCheckedBy && can(meta, 'workorder.advance') && (
+              <div style={{ marginBottom: 10 }}>
+                <label className="form-label" htmlFor="wo-packedby">Packing checklist signed off by</label>
+                <input
+                  id="wo-packedby"
+                  className="form-input"
+                  style={{ maxWidth: 260 }}
+                  placeholder="Name of the checker"
+                  value={packedBy}
+                  onChange={(e) => setPackedBy(e.target.value)}
+                />
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {can(meta, 'workorder.advance') && d.status !== 'delivered' && (
                 <button className="neo-btn gold" onClick={() => setGateOpen(true)}>
@@ -325,8 +364,12 @@ export function WorkOrderDetailPage() {
           stages={meta?.delivery.stages ?? []}
           allowOverride={false}
           invalidateKeys={[['workorders'], ['workorder', id]]}
+          patch={{
+            ...(stockConfirmed ? { stockConfirmedAt: new Date().toISOString() } : {}),
+            ...(packedBy.trim() ? { packingCheckedBy: packedBy.trim() } : {}),
+          }}
           onClose={() => setGateOpen(false)}
-          onAdvanced={() => setGateOpen(false)}
+          onAdvanced={() => { setGateOpen(false); setStockConfirmed(false); setPackedBy(''); }}
         />
       )}
     </>

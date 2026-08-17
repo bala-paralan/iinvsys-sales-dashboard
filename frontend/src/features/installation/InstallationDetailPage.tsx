@@ -82,6 +82,24 @@ export function InstallationDetailPage() {
   const [plan, setPlan] = useState('');
   const [docType, setDocType] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [technicianName, setTechnicianName] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [siteReadyBy, setSiteReadyBy] = useState('');
+
+  const planJob = useMutation({
+    mutationFn: () => api('POST', `/installations/${id}/plan`, {
+      /* Only technicianName — `technician` is an ObjectId ref to User and the
+         API exposes no endpoint that lists users, so no client can obtain a
+         valid id. Sending the name there is a 422 on the whole request, which
+         would also drop the date and the site confirmation. The gate reads
+         `technician`, so it stays unmet until the backend either lists
+         assignable users or gates on the name. */
+      ...(technicianName.trim() ? { technicianName: technicianName.trim() } : {}),
+      ...(scheduledDate ? { scheduledDate } : {}),
+      ...(siteReadyBy.trim() ? { siteReadyConfirmedBy: siteReadyBy.trim() } : {}),
+    }),
+    onSuccess: onOk, onError: onErr,
+  });
 
   const tick = useMutation({
     mutationFn: (v: { stageKey: string; itemKey?: string; done?: boolean; signedByName?: string }) =>
@@ -190,6 +208,45 @@ export function InstallationDetailPage() {
               {d.scheduledDate ? ` · scheduled ${when(d.scheduledDate)}` : ''}
             </div>
           </section>
+
+          {/* Planning → On-Site gates on technician, scheduledDate and
+              siteReady.confirmedAt. POST /installations/:id/plan has set all
+              three since B3; this page only ever displayed them, so the stage
+              was a dead end. Site readiness records who AT THE CUSTOMER
+              confirmed it — the controller stamps confirmedAt itself. */}
+          {d.stage === 'planning' && can(meta, 'install.assign') && (
+            <section className="card" style={{ padding: 16 }}>
+              <div className="form-label">Plan the job</div>
+              <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+                <div>
+                  <label className="form-label" htmlFor="ij-tech">Technician name</label>
+                  <input id="ij-tech" className="form-input" value={technicianName}
+                    onChange={(e) => setTechnicianName(e.target.value)} />
+                  <div style={{ color: 'var(--coral)', fontSize: 12, marginTop: 4 }}>
+                    Recorded for reporting, but the stage gate wants a linked user
+                    account and the API exposes no way to list them — that gate
+                    stays unmet until the backend provides one.
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="ij-date">Scheduled date</label>
+                  <input id="ij-date" className="form-input" type="date" value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label" htmlFor="ij-siteby">Site readiness confirmed by (customer)</label>
+                  <input id="ij-siteby" className="form-input" value={siteReadyBy}
+                    onChange={(e) => setSiteReadyBy(e.target.value)} />
+                </div>
+                <div>
+                  <button className="neo-btn gold" disabled={planJob.isPending}
+                    onClick={() => planJob.mutate()}>
+                    {planJob.isPending ? 'Saving…' : 'Save plan'}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* ── Checklist runner ── */}
           {d.checklists.map((cl) => (

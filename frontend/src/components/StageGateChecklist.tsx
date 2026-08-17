@@ -44,12 +44,21 @@ interface Props {
   allowOverride?: boolean;
   /** invalidated on success, alongside the gate itself */
   invalidateKeys?: string[][];
+  /**
+   * Fields to set as part of the transition. The server merges these in memory
+   * BEFORE evaluating the gate (stageService.applyTransition) and persists them
+   * only if it passes, so a patch can satisfy a requirement without a separate
+   * write that would leave the field set on a transition that then failed.
+   * Only for gate fields with no dedicated endpoint of their own.
+   */
+  patch?: Record<string, unknown>;
   onClose: () => void;
   onAdvanced: () => void;
 }
 
 export function StageGateChecklist({
-  entityPath, entityName, stages, allowOverride = false, invalidateKeys = [], onClose, onAdvanced,
+  entityPath, entityName, stages, allowOverride = false, invalidateKeys = [], patch,
+  onClose, onAdvanced,
 }: Props) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +74,7 @@ export function StageGateChecklist({
     mutationFn: async (opts: { force?: boolean }) =>
       api('POST', `${entityPath}/advance`, {
         toStage: gate.data?.to,
+        ...(patch && Object.keys(patch).length ? { patch } : {}),
         ...(opts.force ? { force: true, gateOverrideNote: overrideNote } : {}),
       }),
     onSuccess: () => {
@@ -90,6 +100,11 @@ export function StageGateChecklist({
     ? mergeServerVerdict(gate.data?.requirements ?? [], serverMissing)
     : gate.data?.requirements ?? [];
   const allMet = requirements.length === 0 || requirements.every((r) => r.met);
+  /* The preview was computed before the patch existed, so it still reports the
+     patched requirement as unmet. Let the attempt through and let the server —
+     which merges the patch before judging — be the authority; a genuine failure
+     comes back as the 422 rendered below. */
+  const hasPatch = !!patch && Object.keys(patch).length > 0;
 
   return (
     <Modal title={`Advance ${entityName}`} onClose={onClose}>
@@ -118,7 +133,7 @@ export function StageGateChecklist({
           <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               className="neo-btn gold"
-              disabled={advance.isPending || (!allMet && !serverMissing)}
+              disabled={advance.isPending || (!allMet && !serverMissing && !hasPatch)}
               onClick={() => advance.mutate({})}
             >
               {advance.isPending ? 'Advancing…' : `Advance to ${stageLabel(gate.data.to)}`}

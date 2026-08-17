@@ -41,10 +41,18 @@ const leadSchema = z.object({
       'Deal value cannot be negative'),
   productPackage: z.string().trim(),
   competitor: z.string(),
+  /* Gate: requiredIf competitor=other. */
+  competitorOther: z.string().trim(),
   nextAction: z.string().trim(),
   expectedCloseDate: z.string(),   // yyyy-mm-dd or ''
   nextFollowUpDate: z.string(),
   notes: z.string(),
+  /* The Work Order's line items are built from these on handoff
+     (backend/src/services/handoffService.js itemsFrom). With none linked the
+     Work Order is created empty and Delivery's first gate — "Verify product
+     specifications and quantities against the PO", which tests items notEmpty
+     — can never pass. `productPackage` above is free text and does not count. */
+  products: z.array(z.string()),
   /* Commercial Order gate — "no PO, no PO number and no AMC answer". */
   poNumber: z.string().trim(),
   subscriptionOffered: z.string(),
@@ -105,13 +113,21 @@ export function LeadDetailPage() {
     queryFn: async () => (await api<LeadDoc>('GET', `/leads/${id}`)).data,
   });
 
+  const products = useQuery({
+    queryKey: ['products'],
+    queryFn: async () =>
+      (await api<Array<{ _id: string; name: string; sku?: string; price?: number }>>(
+        'GET', '/products?limit=200')).data,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const form = useForm<LeadForm>({
     resolver: zodResolver(leadSchema),
     defaultValues: {
       name: '', phone: '', email: '', company: '', jobTitle: '',
       companyType: '', industrySegment: '', city: '', state: '',
-      value: '', productPackage: '', competitor: '', nextAction: '',
-      expectedCloseDate: '', nextFollowUpDate: '', notes: '',
+      value: '', productPackage: '', competitor: '', competitorOther: '', nextAction: '',
+      expectedCloseDate: '', nextFollowUpDate: '', notes: '', products: [],
       poNumber: '', subscriptionOffered: '', amcOffered: '',
       lostReason: '', lostReasonDetail: '', lostTo: '', lostToName: '',
     },
@@ -134,10 +150,15 @@ export function LeadDetailPage() {
       value: String(d.value ?? 0),
       productPackage: String(d.productPackage ?? ''),
       competitor: String(d.competitor ?? ''),
+      competitorOther: String(d.competitorOther ?? ''),
       nextAction: String(d.nextAction ?? ''),
       expectedCloseDate: toDateInput(d.expectedCloseDate),
       nextFollowUpDate: toDateInput(d.nextFollowUpDate),
       notes: String(d.notes ?? ''),
+      /* GET populates products with {_id, name, sku, price}; the form and the
+         PUT both carry ids only. */
+      products: ((d.products ?? []) as Array<{ _id?: string } | string>).map((p) =>
+        typeof p === 'string' ? p : String(p._id ?? '')).filter(Boolean),
       poNumber: String(d.poNumber ?? ''),
       subscriptionOffered: String(d.subscriptionOffered ?? ''),
       amcOffered: String(d.amcOffered ?? ''),
@@ -269,6 +290,13 @@ export function LeadDetailPage() {
                 )}
               />
             </Field>
+            {/* Only meaningful when the competitor list falls through to
+                "Other" — and the Engagement gate requires it in that case. */}
+            {form.watch('competitor') === 'other' && (
+              <Field label="Competitor name">
+                <input className="form-input" {...form.register('competitorOther')} />
+              </Field>
+            )}
             <Field label="City">
               <input className="form-input" {...form.register('city')} />
             </Field>
@@ -298,6 +326,35 @@ export function LeadDetailPage() {
           </Field>
           <Field label="Notes">
             <textarea className="form-input" rows={3} {...form.register('notes')} />
+          </Field>
+
+          <Field label="Products (become the Work Order's line items)">
+            <Controller
+              control={form.control} name="products"
+              render={({ field }) => (
+                <div style={{ display: 'grid', gap: 6, maxHeight: 160, overflowY: 'auto' }}>
+                  {(products.data ?? []).length === 0 && (
+                    <span style={{ color: 'var(--text-3)', fontSize: 13 }}>
+                      No products defined — add them under Admin → Products.
+                    </span>
+                  )}
+                  {(products.data ?? []).map((p) => (
+                    <label key={p._id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={field.value.includes(p._id)}
+                        onChange={(e) => field.onChange(
+                          e.target.checked
+                            ? [...field.value, p._id]
+                            : field.value.filter((x: string) => x !== p._id),
+                        )}
+                      />
+                      <span>{p.name}{p.sku ? ` · ${p.sku}` : ''}{p.price ? ` · ₹${p.price.toLocaleString('en-IN')}` : ''}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            />
           </Field>
 
           {/* Commercial Order and Order Lost each gate on fields that had no

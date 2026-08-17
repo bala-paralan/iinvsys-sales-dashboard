@@ -15,7 +15,7 @@ import { api, ApiError } from '../../api/client';
 import { usePipeline } from '../../meta/usePipeline';
 import { Modal } from '../../components/Modal';
 
-type FieldType = 'text' | 'number' | 'date' | 'email';
+type FieldType = 'text' | 'number' | 'date' | 'email' | 'select';
 
 interface Field {
   key: string;
@@ -25,6 +25,8 @@ interface Field {
   /** Shown in the table; a field can be editable but not listed, and vice versa. */
   inTable?: boolean;
   format?: (v: unknown, row: Row) => string;
+  /** type: 'select' only — the permitted values. */
+  options?: Array<{ value: string; label: string }>;
 }
 
 interface Row { _id: string; [k: string]: unknown }
@@ -59,7 +61,20 @@ const ENTITIES: EntitySpec[] = [
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
       { key: 'sku', label: 'SKU', required: true, inTable: true },
-      { key: 'category', label: 'Category', inTable: true },
+      /* Server-side enum (backend/src/routes/products.js, and required on
+         create) — a free-text box here made every save a 422 the user could
+         not see. FOLLOW-UP: this list belongs in the /meta/pipeline payload
+         like every other enum; it is duplicated here only to avoid a backend
+         redeploy. */
+      {
+        key: 'category', label: 'Category', type: 'select', required: true, inTable: true,
+        options: [
+          { value: 'hardware', label: 'Hardware' },
+          { value: 'software', label: 'Software' },
+          { value: 'service', label: 'Service' },
+          { value: 'bundle', label: 'Bundle' },
+        ],
+      },
       { key: 'price', label: 'Price (₹)', type: 'number', required: true, inTable: true, format: money },
       { key: 'description', label: 'Description' },
     ],
@@ -212,6 +227,10 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
           spec={spec}
           row={editing === 'new' ? null : editing}
           pending={save.isPending}
+          /* The save error has to render INSIDE the dialog: the banner at the
+             top of this section sits behind the modal overlay, so a rejected
+             save looked like a dead Save button. */
+          error={error}
           onCancel={() => { setEditing(null); setError(null); }}
           onSubmit={(body) => save.mutate({ id: editing === 'new' ? null : editing._id, body })}
         />
@@ -221,11 +240,12 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
 }
 
 function EntityForm({
-  spec, row, pending, onCancel, onSubmit,
+  spec, row, pending, error, onCancel, onSubmit,
 }: {
   spec: EntitySpec;
   row: Row | null;
   pending: boolean;
+  error: string | null;
   onCancel: () => void;
   onSubmit: (body: Record<string, unknown>) => void;
 }) {
@@ -249,9 +269,15 @@ function EntityForm({
   }
 
   return (
-    <Modal title={`${row ? 'Edit' : 'New'} ${spec.title}`} onClose={onCancel}>
+    <Modal title={`${row ? 'Edit' : 'New'} ${spec.title.replace(/s$/, '')}`} onClose={onCancel}>
       <form onSubmit={submit}>
         <div className="gate-title">{row ? 'Edit' : 'New'} {spec.title.replace(/s$/, '')}</div>
+
+        {error && (
+          <div className="offline-banner" style={{ borderColor: 'var(--coral)', marginTop: 10 }}>
+            {error}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
           {spec.fields.map((f) => (
@@ -259,14 +285,29 @@ function EntityForm({
               <label className="form-label" htmlFor={`f-${f.key}`}>
                 {f.label}{f.required && <span style={{ color: 'var(--coral)' }}> *</span>}
               </label>
-              <input
-                id={`f-${f.key}`}
-                className="form-input"
-                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
-                required={f.required}
-                value={values[f.key] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-              />
+              {f.type === 'select' ? (
+                <select
+                  id={`f-${f.key}`}
+                  className="form-input"
+                  required={f.required}
+                  value={values[f.key] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                >
+                  <option value="">— Select —</option>
+                  {(f.options ?? []).map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id={`f-${f.key}`}
+                  className="form-input"
+                  type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
+                  required={f.required}
+                  value={values[f.key] ?? ''}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                />
+              )}
             </div>
           ))}
         </div>
