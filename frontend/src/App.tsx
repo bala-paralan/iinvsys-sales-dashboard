@@ -49,6 +49,18 @@ function Shell() {
         {['manager', 'superadmin'].includes(meta?.me.role ?? '') && (
           <NavLink to="/settings" end>Settings</NavLink>
         )}
+        {/* The user manual. Deliberately ungated: it documents what every role
+            can and cannot do, and the role that most needs that is the one with
+            the fewest permissions. It is a static page under the app's base
+            path, so the href is built from BASE_URL rather than hardcoded —
+            the deployed base is '/' after cutover and '/v2/' before it. */}
+        <a
+          href={`${import.meta.env.BASE_URL}manual/index.html`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Manual ↗
+        </a>
         <div className="spacer" />
         {can(meta, 'notification.read') && (
           <div style={{ padding: '0 0 10px' }}>

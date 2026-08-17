@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IINVSYS Sales OS v2 — User Manual</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #16181d; --muted: #5b6270; --line: #e3e6ec;
+    --card: #f7f8fa; --accent: #a37400; --warn: #a35b00; --bad: #b4231d; --good: #0f7a4a;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d0f13; --fg: #e8eaee; --muted: #9aa3b2; --line: #262b34;
+      --card: #14171d; --accent: #f2c230; --warn: #f0a23c; --bad: #ff6b60; --good: #35d69a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d0f13; --fg: #e8eaee; --muted: #9aa3b2; --line: #262b34;
+    --card: #14171d; --accent: #f2c230; --warn: #f0a23c; --bad: #ff6b60; --good: #35d69a;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --fg: #16181d; --muted: #5b6270; --line: #e3e6ec;
+    --card: #f7f8fa; --accent: #a37400; --warn: #a35b00; --bad: #b4231d; --good: #0f7a4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 48px; max-width: 1400px; margin: 0 auto; padding: 0 28px; }
+  nav.toc { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 32px 0 48px; font-size: 14px; }
+  nav.toc h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+  nav.toc a.backlink { color: var(--accent); font-weight: 600; padding-bottom: 10px; }
+  nav.toc a { display: block; color: var(--fg); text-decoration: none; padding: 3px 0; opacity: .82; }
+  nav.toc a:hover { opacity: 1; text-decoration: underline; }
+  main { padding: 40px 0 120px; max-width: 900px; }
+  h1 { font-size: 34px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 25px; margin: 64px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+  h3 { font-size: 19px; margin: 36px 0 6px; }
+  h4 { font-size: 16px; margin: 24px 0 4px; }
+  p, li { color: var(--fg); }
+  .lede { color: var(--muted); font-size: 18px; }
+  code, kbd { font-family: var(--mono); font-size: .88em; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 13px; }
+  figure { margin: 22px 0 30px; }
+  figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 6px; background: #000; }
+  figcaption { color: var(--muted); font-size: 13.5px; margin-top: 8px; }
+  figcaption b { color: var(--fg); font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid2 figure { margin: 0 0 10px; }
+  .tablewrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--card); font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  .note, .warnbox { border-left: 3px solid var(--accent); background: var(--card); padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 18px 0; }
+  .warnbox { border-left-color: var(--bad); }
+  .tag { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); }
+  .sev-critical { color: var(--bad); border-color: var(--bad); }
+  .sev-warn { color: var(--warn); border-color: var(--warn); }
+  .sev-info { color: var(--muted); }
+  ul.tight li { margin: 2px 0; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  @media (max-width: 940px) {
+    .wrap { grid-template-columns: 1fr; gap: 0; padding: 0 18px; }
+    nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+  @media print {
+    nav.toc { display: none; }
+    .wrap { display: block; }
+    h2 { page-break-before: always; }
+    figure { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <a class="backlink" href="../">← Back to IINVSYS</a>
+  <h2>IINVSYS v2</h2>
+  <a href="#about">About this manual</a>
+  <a href="#signin">1. Signing in</a>
+  <a href="#invite">2. Referrer invitations</a>
+  <a href="#navigation">3. Getting around</a>
+  <h2>Process 1 — Sales</h2>
+  <a href="#leads-board">4. The lead pipeline</a>
+  <a href="#new-lead">5. Creating a lead</a>
+  <a href="#lead-detail">6. Working a lead</a>
+  <a href="#spenco">7. SPENCO qualification</a>
+  <a href="#lead-docs">8. Documents</a>
+  <a href="#gates">9. Advancing a stage</a>
+  <a href="#history">10. Stage history</a>
+  <a href="#hygiene">11. Review queue</a>
+  <h2>Process 2 — Delivery</h2>
+  <a href="#delivery-board">12. The delivery board</a>
+  <a href="#workorder">13. Working an order</a>
+  <a href="#da-gate">14. Marking delivered</a>
+  <h2>Process 3 — Installation</h2>
+  <a href="#install-board">15. The installation board</a>
+  <a href="#job">16. Running a job</a>
+  <a href="#csat">17. Feedback and closure</a>
+  <h2>Across the system</h2>
+  <a href="#alerts">18. Alerts</a>
+  <a href="#dashboard">19. Dashboard &amp; export</a>
+  <a href="#admin">20. Admin</a>
+  <a href="#settings">21. Settings</a>
+  <h2>Reference</h2>
+  <a href="#errors">A. Messages &amp; errors</a>
+  <a href="#gatelist">B. Every stage gate</a>
+  <a href="#roles">C. Roles &amp; permissions</a>
+  <a href="#dialogs">D. Confirmations</a>
+  <a href="#limits">E. Known limitations</a>
+</nav>
+
+<main>
+
+<p class="kicker">IINVSYS Sales OS v2 · Sales → Delivery → Installation &amp; Customer Service</p>
+<h1>User Manual</h1>
+<p class="lede">Everything the application does, screen by screen — including the pop-ups it opens,
+the alerts it raises, and every message it shows you when something is wrong.</p>
+
+<h2 id="about">About this manual</h2>
+
+<p>IINVSYS runs three linked processes in one system. A lead becomes a sale; a sale becomes a
+Work Order; a delivered Work Order becomes an Installation Job. You never create the downstream
+records by hand — the system creates them at the handoff points, and this manual shows where.</p>
+
+<p>Two ideas explain almost every screen:</p>
+
+<ul>
+  <li><b>Gates block, flags don't.</b> A <i>stage gate</i> is a list of conditions that must be true
+  before a record moves forward; the server enforces it and refuses the move if they are not met.
+  A <i>hygiene flag</i> is a data-quality warning — it never stops you working, it just puts the
+  record on the review queue.</li>
+  <li><b>You only see what you may do.</b> Buttons, menu entries and whole pages appear according to
+  the permissions attached to your role. If a control described here is missing for you, your role
+  does not hold that permission (see <a href="#roles">Appendix C</a>).</li>
+</ul>
+
+<p>Screenshots were taken against a working system with live data. Names, PO numbers and figures
+in the images are demonstration data.</p>
+
+<p>The manual is always one click away: <b>Manual ↗</b> at the foot of the sidebar, in every role.</p>
+
+<h2 id="signin">1. Signing in</h2>
+
+<p>Open the application URL and sign in with your email address and password. On success you land on
+the <b>Leads</b> board.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/01-login.png" alt="Sign-in screen with email and password fields">
+  <figcaption><b>Figure 1.1</b> — The sign-in screen. Both fields are required; the browser will not
+  submit an empty form.</figcaption>
+</figure>
+
+<h3>When sign-in fails</h3>
+
+<p>The banner tells you <i>which</i> thing went wrong, and each case needs a different response.</p>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/02-login-invalid-credentials.png" alt="Invalid credentials banner">
+    <figcaption><b>Figure 1.2</b> — <code>⚠ Invalid credentials. Try again.</code> The email or the
+    password is wrong. Nothing is locked yet.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/03-login-server-unreachable.png" alt="Cannot reach the server banner">
+    <figcaption><b>Figure 1.3</b> — <code>⚠ Cannot reach the server. Is the API running?</code>
+    Your credentials were never tested — the request never arrived. Check the network, then tell IT.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/04-login-rate-limited.png" alt="Too many failed attempts banner">
+  <figcaption><b>Figure 1.4</b> — <code>⚠ Too many failed attempts for this account. Try again in
+  15 minutes.</code> Five failed attempts against the same address, from the same location, stop
+  further tries for fifteen minutes. Successful sign-ins never count towards this, and the limit is
+  per account — a colleague mistyping their password cannot lock you out.</figcaption>
+</figure>
+
+<p>Two more banners can appear here: <code>⚠ The server returned an error. Try again shortly.</code>
+(the system is up but faulted — report it) and <code>⚠ Sign-in failed.</code> (an unexpected
+condition).</p>
+
+<h3>Sessions and signing out</h3>
+
+<p>Your session lives in the browser tab. Closing the tab ends it; reloading the page keeps it. Use
+<b>⏻ Logout</b> at the foot of the sidebar to end it deliberately — this also clears the data cached
+in the browser, so the next person to sign in on that machine sees nothing of yours.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/77-session-expired.png" alt="Returned to the sign-in screen after session expiry">
+  <figcaption><b>Figure 1.5</b> — If your session expires or is revoked while you are working, the
+  next action returns you here rather than failing silently. Sign in again and continue; nothing you
+  had already saved is lost.</figcaption>
+</figure>
+
+<h2 id="invite">2. Referrer invitations</h2>
+
+<p>Expo referrers do not get a password from anyone. A manager invites them, and the invitation link
+lets the referrer choose a password that nobody else — including the manager who sent it — ever
+knows. The link works <b>once</b> and expires.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/05-invite-set-password.png" alt="Invite redemption screen">
+  <figcaption><b>Figure 2.1</b> — Opening an invitation link. The screen greets the invitee by name
+  and states the expiry at the bottom.</figcaption>
+</figure>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/06-invite-password-too-short.png" alt="Password too short">
+    <figcaption><b>Figure 2.2</b> — <code>Use at least 8 characters</code>.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/07-invite-passwords-differ.png" alt="Passwords do not match">
+    <figcaption><b>Figure 2.3</b> — <code>The two passwords do not match</code>. The confirmation
+    field exists because a typo in a password nobody else knows cannot be recovered.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/08-invite-unusable.png" alt="Invitation unusable screen">
+  <figcaption><b>Figure 2.4</b> — An expired, already-used or unknown link gives one message for all
+  three cases: <i>“This link is invalid, has expired, or has already been used.”</i> Ask whoever
+  invited you to send a new one — re-issuing an invitation kills the previous link.</figcaption>
+</figure>
+
+<h2 id="navigation">3. Getting around</h2>
+
+<p>The sidebar is the whole navigation. It shows only the areas your role can open, along with your
+name, your role, the alert bell and the logout button.</p>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/11-sidebar.png" alt="Sidebar as an administrator">
+    <figcaption><b>Figure 3.1</b> — Superadmin: every area, including Admin and Settings.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/71-agent-sidebar.png" alt="Sidebar as a sales agent">
+    <figcaption><b>Figure 3.2</b> — Sales agent: Dashboard, Leads, Review queue, Delivery,
+    Installation and Alerts — no Admin, no Settings.</figcaption>
+  </figure>
+</div>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/73-manager-sidebar.png" alt="Sidebar as a manager">
+    <figcaption><b>Figure 3.3</b> — Manager: everything an agent sees, plus Admin and Settings
+    (Settings is read-only for managers — see §21).</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/76-readonly-sidebar.png" alt="Sidebar for a read-only user">
+    <figcaption><b>Figure 3.4</b> — A read-only account holds no permissions at all, so only Leads
+    remains.</figcaption>
+  </figure>
+</div>
+
+<h3>The same screen, seen by different roles</h3>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/70-agent-leads.png" alt="Lead board as a sales agent">
+    <figcaption><b>Figure 3.5</b> — A sales agent's board. Agents are scoped to their own book, so
+    they see the leads assigned to them rather than the whole pipeline, and they can create, edit and
+    advance those leads.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/75-readonly-leads.png" alt="Lead board as a read-only user">
+    <figcaption><b>Figure 3.6</b> — The same board for a read-only account: no <b>+ New Lead</b>
+    button, and nothing on the page can be changed.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/72-agent-dashboard.png" alt="Dashboard as a sales agent">
+  <figcaption><b>Figure 3.7</b> — An agent's dashboard. The process switch only offers the processes
+  their role may read, and the hygiene counters appear because they hold <code>lead.read</code>.</figcaption>
+</figure>
+
+<div class="note">
+  <b>Why a page might be missing.</b> Menu entries are driven by permissions, not by job titles.
+  “Delivery” appears for anyone with <code>workorder.read</code>, “Alerts” for anyone with
+  <code>notification.read</code>, and so on. Appendix C lists exactly what each role holds.
+</div>
+
+<h2 id="leads-board">4. The lead pipeline</h2>
+
+<p><b>Leads</b> shows every open lead as a card in its stage column. Column names, colours and order
+come from the server, so they always match the current process definition.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/10-leads-board.png" alt="Lead pipeline kanban board">
+  <figcaption><b>Figure 4.1</b> — The board. Each column header carries a count. A card shows the
+  contact, the company, the deal value, and — in red — the number of hygiene issues on that record.
+  Scroll the board sideways to reach the closed columns.</figcaption>
+</figure>
+
+<ul class="tight">
+  <li><b>Click a card</b> to open the stage-gate drawer for that lead (§9).</li>
+  <li><b>Click “Details”</b> on the card to open the full lead record (§6).</li>
+  <li>There is deliberately <b>no drag-and-drop</b> between columns: a stage change must go through
+  its gate, so it happens in the drawer.</li>
+</ul>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/27-leads-offline-fallback.png" alt="Board in degraded mode with two error banners">
+  <figcaption><b>Figure 4.2</b> — Degraded mode. If the server cannot be reached, the board still
+  draws its columns but says so: <i>“Pipeline metadata is unavailable — showing the offline board
+  skeleton. Stage gates and dropdowns need the server.”</i> and <i>“Could not load leads: Cannot
+  reach the server. Is the API running?”</i>. Do not treat an empty board in this state as an empty
+  pipeline.</figcaption>
+</figure>
+
+<h2 id="new-lead">5. Creating a lead</h2>
+
+<p><b>+ New Lead</b> opens a dialog. It appears for anyone holding <code>lead.write</code>.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/12-new-lead-modal.png" alt="New Lead dialog, empty">
+  <figcaption><b>Figure 5.1</b> — The New Lead dialog. Three fields are mandatory and marked with a
+  red asterisk: <b>Contact name</b>, <b>Phone</b> and <b>Source</b>. Until all three are filled, the
+  gold <b>Create lead</b> button stays disabled.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/13-new-lead-filled.png" alt="New Lead dialog with the required fields filled">
+  <figcaption><b>Figure 5.2</b> — With the required three completed, <b>Create lead</b> becomes
+  active. Everything else — company, email, company type, city, state, deal value, notes — is
+  optional here and can be filled later on the lead record. Fields left blank are not sent at all.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/13b-new-lead-error.png" alt="Error banner inside the New Lead dialog">
+  <figcaption><b>Figure 5.3</b> — If the server rejects the record or cannot be reached, the reason
+  appears <i>inside</i> the dialog and your typing is preserved. Fix the cause and press <b>Create
+  lead</b> again, or <b>Cancel</b> to discard.</figcaption>
+</figure>
+
+<div class="note">
+  <b>Closing a dialog.</b> Every dialog in the application closes with <kbd>Esc</kbd>, with its own
+  Cancel/Close button, or by clicking the dimmed area outside it. Keyboard focus is held inside the
+  dialog while it is open and returned to where you were when it closes.
+</div>
+
+<h2 id="lead-detail">6. Working a lead</h2>
+
+<p>The lead record is one screen: the edit form on the left, the stage history on the right, then
+documents and SPENCO scoring below.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/14-lead-detail.png" alt="Lead detail page">
+  <figcaption><b>Figure 6.1</b> — A worked lead. The sub-heading under the name shows the current
+  stage, the opportunity name and the zone (zone is derived from the state you enter). <b>Save</b>
+  writes your edits; <b>Advance stage →</b> opens the gate drawer. There is no stage field on the
+  form — stage changes only ever happen through the gate.</figcaption>
+</figure>
+
+<h3>What is validated when you save</h3>
+
+<p>Saving rejects values that are <i>wrong</i>, never values that are merely <i>missing</i>. A blank
+field flags the record for review; a malformed one is refused.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/15-lead-validation-errors.png" alt="Validation errors on the lead form">
+  <figcaption><b>Figure 6.2</b> — A rejected save. The banner at the top of the form names the
+  fields at fault (<i>“Not saved — check phone.”</i>) and the field itself carries the reason
+  (<i>“A 10-digit Indian mobile (A7)”</i>). Nothing was written.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Field</th><th>Rule</th><th>Message</th></tr></thead>
+  <tbody>
+    <tr><td>Contact name</td><td>must not be empty</td><td>Name is required</td></tr>
+    <tr><td>Phone</td><td>10-digit Indian mobile, starting 6–9</td><td>A 10-digit Indian mobile (A7)</td></tr>
+    <tr><td>Email</td><td>a valid address, or blank</td><td>Not a valid email</td></tr>
+    <tr><td>Deal value</td><td>zero or more</td><td>Deal value cannot be negative</td></tr>
+  </tbody>
+</table>
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/16-lead-saved.png" alt="Saved confirmation next to the Save button">
+  <figcaption><b>Figure 6.3</b> — A successful save shows a green <b>Saved.</b> next to the button
+  for a couple of seconds. If the server refuses the write, its message appears in red in the same
+  place.</figcaption>
+</figure>
+
+<h3>Fields that exist for a reason</h3>
+
+<ul class="tight">
+  <li><b>Designation</b> — the exact job title, not “manager”. Required to leave Suspect.</li>
+  <li><b>State</b> — the zone is derived from it; an unrecognised state raises a “Zone underivable” flag.</li>
+  <li><b>Competitor</b> — required from Engagement onward; choose <i>None Known</i> if that is the
+  truth. Choosing <i>Other (specify)</i> reveals a <b>Competitor name</b> box, which the gate also requires.</li>
+  <li><b>Next action</b> — a specific action with an owner and a date, not “follow up”.</li>
+  <li><b>Products</b> — these become the Work Order's line items at handoff. A sale closed with no
+  products produces an empty Work Order, and Delivery's first gate cannot then be passed.</li>
+  <li><b>Commercial order</b> (PO number, Subscription offered, AMC offered) — the Commercial Order
+  gate reads these. AMC is mandatory for industrial company types.</li>
+  <li><b>If lost</b> (lost reason, lost to, name, detail) — the Order Lost gate reads these.</li>
+</ul>
+
+<h3>Hygiene flags on a record</h3>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/20-lead-needs-review.png" alt="Lead with a needs-review banner">
+  <figcaption><b>Figure 6.4</b> — A flagged lead opens with a red banner listing every issue found —
+  for example <i>“⚠ Needs review: designation_missing, email_missing, next_action_missing…”</i>.
+  These never block you from saving or from working the deal; they are the reason the record appears
+  in the review queue (§11), and most of them are also stage-gate requirements you will have to meet
+  anyway.</figcaption>
+</figure>
+
+<h2 id="spenco">7. SPENCO qualification</h2>
+
+<p>SPENCO is scored at Prospect and gates the move to Engagement. Score each of the six dimensions
+from 0 to 5. The panel adds them up as you go; the server recalculates and stores the verdict when
+you save.</p>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/18-spenco-below-threshold.png" alt="SPENCO panel below the threshold">
+    <figcaption><b>Figure 7.1</b> — Below the bar. The summary turns red and names the failing
+    floors, e.g. <i>“Below the floor on Evidence of Need (min 3), Size (min 2)”</i>.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/17-spenco-qualified.png" alt="SPENCO panel qualifying">
+    <figcaption><b>Figure 7.2</b> — Qualified. The summary turns green: <i>“Qualifies for
+    Engagement.”</i></figcaption>
+  </figure>
+</div>
+
+<p>Two conditions must both hold: the <b>total</b> must reach the minimum (18 out of 30 by default)
+<i>and</i> every per-dimension floor must be cleared (Evidence of Need ≥ 3, Size ≥ 2 by default).
+Both are configurable in Settings, and the panel re-renders with the new rule immediately.</p>
+
+<p>Press <b>Save scoring</b> to store the scores; a green <b>Saved.</b> confirms. The running total
+shown before saving is a preview of the server's arithmetic, not an input.</p>
+
+<h2 id="lead-docs">8. Documents</h2>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/19-lead-documents.png" alt="Documents panel on a lead">
+  <figcaption><b>Figure 8.1</b> — The document vault on a lead. Choose a document type, choose a
+  file, then <b>Upload</b>; the button stays disabled until both are set. Attached files are listed
+  with their type, name and size, and <i>“Document attached.”</i> confirms an upload.</figcaption>
+</figure>
+
+<p>Documents are not decoration — two sales gates read this list. Negotiation requires a
+<b>proposal</b> or <b>quotation</b> on file; Commercial Order requires the customer's <b>purchase
+order</b>. Until then the panel says <i>“Nothing on file yet — the proposal/quotation gate reads this
+list.”</i></p>
+
+<p>Accepted file types are PDF, JPEG, PNG, WebP, HEIC, XLSX, DOCX, CSV and plain text, up to 15 MB.
+A file whose contents do not match its claimed type is refused — the message appears in the banner
+above the list.</p>
+
+<h2 id="gates">9. Advancing a stage</h2>
+
+<p>Clicking a card on the board — or <b>Advance stage →</b> on the record — opens the gate drawer on
+the right. It names the move it is about to make and lists every requirement with
+<code>[x]</code> for met and <code>[ ]</code> for unmet. The list comes from the server, which is the
+same authority that will judge the attempt.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/21-gate-requirements-unmet.png" alt="Gate drawer with unmet requirements">
+  <figcaption><b>Figure 9.1</b> — A gate that is not satisfied. Every unmet row is a specific thing
+  to go and do. The <b>Advance</b> button is disabled while requirements are outstanding.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/24-gate-requirements-met.png" alt="Gate drawer with all requirements met">
+  <figcaption><b>Figure 9.2</b> — All requirements met. <b>Advance to …</b> is now active; pressing
+  it moves the record and closes the drawer. The board and the review queue refresh
+  themselves.</figcaption>
+</figure>
+
+<h3>Overriding a sales gate</h3>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/22-gate-override-note.png" alt="Override note field in the gate drawer">
+  <figcaption><b>Figure 9.3</b> — Only users holding <code>lead.gate_override</code> (managers,
+  sales directors, superadmins) see the override path, and only while requirements are unmet. A note
+  is compulsory — <b>Force with override</b> stays disabled until you have typed one. Delivery and
+  Installation gates have <b>no</b> override at all.</figcaption>
+</figure>
+
+<div class="warnbox">
+  <b>An override is permanent and attributed.</b> The transition is recorded with your name, the note
+  you typed, and the list of requirements that were waived. It shows in red on the record's history
+  and in the audit log.
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/24b-gate-closed-stage.png" alt="Gate drawer on a closed stage">
+  <figcaption><b>Figure 9.4</b> — Closed stages. Commercial Order and Order Lost are terminal: the
+  drawer says <i>“Commercial Order is a closed stage”</i> and offers nothing. A lost deal can be
+  re-engaged; a won deal cannot be reopened, because a Work Order already exists downstream.</figcaption>
+</figure>
+
+<div class="note">
+  <b>If the server refuses after you press Advance</b> — because someone else changed the record, or
+  a rule changed while the drawer was open — the drawer shows the server's own list of failures in
+  red and the record is left untouched. Nothing partial is ever written.
+</div>
+
+<h2 id="history">10. Stage history</h2>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/23-stage-history.png" alt="Stage history timeline">
+  <figcaption><b>Figure 10.1</b> — Every transition, newest first: the move, the timestamp, who did
+  it, and whether it went forward or backward. Green means the gate was satisfied. Red marks an
+  override and states how many requirements were waived, with the note underneath.</figcaption>
+</figure>
+
+<h2 id="hygiene">11. Review queue</h2>
+
+<p><b>Review queue</b> is the manager's worklist of records with data-quality problems. The buttons
+across the top are the issue types, each with a count; clicking one filters the list to that issue,
+and clicking it again clears the filter.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/25-review-queue.png" alt="Review queue">
+  <figcaption><b>Figure 11.1</b> — The queue. Each row names the lead, its company, stage and owner,
+  and lists its issues. Click a row to open the lead and fix it.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/26-review-queue-filtered.png" alt="Review queue filtered by one issue">
+  <figcaption><b>Figure 11.2</b> — Filtered to a single issue type. This is how the queue is meant to
+  be worked: one issue across many records, not one record at a time. When nothing is outstanding the
+  page reads <i>“Nothing needs review. Clean book.”</i></figcaption>
+</figure>
+
+<h3>What the flags mean</h3>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Flag</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>No company type</td><td>Company Type is empty — it drives segmentation and the AMC rule.</td></tr>
+    <tr><td>No industry segment</td><td>Industry is empty on a B2B contact.</td></tr>
+    <tr><td>No email (B2B)</td><td>A business contact with no email address.</td></tr>
+    <tr><td>No designation</td><td>The exact job title is missing.</td></tr>
+    <tr><td>No state / Zone underivable</td><td>State is blank, or is not one the zone map recognises.</td></tr>
+    <tr><td>Phone not a 10-digit mobile</td><td>The number does not match the Indian mobile format.</td></tr>
+    <tr><td>No expected close date / Close date in the past</td><td>The forecast date is missing or stale.</td></tr>
+    <tr><td>No follow-up date / Follow-up date passed</td><td>An open deal with no future follow-up.</td></tr>
+    <tr><td>Follow-up &gt;14d out, no reason</td><td>A distant follow-up with nothing recorded to justify it.</td></tr>
+    <tr><td>No next action</td><td>Nothing specific is planned on the deal.</td></tr>
+    <tr><td>Inactive 30+ days</td><td>No activity for the configured inactivity window.</td></tr>
+    <tr><td>Too long at stage</td><td>The deal has exceeded the maximum days for its stage.</td></tr>
+    <tr><td>No note this week</td><td>Deals at Engagement and above need a note every week.</td></tr>
+    <tr><td>Probability override unexplained</td><td>Probability was moved away from the stage default without a reason.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="delivery-board">12. The delivery board</h2>
+
+<p>A Work Order is created automatically the moment a lead reaches <b>Commercial Order</b>. Nobody
+creates one by hand.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/30-delivery-board.png" alt="Delivery work order board">
+  <figcaption><b>Figure 12.1</b> — The delivery board, five stages from Order Review to Delivery &amp;
+  Handover. Each card carries the WO number, the customer, the PO value, a coloured status dot, and
+  the committed delivery date — or <i>“NO DATE COMMITTED”</i> / <i>“awaiting acceptance”</i> when
+  there isn't one. A card with a late delay notice on record is marked <i>“⚠ late delay notice on
+  record”</i>.</figcaption>
+</figure>
+
+<h2 id="workorder">13. Working an order</h2>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/31-workorder-new.png" alt="A newly created work order">
+  <figcaption><b>Figure 13.1</b> — A new Work Order. The customer block is a snapshot frozen at PO
+  verification — editing the lead afterwards does not change it. Items come from the products linked
+  to the lead.</figcaption>
+</figure>
+
+<p>The action panels appear only when they apply, in the order the process runs:</p>
+
+<ol>
+  <li><b>Accept Work Order</b> — the Delivery Manager takes ownership. Until this is done the order
+  is flagged as unaccepted by the SLA sweep.</li>
+  <li><b>Commit date</b> — pick the target delivery date and record how the customer acknowledged it.
+  This must happen within one business day of acceptance.</li>
+  <li><b>Record delay</b> — appears once a date is committed. A reason code and a revised date are
+  both compulsory.</li>
+  <li><b>Document vault</b> — packing list, delivery note, tax invoice, the signed delivery
+  acknowledgement and its photo evidence.</li>
+  <li><b>Progression</b> — <b>Advance stage →</b>, <b>Dispatch</b> (carrier or vehicle required) and
+  <b>Mark delivered (DA gate)</b>.</li>
+</ol>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/34-workorder-delay-log.png" alt="Work order with a delay recorded">
+  <figcaption><b>Figure 13.2</b> — A recorded delay. The delivery date line keeps the original date
+  in amber next to the current one, and each delay event is listed with its reason code and how many
+  hours of notice the customer got. Less than 48 hours' notice is marked <code>⚠ LATE</code> in red
+  and cannot be removed.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/33-workorder-gate-blocked.png" alt="Delivery gate drawer with unmet requirements">
+  <figcaption><b>Figure 13.3</b> — Delivery gates work exactly like sales gates, but with no override.
+  Here the order cannot leave Order Review until it has been accepted, a date has been committed and
+  acknowledged, and the items have been verified against the PO.</figcaption>
+</figure>
+
+<p>Two gate requirements are satisfied from this screen rather than by a separate save, and only
+if the move succeeds: the <b>stock confirmation</b> tick box (shown at Procurement) and the
+<b>packing checklist sign-off</b> name (shown at Preparation &amp; Packing).</p>
+
+<h2 id="da-gate">14. Marking delivered</h2>
+
+<p><b>Mark delivered (DA gate)</b> closes the delivery. It is the one action with its own gate,
+separate from the stage gates.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/32-workorder-da-gate-failed.png" alt="DA gate failure list">
+  <figcaption><b>Figure 14.1</b> — A refused delivery: <i>“Cannot mark delivered — 3 requirement(s)
+  not met”</i>, followed by exactly which three. Upload the signed Delivery Acknowledgement and the
+  photo evidence, enter the number of items delivered, and try again.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/35-workorder-delivered.png" alt="A delivered work order">
+  <figcaption><b>Figure 14.2</b> — A delivered order. Marking it delivered is the second handoff:
+  the system creates the Installation Job from it automatically.</figcaption>
+</figure>
+
+<h2 id="install-board">15. The installation board</h2>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/40-installation-board.png" alt="Installation job board">
+  <figcaption><b>Figure 15.1</b> — Six stages from Installation Planning to Customer Feedback. Cards
+  show the job number, the customer, the technician (or <i>“unassigned”</i>), the status, the CSAT
+  score once collected, and warnings for blocking snags or an overdue corrective-action
+  plan.</figcaption>
+</figure>
+
+<h2 id="job">16. Running a job</h2>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/41-job-onsite.png" alt="Installation job detail page">
+  <figcaption><b>Figure 16.1</b> — A job in progress. Everything for the job is on one page:
+  planning, the checklists, snags, commissioning, handover and support, feedback and closure, and
+  documents. <b>Advance stage →</b> sits at the top right.</figcaption>
+</figure>
+
+<h3>Planning</h3>
+<p>At the Planning stage a <b>Plan the job</b> panel appears for users holding
+<code>install.assign</code>: technician name, scheduled date, and the name of the person at the
+customer who confirmed site readiness. Save it before advancing.</p>
+
+<h3>Checklists</h3>
+<figure>
+  <img loading="lazy" decoding="async" src="images/42-job-checklist.png" alt="Installation checklist">
+  <figcaption><b>Figure 16.2</b> — Each stage has its own checklist, instantiated when the job was
+  created. Ticking an item saves it immediately. <b>Sign checklist</b> asks for the technician's name
+  in a small browser prompt, and the signature then appears in green as <i>“✓ signed by …”</i>. A job
+  that ran under an older checklist keeps the items its technician actually ticked.</figcaption>
+</figure>
+
+<h3>Snags</h3>
+<figure>
+  <img loading="lazy" decoding="async" src="images/43-job-snags.png" alt="Snag list">
+  <figcaption><b>Figure 16.3</b> — Snags are recorded with a severity and a description. <b>Major</b>
+  and <b>blocker</b> snags are shown in red and stop commissioning until they are closed; minor ones
+  are amber and do not block. Use <b>close</b> on a row when it is resolved.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/45-job-gate-blocked-by-snag.png" alt="Installation gate blocked">
+  <figcaption><b>Figure 16.4</b> — The Commissioning gate refusing to open: the on-site checklist is
+  incomplete, unsigned, and there is an open blocking snag. As with delivery, there is no override —
+  the only way forward is to do the work.</figcaption>
+</figure>
+
+<h3>Commissioning</h3>
+<figure>
+  <img loading="lazy" decoding="async" src="images/44-job-commissioning.png" alt="Commissioning panel with dual signature">
+  <figcaption><b>Figure 16.5</b> — Commissioning needs <b>both</b> signatures. <b>Pass + technician
+  sign</b> records the test result and the technician's signature; typing the customer
+  representative's name and pressing <b>Countersign</b> records theirs. <b>Record failure</b> logs a
+  failed test and increments the retest count.</figcaption>
+</figure>
+
+<h3>Handover and the support window</h3>
+<p>Record the trained attendees (comma separated) and press <b>Record handover</b>. That starts the
+support window: a proactive check-in falls due seven days later, and support issues logged here carry
+a 48-hour resolution SLA. A breached issue is shown in red as <code>[open · SLA BREACH]</code>.</p>
+
+<h2 id="csat">17. Feedback and closure</h2>
+
+<p>A job cannot close without customer feedback. Record the CSAT score (0–5) and any comments.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/46-job-low-csat.png" alt="Job with a low CSAT and a corrective action requirement">
+  <figcaption><b>Figure 17.1</b> — A job with CSAT below 3.0. A red banner states the consequence:
+  <i>“⚠ CSAT 2.5 — a corrective action plan is due by 24/8/2026. This job cannot close without
+  it.”</i> A <b>corrective action plan</b> box appears; type the plan and press <b>Document
+  plan</b>.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/47-job-close-refused.png" alt="Close job refused">
+  <figcaption><b>Figure 17.2</b> — Pressing <b>Close job</b> without that plan is refused:
+  <i>“Cannot close — 1 requirement(s) not met”</i> with the requirement spelled out underneath. The
+  same rule is enforced by an alert that escalates when the plan becomes overdue.</figcaption>
+</figure>
+
+<h2 id="alerts">18. Alerts</h2>
+
+<p>Alerts are raised by the system, not by people. They are addressed by permission, so you see the
+ones you are able to act on.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/50-notifications.png" alt="Notifications page">
+  <figcaption><b>Figure 18.1</b> — The notification centre. Each row carries a severity
+  (<span class="tag sev-critical">critical</span> <span class="tag sev-warn">warning</span>
+  <span class="tag sev-info">info</span>), a title, the detail, the event name and the time. Click a
+  row to open the record it concerns — that also marks it read.</figcaption>
+</figure>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/51-notifications-unread.png" alt="Unread filter">
+    <figcaption><b>Figure 18.2</b> — <b>Unread</b> filters to what you have not dealt with; the count
+    is in the button. <b>Mark all read</b> clears the lot. Read alerts fade but are never deleted.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/52-notification-bell.png" alt="Notification bell dropdown">
+    <figcaption><b>Figure 18.3</b> — The bell in the sidebar shows the unread count and refreshes
+    every 30 seconds. Clicking it drops down the fifteen most recent alerts.</figcaption>
+  </figure>
+</div>
+
+<h3>What the system will tell you about</h3>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Event</th><th>Severity</th><th>Raised when</th></tr></thead>
+  <tbody>
+    <tr><td><code>handoff.workorder_created</code></td><td>critical</td><td>A sale reached Commercial Order and a Work Order now awaits acceptance.</td></tr>
+    <tr><td><code>handoff.installation_created</code></td><td>critical</td><td>A delivery was completed and an Installation Job was created.</td></tr>
+    <tr><td><code>delivery.date_unconfirmed</code></td><td>critical</td><td>A Work Order is unaccepted past the 1-business-day SLA, or accepted with no committed date.</td></tr>
+    <tr><td><code>delivery.delay_logged</code></td><td>warning</td><td>A delivery date was revised.</td></tr>
+    <tr><td><code>lead.inactive</code></td><td>critical</td><td>An open lead has had no activity for the inactivity window (30 days by default).</td></tr>
+    <tr><td><code>lead.notes_stale</code></td><td>warning</td><td>A deal at Engagement or above has had no note this week.</td></tr>
+    <tr><td><code>install.commissioning_failed</code></td><td>critical</td><td>A commissioning test was recorded as failed.</td></tr>
+    <tr><td><code>install.handover_complete</code></td><td>info</td><td>A job was handed over; the support window has started.</td></tr>
+    <tr><td><code>install.issue_sla_breached</code></td><td>critical</td><td>A support issue passed its 48-hour resolution SLA.</td></tr>
+    <tr><td><code>install.csat_low</code></td><td>critical</td><td>Feedback came back below the CSAT escalation threshold.</td></tr>
+    <tr><td><code>install.corrective_action_overdue</code></td><td>critical</td><td>The corrective action plan for a low-CSAT job is past its due date.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Sweeps run on a schedule (sales hygiene and inactivity early each morning, installation clocks
+shortly after, delivery SLA clocks hourly through the working day, all Asia/Kolkata). Repeat alerts
+for the same record are suppressed for a cooling-off period, so a stale record does not spam you
+daily.</p>
+
+<h2 id="dashboard">19. Dashboard &amp; export</h2>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/54-dashboard-month-to-date.png" alt="Performance dashboard, month to date">
+  <figcaption><b>Figure 19.1</b> — The dashboard. The window it covers is stated under the title and
+  is always explicit. The health strip counts KPIs <b>on target</b>, <b>near target</b>, <b>off
+  target</b> and <b>unmeasured</b> — the last is reported rather than hidden, because a green month
+  with seventeen unmeasured KPIs is not a green month.</figcaption>
+</figure>
+
+<ul class="tight">
+  <li><b>Last full month</b> / <b>Month to date</b> switch the window.</li>
+  <li><b>All / Sales / Delivery / Installation</b> narrow the page to one process (Figure 19.3).</li>
+  <li><b>⤓ Export xlsx</b> downloads the workbook for the selected window, named
+  <code>IINVSYS-report-YYYY-MM-DD.xlsx</code>.</li>
+  <li><b>Hygiene queues</b> at the foot count the records needing attention, in amber when non-zero.</li>
+</ul>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/53-dashboard.png" alt="Dashboard with no data in the window">
+  <figcaption><b>Figure 19.2</b> — The same dashboard over a window with no activity. A card reads
+  <code>—</code> with <i>“no data in this window”</i>. That is deliberately different from a zero:
+  “nothing happened” and “nothing was measured” are not the same fact. Cards with no target say
+  <i>“no target — informational”</i> rather than inventing a pass.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/55-dashboard-sales-only.png" alt="Dashboard filtered to sales">
+  <figcaption><b>Figure 19.3</b> — Filtered to Sales. Which processes you can see here follows your
+  permissions, so an agent sees the sales KPIs and only the read-only views of the rest.</figcaption>
+</figure>
+
+<h2 id="admin">20. Admin</h2>
+
+<p><b>Admin</b> holds the three reference lists. Agents and Expos may be edited by managers and
+above; Products by superadmins only. Lower roles see the tables without the add, edit or delete
+controls.</p>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/56-admin-agents.png" alt="Admin agents table">
+    <figcaption><b>Figure 20.1</b> — Agents: name, initials, email, phone, territory and monthly
+    target.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/57-admin-products.png" alt="Admin products table">
+    <figcaption><b>Figure 20.2</b> — Products: name, SKU, category and price. These are the items you
+    tick on a lead, and they become the Work Order's line items.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/60-admin-expos.png" alt="Admin expos table">
+  <figcaption><b>Figure 20.3</b> — Expos: name, venue, city and dates. Expo referrers are invited
+  against these records.</figcaption>
+</figure>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/58-admin-new-product.png" alt="New product dialog">
+    <figcaption><b>Figure 20.4</b> — Add and edit use the same dialog. Required fields carry a red
+    asterisk; blank optional fields are not sent.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/59-admin-save-rejected.png" alt="Rejected save inside the dialog">
+    <figcaption><b>Figure 20.5</b> — A rejected save states the reason inside the dialog — here
+    <i>“Duplicate value for 'sku'”</i> — so the Save button never just appears to do
+    nothing.</figcaption>
+  </figure>
+</div>
+
+<p><b>Delete</b> asks for confirmation in a browser dialog that names the record — <i>Delete
+“IINVSYS Pro”?</i> — and removes it only if you accept. There is no undo on this screen.</p>
+
+<h2 id="settings">21. Settings</h2>
+
+<p>Settings holds the rules that the source process documents left open. A change takes effect
+immediately, with no restart, and invalidates every browser's cached gate checklist so nobody keeps
+validating against the old rule.</p>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/61-settings.png" alt="Settings page with pipeline rules">
+  <figcaption><b>Figure 21.1</b> — The rules. Each card gives the rule's name, what it does, its
+  value, and its system key underneath. A rule that has been changed from its shipped default is
+  marked in amber with the default alongside.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Rule</th><th>Controls</th></tr></thead>
+  <tbody>
+    <tr><td>SPENCO minimum total</td><td>The score out of 30 needed to leave Prospect.</td></tr>
+    <tr><td>SPENCO per-dimension minimums</td><td>Hard floors that apply in addition to the total.</td></tr>
+    <tr><td>Company types requiring AMC</td><td>The working definition of “industrial” for the AMC rule at Commercial Order.</td></tr>
+    <tr><td>Competitor mandatory from stage</td><td>The stage from which a competitor must be named.</td></tr>
+    <tr><td>Probability override tolerance</td><td>How far probability may move from the stage default before it is flagged.</td></tr>
+    <tr><td>Delay clock resets on re-revision</td><td>Whether the 48-hour delay notice is measured against the original or the latest committed date.</td></tr>
+    <tr><td>State → Zone mapping</td><td>Which state belongs to which zone.</td></tr>
+    <tr><td>Inactivity alert (days)</td><td>Days without activity before a lead is flagged.</td></tr>
+    <tr><td>Follow-up horizon (days)</td><td>How far ahead a follow-up may be set before it needs a reason.</td></tr>
+    <tr><td>Note staleness (days)</td><td>How often deals at Engagement and above need a note.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="grid2">
+  <figure>
+    <img loading="lazy" decoding="async" src="images/63-settings-dirty.png" alt="Settings with unsaved changes">
+    <figcaption><b>Figure 21.2</b> — Edit a value and the button counts your pending changes:
+    <b>Apply 1 change</b>. <b>Discard</b> puts everything back.</figcaption>
+  </figure>
+  <figure>
+    <img loading="lazy" decoding="async" src="images/62-settings-apply-disabled.png" alt="Apply disabled with no changes">
+    <figcaption><b>Figure 21.3</b> — With nothing edited the button reads <b>Apply no changes</b> and
+    is disabled.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/65-settings-invalid-json.png" alt="Applied banner and a JSON error">
+  <figcaption><b>Figure 21.4</b> — Both outcomes. A successful change is confirmed in green —
+  <i>“Applied: pipeline.spenco.minTotal”</i>. Rules whose value is a list or a map are edited as JSON,
+  and a malformed edit is caught before anything is sent: <i>“SPENCO per-dimension minimums: not
+  valid JSON”</i>. Nothing was applied; fix the text or press <b>Discard</b>.</figcaption>
+</figure>
+
+<figure>
+  <img loading="lazy" decoding="async" src="images/74-settings-read-only.png" alt="Settings read-only for a manager">
+  <figcaption><b>Figure 21.5</b> — Managers can read every rule but not change one. The fields are
+  disabled, each is labelled <i>“read-only for your role”</i>, and there is no Apply button. Editing
+  requires superadmin.</figcaption>
+</figure>
+
+<h2 id="errors">Appendix A — Messages and errors</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Message</th><th>Where</th><th>What it means / what to do</th></tr></thead>
+  <tbody>
+    <tr><td>⚠ Invalid credentials. Try again.</td><td>Sign-in</td><td>Wrong email or password.</td></tr>
+    <tr><td>⚠ Cannot reach the server. Is the API running?</td><td>Anywhere</td><td>The request never arrived. Check the network; nothing was changed.</td></tr>
+    <tr><td>⚠ Too many failed attempts for this account. Try again in 15 minutes.</td><td>Sign-in</td><td>Five failed attempts on this account. Wait, or ask an administrator.</td></tr>
+    <tr><td>⚠ The server returned an error. Try again shortly.</td><td>Sign-in</td><td>The system faulted. Report it if it persists.</td></tr>
+    <tr><td>Session expired — sign in again</td><td>Anywhere</td><td>You are returned to the sign-in screen; saved work is unaffected.</td></tr>
+    <tr><td>This link is invalid, has expired, or has already been used.</td><td>Invitation</td><td>Ask for a new invitation link.</td></tr>
+    <tr><td>Use at least 8 characters / The two passwords do not match</td><td>Invitation</td><td>Password rules on redemption.</td></tr>
+    <tr><td>Pipeline metadata is unavailable — showing the offline board skeleton.</td><td>Leads board</td><td>The board is drawn without gates or dropdowns. Do not work records until it clears.</td></tr>
+    <tr><td>Could not load leads / the queue / work orders / jobs / KPIs / notifications: …</td><td>List pages</td><td>The list could not be fetched; the reason follows the colon.</td></tr>
+    <tr><td>Not saved — check <i>field</i>.</td><td>Lead form</td><td>Client-side validation refused the save. Nothing was written.</td></tr>
+    <tr><td>A 10-digit Indian mobile (A7)</td><td>Lead form</td><td>Phone format.</td></tr>
+    <tr><td>Not a valid email · Deal value cannot be negative · Name is required</td><td>Lead form</td><td>Field-level validation.</td></tr>
+    <tr><td>⚠ Needs review: …</td><td>Lead record</td><td>Hygiene flags. Informational — never blocking.</td></tr>
+    <tr><td>Below the floor on … (min n)</td><td>SPENCO</td><td>A dimension is under its hard floor; the lead cannot reach Engagement.</td></tr>
+    <tr><td>Document attached.</td><td>Documents</td><td>Upload succeeded.</td></tr>
+    <tr><td>File type “…” is not accepted · File content does not match its declared type</td><td>Documents</td><td>The upload was refused. Convert the file and retry.</td></tr>
+    <tr><td>Stage gate failed / <i>n</i> requirement(s) not met</td><td>Gate drawer</td><td>The listed requirements are unmet; the record was not moved.</td></tr>
+    <tr><td>… is a closed stage</td><td>Gate drawer</td><td>Terminal stage; there is nowhere to advance to.</td></tr>
+    <tr><td>Stages must be followed in sequence — …</td><td>Gate drawer</td><td>Stages cannot be skipped.</td></tr>
+    <tr><td>'Commercial Order' cannot be reopened — a downstream Work Order already exists</td><td>Gate drawer</td><td>A won deal is final. Work the Work Order instead.</td></tr>
+    <tr><td>Cannot mark delivered — <i>n</i> requirement(s) not met</td><td>Work Order</td><td>The DA gate. Attach the signed DA and the photo, and record the item count.</td></tr>
+    <tr><td>⚠ LATE (on a delay event)</td><td>Work Order</td><td>The customer got less than 48 hours' notice of the revised date.</td></tr>
+    <tr><td>⚠ CSAT <i>n</i> — a corrective action plan is due by <i>date</i>.</td><td>Installation job</td><td>Document the plan before attempting to close.</td></tr>
+    <tr><td>Cannot close — <i>n</i> requirement(s) not met</td><td>Installation job</td><td>Feedback, CSAT and (below 3.0) a documented corrective action are all required.</td></tr>
+    <tr><td>Duplicate value for '…'</td><td>Admin dialog</td><td>Another record already uses that value.</td></tr>
+    <tr><td>…: not valid JSON</td><td>Settings</td><td>The edited rule is malformed; nothing was applied.</td></tr>
+    <tr><td>Applied: <i>rule keys</i></td><td>Settings</td><td>The change is live everywhere, immediately.</td></tr>
+    <tr><td>Too many requests, please try again later.</td><td>Anywhere</td><td>A volumetric limit was hit. Wait a few minutes.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="gatelist">Appendix B — Every stage gate</h2>
+
+<h3>Sales</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Entering</th><th>Requires</th></tr></thead>
+  <tbody>
+    <tr><td>Suspect</td><td>Nothing — this is where a lead starts.</td></tr>
+    <tr><td>Prospect</td><td>Designation · Company · Company type · City · State · Industry and Email (B2B contacts) · Next action · a future follow-up date.</td></tr>
+    <tr><td>Engagement</td><td>SPENCO scored and qualifying · Competitor named (and named in full if “Other”) · Deal value · Product/package · a future expected close date · a future follow-up date.</td></tr>
+    <tr><td>Negotiation</td><td>A proposal or quotation on file · a current expected close date · a future follow-up date · Next action.</td></tr>
+    <tr><td>Commercial Order</td><td>The customer PO uploaded · PO number · Deal value matching the PO · Subscription offered or already active · AMC offered or already active for industrial company types · an expected close date.</td></tr>
+    <tr><td>Order Lost</td><td>Lost reason (and detail if “Other”) · Lost to (and the competitor's name if a competitor).</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Delivery — no override</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Entering</th><th>Requires</th></tr></thead>
+  <tbody>
+    <tr><td>Order Review &amp; Planning</td><td>Nothing — the Work Order is created here.</td></tr>
+    <tr><td>Procurement &amp; Stock</td><td>Accepted by the Delivery Manager · a committed delivery date · the customer's acknowledgement of it · line items verified against the PO.</td></tr>
+    <tr><td>Preparation &amp; Packing</td><td>Stock confirmed, quality-checked and tagged to the order.</td></tr>
+    <tr><td>Scheduling &amp; Dispatch</td><td>Packing list, delivery note and tax invoice attached · packing checklist signed off.</td></tr>
+    <tr><td>Delivery &amp; Handover</td><td>Physically dispatched · carrier or vehicle recorded.</td></tr>
+    <tr><td><i>Mark delivered</i></td><td>Signed Delivery Acknowledgement · photo evidence · delivered item count verified.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Installation &amp; Customer Service — no override</h3>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Entering</th><th>Requires</th></tr></thead>
+  <tbody>
+    <tr><td>Installation Planning</td><td>Nothing — the job is created here.</td></tr>
+    <tr><td>On-Site Installation</td><td>Site readiness confirmed by the customer · a technician assigned · a scheduled date · the planning checklist complete.</td></tr>
+    <tr><td>Commissioning &amp; Testing</td><td>Installation checklist complete and signed by the technician · no open major or blocker snags.</td></tr>
+    <tr><td>Handover &amp; Training</td><td>Commissioning passed · technician signature · customer countersignature · commissioning report uploaded.</td></tr>
+    <tr><td>Post-Installation Support</td><td>Signed handover certificate uploaded · trained attendees recorded · handover checklist complete.</td></tr>
+    <tr><td>Customer Feedback</td><td>The 7-day proactive check-in done · every support issue closed.</td></tr>
+    <tr><td><i>Close job</i></td><td>Feedback received · CSAT logged · a documented corrective action plan when CSAT is below 3.0.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="roles">Appendix C — Roles and permissions</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Role</th><th>Can do</th></tr></thead>
+  <tbody>
+    <tr><td>superadmin</td><td>Everything, including editing Settings.</td></tr>
+    <tr><td>manager</td><td>All three processes end to end, sales gate overrides, lead deletion, Admin. Settings read-only.</td></tr>
+    <tr><td>sales_director</td><td>Sales including gate overrides and deviation approval; read-only on delivery and installation; KPIs.</td></tr>
+    <tr><td>agent</td><td>Read and write their own leads and advance them (no override); read-only on delivery and installation; KPIs.</td></tr>
+    <tr><td>finance</td><td>PO verification and read-only work orders.</td></tr>
+    <tr><td>delivery_manager</td><td>The whole delivery process — accept, commit dates, advance, dispatch, deliver, upload.</td></tr>
+    <tr><td>warehouse</td><td>Read, advance and upload on work orders. Cannot accept, commit a date or dispatch.</td></tr>
+    <tr><td>logistics</td><td>Read, advance, dispatch, deliver and upload on work orders.</td></tr>
+    <tr><td>installation_manager</td><td>The whole installation process, including assigning technicians and managing support.</td></tr>
+    <tr><td>technician</td><td>Execute, advance and upload on installation jobs.</td></tr>
+    <tr><td>cs_executive</td><td>Support issues, feedback, corrective actions, uploads; read-only elsewhere.</td></tr>
+    <tr><td>referrer</td><td>Expo lead capture only — no access to the boards described here.</td></tr>
+    <tr><td>readonly</td><td>The Leads page only.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="dialogs">Appendix D — Confirmations and browser prompts</h2>
+
+<p>Two actions use the browser's own dialog rather than an in-page one, so they look different
+depending on your browser and cannot be screenshotted from inside the application:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Where</th><th>Dialog</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td>Admin → any table → <b>Delete</b></td><td>A confirmation reading <i>Delete “&lt;name&gt;”?</i></td><td>Accept and the record is deleted; cancel and nothing happens. There is no undo.</td></tr>
+    <tr><td>Installation job → <b>Sign checklist</b></td><td>A prompt reading <i>Technician name signing this checklist:</i></td><td>The name you type is recorded as the signature. Cancelling, or leaving it empty, signs nothing.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Everything else — New Lead, Add/Edit in Admin, and the stage-gate drawer — is an in-page dialog
+that traps keyboard focus, closes on <kbd>Esc</kbd>, and returns focus where you left it.</p>
+
+<h2 id="limits">Appendix E — Known limitations</h2>
+
+<ul>
+  <li><b>Installation technician assignment.</b> The planning panel records a technician's <i>name</i>
+  for reporting, but the On-Site gate requires a linked user account, and the application currently
+  offers no way to pick one. Until that is added, that requirement can only be satisfied by an
+  administrator through the API, and the panel says so on screen.</li>
+  <li><b>No override outside sales.</b> Delivery and installation gates cannot be forced by anyone.
+  If a gate is genuinely wrong for your business, change the rule in Settings rather than looking for
+  a way around it.</li>
+  <li><b>Sessions are per tab.</b> Closing the tab signs you out; there is no “remember me”.</li>
+</ul>
+
+<p class="lede" style="margin-top:56px">End of manual.</p>
+
+</main>
+</div>
+</body>
+</html>
