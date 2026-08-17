@@ -1,0 +1,15 @@
+{
+  "name": "iinvsys-sales-dashboard",
+  "version": "1.0.0",
+  "description": "IINVSYS Sales Dashboard — Frontend + Responsive UI Tests",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:headed": "playwright test --headed",
+    "test:ui:report": "playwright show-report",
+    "test:ui:mobile": "playwright test --project=mobile-s --project=mobile-l",
+    "test:ui:tablet": "playwright test --project=tablet"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}

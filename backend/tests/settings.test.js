@@ -83,7 +83,7 @@ describe('GET /api/settings', () => {
     const res    = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
     const stages = res.body.data.map['lead.stages'];
 
-    ['new','contacted','interested','proposal','negotiation','won','lost']
+    ['suspect','prospect','engagement','negotiation','commercial_order','order_lost']
       .forEach(s => expect(stages).toContain(s));
   });
 

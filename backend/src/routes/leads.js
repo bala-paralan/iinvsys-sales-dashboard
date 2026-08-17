@@ -4,8 +4,9 @@ const { body } = require('express-validator');
 const ctrl     = require('../controllers/leadController');
 const vmCtrl   = require('../controllers/voiceMemoController');
 const { authenticate }    = require('../middleware/auth');
-const { requireMinRole, scopeToAgent, allowReferrer } = require('../middleware/rbac');
+const { requireMinRole, requirePermission, scopeToAgent, allowReferrer } = require('../middleware/rbac');
 const Lead     = require('../models/Lead');
+const { LEAD_SOURCE_KEYS } = require('../config/pipeline');
 
 const auth = [authenticate, requireMinRole('agent'), scopeToAgent];
 
@@ -18,7 +19,7 @@ const referrerAuth = [authenticate, (req, res, next) => {
 const createValidation = [
   body('name').trim().notEmpty(),
   body('phone').trim().notEmpty(),
-  body('source').isIn(['expo', 'referral', 'direct', 'digital']),
+  body('source').isIn(LEAD_SOURCE_KEYS),
   body('assignedAgent').isMongoId().optional(),
   body('city').optional().trim(),
   body('state').optional().trim(),
@@ -30,7 +31,7 @@ const createValidation = [
 const updateValidation = [
   body('name').optional().trim().notEmpty(),
   body('phone').optional().trim().notEmpty(),
-  body('source').optional().isIn(['expo', 'referral', 'direct', 'digital']),
+  body('source').optional().isIn(LEAD_SOURCE_KEYS),
   body('assignedAgent').optional().isMongoId(),
   body('city').optional().trim(),
   body('state').optional().trim(),
@@ -40,6 +41,12 @@ const updateValidation = [
 
 /* POST /api/leads/bulk — manager+ unrestricted; referrers capped to 100 rows + force-tagged to their expo (controller enforces) */
 router.post('/bulk', ...referrerAuth, ctrl.bulkImport);
+
+/* B1c — the manager review worklist. Static, so it must precede /:id.
+   First route in the codebase to use requirePermission() rather than the
+   ladder; scopeToAgent still narrows an agent to their own book. */
+router.get('/hygiene',
+  authenticate, requirePermission('lead.read'), scopeToAgent, ctrl.hygieneQueue);
 
 /* PRD 3–5 static routes — must be declared before /:id patterns */
 router.post('/check-duplicate', ...referrerAuth, ctrl.checkDuplicate);
@@ -54,6 +61,13 @@ router.get('/:id',    ...referrerAuth, ctrl.getLead);
 router.put('/:id',    ...referrerAuth, updateValidation, ctrl.updateLead); // referrers edit own leads only
 router.delete('/:id', authenticate, requireMinRole('manager'), scopeToAgent, ctrl.deleteLead);
 
+/* B1c — stage transitions. The ONLY sanctioned way to change a lead's stage.
+   See docs/requirements/03-stage-gates.md. */
+router.get('/:id/gate',
+  authenticate, requirePermission('lead.read'), scopeToAgent, ctrl.previewLeadGate);
+router.post('/:id/advance',
+  authenticate, requirePermission('lead.advance'), scopeToAgent, ctrl.advanceLead);
+
 /* PRD 4 — merge */
 router.post('/:id/merge',          ...auth,         ctrl.mergeLead);
 /* PRD 5 — enrichment */
@@ -66,6 +80,15 @@ router.post('/:id/followups',
   body('channel').isIn(['call', 'whatsapp', 'email', 'visit', 'other']),
   ctrl.addFollowUp
 );
+
+/* S-8 — document vault. `lead.write` rather than a new `lead.upload` verb:
+   doc 04 defines no upload permission for leads, and inventing one silently
+   would put a 14th column in the permission matrix that no document describes.
+   Referrers are deliberately excluded — they hold no `lead.*` permission at
+   all, and a stranger at an expo booth is not who files a purchase order. */
+router.post('/:id/upload',
+  ...auth, requirePermission('lead.write'),
+  ctrl.uploadMiddleware, ctrl.uploadAttachment);
 
 /* PRD 6 — Voice Memos. Referrers can memo leads they created in their expo (controller enforces). */
 router.post('/:id/voice-memos/extract', ...referrerAuth, vmCtrl.extractPreview);

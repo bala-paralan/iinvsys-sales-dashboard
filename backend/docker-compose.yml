@@ -1,19 +1,52 @@
 version: '3.9'
 
+# ─────────────────────────────────────────────────────────────────────
+#  SECURITY NOTE — read before changing the `ports:` blocks below.
+#
+#  This stack was compromised twice (2026-04-27 and 2026-04-29) by the
+#  Akira ransomware, which reached MongoDB through a `27018:27017` port
+#  mapping that bound the database to 0.0.0.0 with no authentication.
+#  The database was wiped both times.
+#
+#  Two rules follow from that, and neither is optional:
+#
+#   1. Mongo is NEVER published to the host. Containers reach it over the
+#      compose network as `mongo:27017`. If you need a shell, use
+#      `docker compose exec mongo mongosh` — do not add a port mapping.
+#   2. Mongo runs WITH authentication. MONGO_ROOT_USER / MONGO_ROOT_PASS
+#      are required; the stack will not start without them.
+#
+#  The API binds to 127.0.0.1 only. Nginx on the host proxies to it.
+# ─────────────────────────────────────────────────────────────────────
+
 services:
   # ── MongoDB ──────────────────────────────────────────────────────
   mongo:
     image: mongo:7
     container_name: iinvsys_mongo
     restart: unless-stopped
+    command: ['--auth']
     environment:
       MONGO_INITDB_DATABASE: iinvsys
+      # No defaults. `docker compose up` fails fast if these are unset.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?MONGO_ROOT_USER is required}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:?MONGO_ROOT_PASS is required}
     volumes:
       - mongo_data:/data/db
-    ports:
-      - '27018:27017'          # 27018 avoids conflict with any host-level mongod
+    # DELIBERATELY NO `ports:` — see the security note above.
     healthcheck:
-      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - -u
+        - ${MONGO_ROOT_USER}
+        - -p
+        - ${MONGO_ROOT_PASS}
+        - --authenticationDatabase
+        - admin
+        - --eval
+        - "db.adminCommand('ping')"
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,16 +62,18 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5050                          # Nginx proxies to this port
-      MONGO_URI: mongodb://mongo:27017/iinvsys
-      JWT_SECRET: ${JWT_SECRET}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongo:27017/iinvsys?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      # Leave CORS_ORIGINS empty — frontend is served from the same Nginx host,
-      # so the browser Origin matches the server. Restricting it causes 500s.
-      CORS_ORIGINS: ''
+      # Frontend is served from the same Nginx host, so the browser Origin
+      # matches the server and no cross-origin allowance is needed.
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@iinvsys.com}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@123}
+      # No default. initAdmin refuses to bootstrap in production without it.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required to bootstrap the first superadmin}
     ports:
-      - '5050:5050'
+      # Bound to loopback only — Nginx on the host is the public entrypoint.
+      - '127.0.0.1:5050:5050'
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:5050/api/health']
       interval: 30s

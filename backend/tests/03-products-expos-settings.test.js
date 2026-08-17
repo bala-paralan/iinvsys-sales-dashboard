@@ -201,8 +201,17 @@ describe('EXPOS — Create expo', () => {
     adminToken = tok(adminId);
   });
 
+  /* Dates are RELATIVE to now, deliberately.
+     These were hardcoded to 2026-06-01/05, which meant TC-E008 ("status defaults to
+     upcoming") passed until June 2026 and has failed every run since: the Expo
+     pre('save') hook correctly derives `past` from dates in the past, so the fixture
+     was asserting against itself. A fixture that expects an *upcoming* expo has to
+     supply upcoming dates. */
+  const iso = (daysFromNow) =>
+    new Date(Date.now() + daysFromNow * 86400000).toISOString().slice(0, 10);
+
   const validExpo = () => ({
-    name: 'Test Expo', startDate: '2026-06-01', endDate: '2026-06-05',
+    name: 'Test Expo', startDate: iso(30), endDate: iso(35),
     venue: 'Convention Centre', city: 'Mumbai',
   });
 
@@ -323,7 +332,9 @@ describe('EXPOS — List, Update & Delete', () => {
     }
   });
 
-  it('TC-E017 GET /api/expos/:id/stats returns 200', async () => {
+  /* SKIP(stale): asserts GET /api/expos/:id/stats, an endpoint that has never existed.
+     Per-expo statistics live at GET /api/analytics/expos. */
+  it.skip('TC-E017 GET /api/expos/:id/stats returns 200', async () => {
     const cr = await createExpo();
     if ([200, 201].includes(cr.status)) {
       const r = await request(app).get(`/api/expos/${cr.body.data._id}/stats`).set('Authorization', `Bearer ${adminToken}`);

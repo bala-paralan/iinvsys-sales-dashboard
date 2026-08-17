@@ -49,7 +49,7 @@ async function createLead(token, extra = {}) {
   const res = await request(app)
     .post('/api/leads')
     .set(authHeader(token))
-    .send({ name: 'Test Lead', phone: '9812345678', source: 'direct', ...extra });
+    .send({ name: 'Test Lead', phone: '9812345678', source: 'inbound_enquiry', ...extra });
   expect(res.status).toBe(201);
   return res.body.data;
 }
@@ -200,7 +200,7 @@ describe('PRD 1: ocrCapture stored correctly on lead creation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set(authHeader(mgrTok))
-      .send({ name: 'Rajesh Sharma', phone: '9812345678', source: 'expo', ocrCapture });
+      .send({ name: 'Rajesh Sharma', phone: '9812345678', source: 'exhibition_event', ocrCapture });
 
     expect(res.status).toBe(201);
 
@@ -217,7 +217,7 @@ describe('PRD 1: ocrCapture stored correctly on lead creation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set(authHeader(mgrTok))
-      .send({ name: 'Plain Lead', phone: '9900000000', source: 'direct' });
+      .send({ name: 'Plain Lead', phone: '9900000000', source: 'inbound_enquiry' });
     expect(res.status).toBe(201);
     expect(res.body.data.name).toBe('Plain Lead');
   });
@@ -275,7 +275,7 @@ describe('PRD 2: Telemetry events for multilingual OCR', () => {
     const res = await request(app)
       .post('/api/leads')
       .set(authHeader(mgrTok))
-      .send({ name: 'Hindi Lead', phone: '9000000099', source: 'expo', ocrCapture });
+      .send({ name: 'Hindi Lead', phone: '9000000099', source: 'exhibition_event', ocrCapture });
 
     expect(res.status).toBe(201);
   });
@@ -289,9 +289,9 @@ describe('PRD 3: POST /api/leads/bulk-scan', () => {
     const { mgrTok } = await setup();
 
     const leads = [
-      { name: 'Bulk Lead 1', phone: '9100000001', source: 'expo' },
-      { name: 'Bulk Lead 2', phone: '9100000002', source: 'expo' },
-      { name: 'Bulk Lead 3', phone: '9100000003', source: 'expo' },
+      { name: 'Bulk Lead 1', phone: '9100000001', source: 'exhibition_event' },
+      { name: 'Bulk Lead 2', phone: '9100000002', source: 'exhibition_event' },
+      { name: 'Bulk Lead 3', phone: '9100000003', source: 'exhibition_event' },
     ];
 
     const res = await request(app)
@@ -312,8 +312,8 @@ describe('PRD 3: POST /api/leads/bulk-scan', () => {
       .post('/api/leads/bulk-scan')
       .set(authHeader(mgrTok))
       .send({ leads: [
-        { name: 'Batch Lead A', phone: '9200000001', source: 'expo' },
-        { name: 'Batch Lead B', phone: '9200000002', source: 'expo' },
+        { name: 'Batch Lead A', phone: '9200000001', source: 'exhibition_event' },
+        { name: 'Batch Lead B', phone: '9200000002', source: 'exhibition_event' },
       ]});
 
     const batchId = bulkRes.body.data.batchId;
@@ -348,7 +348,7 @@ describe('PRD 3: POST /api/leads/bulk-scan', () => {
     const { mgrTok } = await setup();
 
     const leads = Array.from({ length: 51 }, (_, i) => ({
-      name: `Overflow ${i}`, phone: `900000${String(i).padStart(4,'0')}`, source: 'expo',
+      name: `Overflow ${i}`, phone: `900000${String(i).padStart(4,'0')}`, source: 'exhibition_event',
     }));
 
     const res = await request(app)
@@ -365,7 +365,7 @@ describe('PRD 3: POST /api/leads/bulk-scan', () => {
     const res = await request(app)
       .post('/api/leads/bulk-scan')
       .set(authHeader(agtTok))
-      .send({ leads: [{ name: 'X', phone: '9000000099', source: 'expo' }] });
+      .send({ leads: [{ name: 'X', phone: '9000000099', source: 'exhibition_event' }] });
 
     /* agents ARE allowed (auth = requireMinRole('agent')); controller returns 200 or 201 */
     expect([200, 201, 403]).toContain(res.status);
@@ -378,7 +378,7 @@ describe('PRD 3: POST /api/leads/bulk-scan', () => {
 describe('PRD 4: POST /api/leads/check-duplicate', () => {
   test('exact phone match returns strong duplicate', async () => {
     const { mgrTok } = await setup();
-    const existing = await createLead(mgrTok, { phone: '9812345678', name: 'Existing Person', source: 'direct' });
+    const existing = await createLead(mgrTok, { phone: '9812345678', name: 'Existing Person', source: 'inbound_enquiry' });
 
     const res = await request(app)
       .post('/api/leads/check-duplicate')
@@ -395,7 +395,7 @@ describe('PRD 4: POST /api/leads/check-duplicate', () => {
 
   test('exact email match returns strong duplicate', async () => {
     const { mgrTok } = await setup();
-    await createLead(mgrTok, { phone: '9800000001', email: 'dupe@test.com', source: 'direct' });
+    await createLead(mgrTok, { phone: '9800000001', email: 'dupe@test.com', source: 'inbound_enquiry' });
 
     const res = await request(app)
       .post('/api/leads/check-duplicate')
@@ -409,7 +409,7 @@ describe('PRD 4: POST /api/leads/check-duplicate', () => {
 
   test('fuzzy name+company match returns weak duplicate', async () => {
     const { mgrTok } = await setup();
-    await createLead(mgrTok, { phone: '9800000010', name: 'Rajesh Sharma', company: 'Acme Ltd', source: 'direct' });
+    await createLead(mgrTok, { phone: '9800000010', name: 'Rajesh Sharma', company: 'Acme Ltd', source: 'inbound_enquiry' });
 
     const res = await request(app)
       .post('/api/leads/check-duplicate')
@@ -423,7 +423,7 @@ describe('PRD 4: POST /api/leads/check-duplicate', () => {
 
   test('completely different lead returns no duplicates', async () => {
     const { mgrTok } = await setup();
-    await createLead(mgrTok, { phone: '9800000010', name: 'Alice Smith', source: 'direct' });
+    await createLead(mgrTok, { phone: '9800000010', name: 'Alice Smith', source: 'inbound_enquiry' });
 
     const res = await request(app)
       .post('/api/leads/check-duplicate')
@@ -439,8 +439,8 @@ describe('PRD 4: POST /api/leads/:id/merge', () => {
   test('merge two leads retains winner fields and migrates followUps', async () => {
     const { mgrTok } = await setup();
 
-    const leadA = await createLead(mgrTok, { phone: '9811111111', name: 'Lead Alpha', source: 'expo', notes: 'Existing notes' });
-    const leadB = await createLead(mgrTok, { phone: '9822222222', name: 'Lead Beta',  source: 'direct', notes: 'Incoming notes' });
+    const leadA = await createLead(mgrTok, { phone: '9811111111', name: 'Lead Alpha', source: 'exhibition_event', notes: 'Existing notes' });
+    const leadB = await createLead(mgrTok, { phone: '9822222222', name: 'Lead Beta',  source: 'inbound_enquiry', notes: 'Incoming notes' });
 
     const idA = leadA._id || leadA.id;
     const idB = leadB._id || leadB.id;
@@ -470,7 +470,7 @@ describe('PRD 4: POST /api/leads/:id/merge', () => {
 describe('PRD 5: POST /api/leads/:id/enrich', () => {
   test('enrichment returns 200 and populates enrichment fields', async () => {
     const { mgrTok } = await setup();
-    const lead = await createLead(mgrTok, { source: 'direct' });
+    const lead = await createLead(mgrTok, { source: 'inbound_enquiry' });
 
     const res = await request(app)
       .post(`/api/leads/${lead._id || lead.id}/enrich`)
@@ -482,7 +482,7 @@ describe('PRD 5: POST /api/leads/:id/enrich', () => {
 
   test('enrichment rollback clears a field', async () => {
     const { mgrTok } = await setup();
-    const lead = await createLead(mgrTok, { source: 'direct' });
+    const lead = await createLead(mgrTok, { source: 'inbound_enquiry' });
 
     /* Trigger enrichment first */
     await request(app)
@@ -500,7 +500,7 @@ describe('PRD 5: POST /api/leads/:id/enrich', () => {
 
   test('enrichment rollback adds field to doNotEnrich list', async () => {
     const { mgrTok } = await setup();
-    const lead = await createLead(mgrTok, { source: 'direct' });
+    const lead = await createLead(mgrTok, { source: 'inbound_enquiry' });
     const leadId = lead._id || lead.id;
 
     /* Trigger enrichment */
@@ -531,8 +531,8 @@ describe('PRD 5: POST /api/leads/:id/enrich', () => {
 
     /* Create lead assigned to agent 1 */
     const lead = await Lead.create({
-      name: 'Lead Owned', phone: '9300000001', source: 'direct',
-      assignedAgent: ap1._id, stage: 'new', createdBy: mgrId,
+      name: 'Lead Owned', phone: '9300000001', source: 'inbound_enquiry',
+      assignedAgent: ap1._id, stage: 'suspect', createdBy: mgrId,
     });
 
     /* Agent 2 tries to enrich — should be forbidden */
@@ -743,7 +743,7 @@ describe('PRD 6: PATCH /api/leads/:id/voice-memos/:memoId', () => {
   test('404 when memo does not belong to the given lead', async () => {
     const { mgrTok } = await setup();
     const lead  = await createLead(mgrTok);
-    const lead2 = await createLead(mgrTok, { phone: '9999000001', name: 'Other Lead', source: 'direct' });
+    const lead2 = await createLead(mgrTok, { phone: '9999000001', name: 'Other Lead', source: 'inbound_enquiry' });
 
     const memoRes = await request(app)
       .post(`/api/leads/${lead._id || lead.id}/voice-memos`)

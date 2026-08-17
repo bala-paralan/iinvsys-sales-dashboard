@@ -25,8 +25,14 @@
   /* Text */
   --text-1: #F0EBE0;
   --text-2: #A8A09A;
-  --text-3: #787878;   /* was #555 — bumped for dark-bg readability */
-  --text-4: #525252;   /* was #333 — bumped for dark-bg readability */
+  /* N-10 / WCAG 2.1 AA — measured against --bg #070707:
+       --text-3 #787878 = 4.56:1  (passes AA body text, 4.5:1)
+       --text-4 #525252 = 2.58:1  (FAILED — below even the 3.0:1 UI minimum)
+     --text-4 carries 11px metadata: timestamps, record ids, counts. Small text
+     needs the full 4.5:1, so it moves to the old --text-3 value and --text-3
+     moves lighter to keep the two levels visually distinct. */
+  --text-3: #8f8f8f;   /* 6.23:1 */
+  --text-4: #787878;   /* 4.56:1 — was #525252 at 2.58:1 */
 
   /* NeoPop Shadows */
   --shadow-gold:    4px 4px 0px var(--gold);

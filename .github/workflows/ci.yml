@@ -1,0 +1,122 @@
+name: CI
+
+# N-11 — nothing merges without this passing. There was no CI at all, so the
+# only thing standing between a broken commit and production was whoever
+# happened to run the tests locally.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # A new push supersedes the run in flight for the same ref — reviewing a
+  # green tick from three commits ago is worse than no tick.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+        working-directory: backend
+
+      # The suite shares ONE mongodb-memory-server across every file, so it
+      # must run in band. A parallel run reports hundreds of failures on a
+      # tree that is actually green, because workers clear each other's
+      # collections mid-test.
+      - name: Test
+        run: npm test
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci-only-secret-not-used-outside-github-actions
+          TZ: UTC
+
+  frontend:
+    name: Frontend typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      - name: Typecheck
+        run: npx tsc -b
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      # High and critical only. `--audit-level=low` on a repo this size fails
+      # on transitive dev-dependency noise every week, and a check that always
+      # fails is a check nobody reads.
+      - name: Audit backend
+        run: npm audit --audit-level=high
+        working-directory: backend
+
+      - name: Audit frontend
+        run: npm audit --audit-level=high
+        working-directory: frontend
+
+  secrets:
+    name: No secrets committed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # This repo's history includes two ransomware incidents traced to
+      # exposed infrastructure. A committed .env or key is the same class of
+      # mistake, and grep is enough to catch the obvious cases.
+      - name: Reject committed env files and keys
+        run: |
+          set -e
+          if git ls-files | grep -E '(^|/)\.env(\..*)?$' | grep -v '\.example$'; then
+            echo "::error::A .env file is committed"; exit 1
+          fi
+          if git ls-files | grep -E '\.(pem|key|p12|pfx)$'; then
+            echo "::error::A private key is committed"; exit 1
+          fi
+
+      - name: Reject default credentials in browser-delivered code
+        run: |
+          set -e
+          # Scoped to what a BROWSER receives — index.html once shipped with
+          # the production superadmin login prefilled into the form.
+          #
+          # Deliberately not the whole repo: `seed.js`, `dev-local.js` and the
+          # blocklist in `config/env.js` all contain this string legitimately,
+          # and a check that cries wolf on its own tooling gets disabled.
+          if grep -rn "Admin@123" index.html app.js frontend/src 2>/dev/null; then
+            echo "::error::A default credential appears in browser-delivered code"; exit 1
+          fi

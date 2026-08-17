@@ -37,10 +37,25 @@ function errorHandler(err, req, res, next) {   // eslint-disable-line no-unused-
 
   /* ── Fallback: 500 Internal Server Error ────────────────────────────── */
   const isDev = process.env.NODE_ENV === 'development';
-  console.error('[ErrorHandler]', err);
+
+  /* Structured, and carrying the request id — an unhandled error is exactly
+     the log line someone will need to correlate with a user's report. */
+  if (process.env.NODE_ENV === 'production') {
+    process.stdout.write(`${JSON.stringify({
+      t: new Date().toISOString(), level: 'error', requestId: req.id,
+      method: req.method, path: req.originalUrl.split('?')[0],
+      error: err.message, name: err.name, stack: err.stack,
+    })}\n`);
+  } else if (process.env.NODE_ENV !== 'test') {
+    console.error('[ErrorHandler]', req.id, err);
+  }
+
   return res.status(500).json({
     success: false,
     message: 'Internal server error',
+    /* Echoed so a user can quote it and it can be grepped. Safe to expose:
+       it is a random id, not a token, and it is already in a response header. */
+    requestId: req.id,
     ...(isDev && { stack: err.stack }),
   });
 }

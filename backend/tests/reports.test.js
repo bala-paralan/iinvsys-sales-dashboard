@@ -313,10 +313,10 @@ describe('GET /api/reports/preview', () => {
       .set('Authorization', `Bearer ${tok(uid)}`);
     expect(res.status).toBe(200);
     const stages = res.body.data.funnel.map(f => f.stage);
-    expect(stages).toContain('new');
-    expect(stages).toContain('won');
-    expect(stages).toContain('lost');
-    expect(stages).toHaveLength(7);
+    expect(stages).toContain('suspect');
+    expect(stages).toContain('commercial_order');
+    expect(stages).toContain('order_lost');
+    expect(stages).toHaveLength(6);
   });
 
   it('reflects actual lead data in preview', async () => {
@@ -329,9 +329,9 @@ describe('GET /api/reports/preview', () => {
       target: 100000, color: '#abc', createdBy: adminId,
     });
     await Lead.create([
-      { name: 'L1', phone: '9100000001', source: 'direct', stage: 'won',
+      { name: 'L1', phone: '9100000001', source: 'inbound_enquiry', stage: 'commercial_order',
         value: 50000, assignedAgent: agentRes._id, createdBy: adminId },
-      { name: 'L2', phone: '9100000002', source: 'direct', stage: 'new',
+      { name: 'L2', phone: '9100000002', source: 'inbound_enquiry', stage: 'suspect',
         value: 20000, assignedAgent: agentRes._id, createdBy: adminId },
     ]);
 

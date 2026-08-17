@@ -9,11 +9,12 @@
  *
  * Environment variables (optional overrides):
  *   ADMIN_EMAIL     default: admin@iinvsys.com
- *   ADMIN_PASSWORD  default: Admin@123   ← change immediately after login!
+ *   ADMIN_PASSWORD  required in production; otherwise a random one is generated
+ *                   and printed once.
  */
 require('dotenv').config();
 const mongoose = require('mongoose');
-const bcrypt   = require('bcryptjs');
+const { generatePassword } = require('./initAdmin');
 
 const User    = require('../models/User');
 const Agent   = require('../models/Agent');
@@ -35,14 +36,25 @@ async function seedProduction() {
   ]);
   console.log('    All collections cleared.\n');
 
-  const email       = (process.env.ADMIN_EMAIL    || 'admin@iinvsys.com').toLowerCase();
-  const rawPassword =  process.env.ADMIN_PASSWORD || 'Admin@123';
-  const hashed      = await bcrypt.hash(rawPassword, 12);
+  const email = (process.env.ADMIN_EMAIL || 'admin@iinvsys.com').toLowerCase();
 
+  let rawPassword = process.env.ADMIN_PASSWORD;
+  if (!rawPassword) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'ADMIN_PASSWORD must be set when seeding a production database. ' +
+        'Refusing to create an account with a default password.'
+      );
+    }
+    rawPassword = generatePassword();
+  }
+
+  /* Pass plain-text — the User pre('save') hook hashes it. Pre-hashing here
+     double-hashes, and the printed password then never authenticates. */
   await User.create({
     name:     'Admin IINVSYS',
     email,
-    password: hashed,
+    password: rawPassword,
     role:     'superadmin',
     isActive: true,
   });

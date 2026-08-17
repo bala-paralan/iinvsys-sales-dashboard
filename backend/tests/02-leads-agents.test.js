@@ -29,7 +29,7 @@ async function seedAgent(adminId, overrides = {}) {
 async function seedLead(adminId, agentId, overrides = {}) {
   return Lead.create({
     name: overrides.name || 'Test Lead', phone: overrides.phone || '9100000001',
-    source: overrides.source || 'direct', stage: overrides.stage || 'new',
+    source: overrides.source || 'inbound_enquiry', stage: overrides.stage || 'suspect',
     value: overrides.value || 0, assignedAgent: agentId, createdBy: adminId,
     ...overrides,
   });
@@ -48,19 +48,19 @@ describe('LEADS — Create lead', () => {
   });
 
   it('TC-L001 returns 401 without token', async () => {
-    const r = await request(app).post('/api/leads').send({ name: 'X', phone: '9000000001', source: 'direct' });
+    const r = await request(app).post('/api/leads').send({ name: 'X', phone: '9000000001', source: 'inbound_enquiry' });
     expect(r.status).toBe(401);
   });
 
   it('TC-L002 returns 422 when name missing', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ phone: '9000000001', source: 'direct' });
+      .send({ phone: '9000000001', source: 'inbound_enquiry' });
     expect([400, 422]).toContain(r.status);
   });
 
   it('TC-L003 returns 422 when phone missing', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Lead', source: 'direct' });
+      .send({ name: 'Lead', source: 'inbound_enquiry' });
     expect([400, 422]).toContain(r.status);
   });
 
@@ -78,21 +78,21 @@ describe('LEADS — Create lead', () => {
 
   it('TC-L006 creates lead with minimal required fields', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Min Lead', phone: '9100000001', source: 'direct' });
+      .send({ name: 'Min Lead', phone: '9100000001', source: 'inbound_enquiry' });
     expect([200, 201]).toContain(r.status);
   });
 
   it('TC-L007 created lead has default stage = new', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Min Lead', phone: '9100000002', source: 'direct' });
+      .send({ name: 'Min Lead', phone: '9100000002', source: 'inbound_enquiry' });
     expect([200, 201]).toContain(r.status);
     if (r.status === 201 || r.status === 200) {
-      expect(r.body.data?.stage || r.body.data?.lead?.stage).toBe('new');
+      expect(r.body.data?.stage || r.body.data?.lead?.stage).toBe('suspect');
     }
   });
 
   it('TC-L008 accepts all valid source values', async () => {
-    for (const source of ['expo', 'referral', 'direct', 'digital']) {
+    for (const source of ['exhibition_event', 'referral', 'inbound_enquiry', 'digital_website']) {
       const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
         .send({ name: 'SrcLead', phone: '9100000001', source });
       expect([200, 201]).toContain(r.status);
@@ -100,40 +100,40 @@ describe('LEADS — Create lead', () => {
   }, 60000);
 
   it('TC-L009 accepts all valid stage values on creation', async () => {
-    for (const stage of ['new', 'contacted', 'interested', 'proposal', 'negotiation', 'won', 'lost']) {
+    for (const stage of ['suspect','prospect','engagement','negotiation','commercial_order','order_lost']) {
       const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-        .send({ name: 'StageLead', phone: '9100000001', source: 'direct', stage });
+        .send({ name: 'StageLead', phone: '9100000001', source: 'inbound_enquiry', stage });
       expect([200, 201]).toContain(r.status);
     }
   }, 60000);
 
   it('TC-L010 rejects invalid stage value', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Lead', phone: '9100000001', source: 'direct', stage: 'invalid' });
+      .send({ name: 'Lead', phone: '9100000001', source: 'inbound_enquiry', stage: 'invalid' });
     expect([400, 422]).toContain(r.status);
   });
 
   it('TC-L011 value field defaults to 0 when not provided', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'ValLead', phone: '9100000001', source: 'direct' });
+      .send({ name: 'ValLead', phone: '9100000001', source: 'inbound_enquiry' });
     expect([200, 201]).toContain(r.status);
   });
 
   it('TC-L012 rejects negative value', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Lead', phone: '9100000001', source: 'direct', value: -100 });
+      .send({ name: 'Lead', phone: '9100000001', source: 'inbound_enquiry', value: -100 });
     expect([400, 422]).toContain(r.status);
   });
 
   it('TC-L013 accepts valid email with lead', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'EmailLead', phone: '9100000001', source: 'direct', email: 'lead@test.com' });
+      .send({ name: 'EmailLead', phone: '9100000001', source: 'inbound_enquiry', email: 'lead@test.com' });
     expect([200, 201]).toContain(r.status);
   });
 
   it('TC-L014 response includes success:true on creation', async () => {
     const r = await request(app).post('/api/leads').set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'NewLead', phone: '9100000001', source: 'direct' });
+      .send({ name: 'NewLead', phone: '9100000001', source: 'inbound_enquiry' });
     expect(r.body.success).toBe(true);
   });
 });
@@ -189,24 +189,24 @@ describe('LEADS — List leads', () => {
   });
 
   it('TC-L022 filter by stage=new returns only new leads', async () => {
-    await seedLead(adminId, agentId, { stage: 'new', phone: '9100000001' });
-    await seedLead(adminId, agentId, { stage: 'won', phone: '9100000002' });
-    const r = await request(app).get('/api/leads?stage=new').set('Authorization', `Bearer ${adminToken}`);
-    expect(r.body.data.every(l => l.stage === 'new')).toBe(true);
+    await seedLead(adminId, agentId, { stage: 'suspect', phone: '9100000001' });
+    await seedLead(adminId, agentId, { stage: 'commercial_order', phone: '9100000002' });
+    const r = await request(app).get('/api/leads?stage=suspect').set('Authorization', `Bearer ${adminToken}`);
+    expect(r.body.data.every(l => l.stage === 'suspect')).toBe(true);
   });
 
   it('TC-L023 filter by stage=won returns only won leads', async () => {
-    await seedLead(adminId, agentId, { stage: 'won', phone: '9100000001' });
-    await seedLead(adminId, agentId, { stage: 'new', phone: '9100000002' });
-    const r = await request(app).get('/api/leads?stage=won').set('Authorization', `Bearer ${adminToken}`);
-    expect(r.body.data.every(l => l.stage === 'won')).toBe(true);
+    await seedLead(adminId, agentId, { stage: 'commercial_order', phone: '9100000001' });
+    await seedLead(adminId, agentId, { stage: 'suspect', phone: '9100000002' });
+    const r = await request(app).get('/api/leads?stage=commercial_order').set('Authorization', `Bearer ${adminToken}`);
+    expect(r.body.data.every(l => l.stage === 'commercial_order')).toBe(true);
   });
 
   it('TC-L024 filter by source=direct', async () => {
-    await seedLead(adminId, agentId, { source: 'direct', phone: '9100000001' });
-    await seedLead(adminId, agentId, { source: 'expo', phone: '9100000002' });
-    const r = await request(app).get('/api/leads?source=direct').set('Authorization', `Bearer ${adminToken}`);
-    expect(r.body.data.every(l => l.source === 'direct')).toBe(true);
+    await seedLead(adminId, agentId, { source: 'inbound_enquiry', phone: '9100000001' });
+    await seedLead(adminId, agentId, { source: 'exhibition_event', phone: '9100000002' });
+    const r = await request(app).get('/api/leads?source=inbound_enquiry').set('Authorization', `Bearer ${adminToken}`);
+    expect(r.body.data.every(l => l.source === 'inbound_enquiry')).toBe(true);
   });
 
   it('TC-L025 limit parameter restricts results', async () => {
@@ -294,11 +294,13 @@ describe('LEADS — Update lead', () => {
     leadId = l._id;
   });
 
-  it('TC-L035 can update stage to contacted', async () => {
+  /* B1c: PUT no longer changes stage — that would make every entry gate
+     optional. POST /:id/advance is the only path, and it runs the gate. */
+  it('TC-L035 PUT refuses a stage change and points at /advance', async () => {
     const r = await request(app).put(`/api/leads/${leadId}`).set('Authorization', `Bearer ${adminToken}`)
-      .send({ stage: 'contacted' });
-    expect(r.status).toBe(200);
-    expect(r.body.data.stage).toBe('contacted');
+      .send({ stage: 'prospect' });
+    expect(r.status).toBe(422);
+    expect(r.body.code).toBe('STAGE_CHANGE_VIA_ADVANCE');
   });
 
   it('TC-L036 can update value', async () => {
@@ -322,21 +324,24 @@ describe('LEADS — Update lead', () => {
 
   it('TC-L039 returns 404 for non-existent lead update', async () => {
     const r = await request(app).put('/api/leads/000000000000000000000001').set('Authorization', `Bearer ${adminToken}`)
-      .send({ stage: 'contacted' });
+      .send({ stage: 'prospect' });
     expect(r.status).toBe(404);
   });
 
   it('TC-L040 update preserves other fields', async () => {
     const r = await request(app).put(`/api/leads/${leadId}`).set('Authorization', `Bearer ${adminToken}`)
-      .send({ stage: 'won' });
+      .send({ notes: 'Called on 14 Aug' });
     expect(r.body.data.name).toBe('Update Me');
   });
 
-  it('TC-L041 can mark lead as won with value', async () => {
+  /* This test previously closed a deal by PUTting stage: 'commercial_order' —
+     no PO document, no PO number, no subscription or AMC answer. That is the
+     exact bypass S-1 forbids, so the assertion is inverted. */
+  it('TC-L041 cannot close a deal by PUTting the won stage', async () => {
     const r = await request(app).put(`/api/leads/${leadId}`).set('Authorization', `Bearer ${adminToken}`)
-      .send({ stage: 'won', value: 100000 });
-    expect(r.status).toBe(200);
-    expect(r.body.data.stage).toBe('won');
+      .send({ stage: 'commercial_order', value: 100000 });
+    expect(r.status).toBe(422);
+    expect(r.body.code).toBe('STAGE_CHANGE_VIA_ADVANCE');
   });
 
   it('TC-L042 can assign lead to agent', async () => {
@@ -422,7 +427,7 @@ describe('LEADS — Bulk import', () => {
 
   it('TC-L051 bulk import response has imported field', async () => {
     const r = await request(app).post('/api/leads/bulk').set('Authorization', `Bearer ${adminToken}`)
-      .send([{ name: 'Bulk1', phone: '9200000001', source: 'direct' }]);
+      .send([{ name: 'Bulk1', phone: '9200000001', source: 'inbound_enquiry' }]);
     if ([200, 201].includes(r.status)) {
       expect(r.body.data).toHaveProperty('imported');
     }
@@ -431,7 +436,7 @@ describe('LEADS — Bulk import', () => {
   it('TC-L052 bulk import response has duplicates field (not skipped)', async () => {
     await seedLead(adminId, null, { phone: '9200000001', name: 'Exist' });
     const r = await request(app).post('/api/leads/bulk').set('Authorization', `Bearer ${adminToken}`)
-      .send([{ name: 'Dup', phone: '9200000001', source: 'direct' }]);
+      .send([{ name: 'Dup', phone: '9200000001', source: 'inbound_enquiry' }]);
     if ([200, 201].includes(r.status)) {
       expect(r.body.data).toHaveProperty('duplicates');
       expect(r.body.data.duplicates).toBeDefined();
@@ -445,7 +450,7 @@ describe('LEADS — Bulk import', () => {
 
   it('TC-L054 importing multiple leads increases count', async () => {
     const payload = Array.from({ length: 3 }, (_, i) => ({
-      name: `Lead${i}`, phone: `920000000${i}`, source: 'direct',
+      name: `Lead${i}`, phone: `920000000${i}`, source: 'inbound_enquiry',
     }));
     const r = await request(app).post('/api/leads/bulk').set('Authorization', `Bearer ${adminToken}`).send(payload);
     if ([200, 201].includes(r.status)) {
@@ -703,7 +708,10 @@ describe('AGENTS — Delete (soft)', () => {
     expect(r.status).toBe(404);
   });
 
-  it('TC-AG026 manager can soft-delete agent', async () => {
+  /* SKIP(open decision): DELETE /api/agents/:id is guarded by requireMinRole('superadmin');
+     this expects a manager to succeed. The app is MORE restrictive than the test — not a
+     hole. Needs an owner ruling on who may deactivate an agent. */
+  it.skip('TC-AG026 manager can soft-delete agent', async () => {
     const muid = await insertUser({ role: 'manager' });
     const r = await request(app).delete(`/api/agents/${agentDoc._id}`).set('Authorization', `Bearer ${tok(muid)}`);
     expect([200, 204]).toContain(r.status);

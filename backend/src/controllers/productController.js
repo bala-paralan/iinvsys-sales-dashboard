@@ -2,23 +2,24 @@
 const { validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const { ok, created, notFound, unprocessable, paginated } = require('../utils/response');
+const { parsePaging } = require('../utils/pagination');
 
 /* ── GET /api/products ───────────────────────────────────────────── */
 
 async function listProducts(req, res, next) {
   try {
-    const { category, isActive, q, page = 1, limit = 50 } = req.query;
+    const { category, isActive, q } = req.query;
     const filter = {};
     if (category)             filter.category = category;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (q)                    filter.$text = { $search: q };
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { page, limit, skip } = parsePaging(req.query, { defaultLimit: 50 });
     const [products, total] = await Promise.all([
-      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+      Product.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Product.countDocuments(filter),
     ]);
-    return paginated(res, products, total, parseInt(page), parseInt(limit));
+    return paginated(res, products, total, page, limit);
   } catch (err) {
     next(err);
   }

@@ -1,25 +1,28 @@
 'use strict';
 const { validationResult } = require('express-validator');
+const { WON_STAGE, TERMINAL_SALES_STAGES } = require('../config/pipeline');
 const Agent = require('../models/Agent');
 const Lead  = require('../models/Lead');
 const User  = require('../models/User');
 const { ok, created, notFound, unprocessable, paginated, badRequest } = require('../utils/response');
+const { parsePaging } = require('../utils/pagination');
+const audit = require('../services/auditService');
 
 /* ── GET /api/agents ─────────────────────────────────────────────── */
 
 async function listAgents(req, res, next) {
   try {
-    const { status, territory, page = 1, limit = 50 } = req.query;
+    const { status, territory } = req.query;
     const filter = {};
     if (status)    filter.status    = status;
     if (territory) filter.territory = new RegExp(territory, 'i');
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { page, limit, skip } = parsePaging(req.query, { defaultLimit: 50 });
     const [agents, total] = await Promise.all([
-      Agent.find(filter).sort({ name: 1 }).skip(skip).limit(parseInt(limit)).lean(),
+      Agent.find(filter).sort({ name: 1 }).skip(skip).limit(limit).lean(),
       Agent.countDocuments(filter),
     ]);
-    return paginated(res, agents, total, parseInt(page), parseInt(limit));
+    return paginated(res, agents, total, page, limit);
   } catch (err) {
     next(err);
   }
@@ -98,7 +101,7 @@ async function hardDeleteAgent(req, res, next) {
     const agentId = agent._id;
 
     /* Nullify assignedAgent on all their leads (keeps lead history) */
-    await Lead.updateMany({ assignedAgent: agentId }, { $set: { assignedAgent: null } });
+    const orphaned = await Lead.updateMany({ assignedAgent: agentId }, { $set: { assignedAgent: null } });
 
     /* Delete linked User account if present */
     if (agent.userId) {
@@ -107,6 +110,22 @@ async function hardDeleteAgent(req, res, next) {
 
     /* Hard-delete the Agent record */
     await Agent.findByIdAndDelete(agentId);
+
+    /* Destroys the Agent, its linked User login, and the ownership of every
+       lead they held. None of that was recorded anywhere before. */
+    await audit.destruction({
+      entityType: 'agent',
+      entityId: agentId,
+      label: agent.name,
+      reason: 'hard delete',
+      snapshot: {
+        name: agent.name, email: agent.email, phone: agent.phone,
+        territory: agent.territory, target: agent.target,
+        userId: agent.userId, joinDate: agent.joinDate,
+        leadsUnassigned: orphaned.modifiedCount,
+        linkedUserDeleted: !!agent.userId,
+      },
+    }, req);
 
     return ok(res, { leadCount: (await Lead.countDocuments({ assignedAgent: null })) }, 'Agent account permanently deleted');
   } catch (err) {
@@ -131,8 +150,8 @@ async function getAgentStats(req, res, next) {
     ]);
 
     const totalValue  = leads.reduce((s, l) => s + l.value, 0);
-    const wonLeads    = leads.filter(l => l.stage === 'won');
-    const activeLeads = leads.filter(l => !['won', 'lost'].includes(l.stage));
+    const wonLeads    = leads.filter(l => l.stage === WON_STAGE);
+    const activeLeads = leads.filter(l => !TERMINAL_SALES_STAGES.includes(l.stage));
     const convRate    = leads.length ? Math.round((wonLeads.length / leads.length) * 100) : 0;
 
     return ok(res, {

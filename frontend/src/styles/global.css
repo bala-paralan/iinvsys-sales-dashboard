@@ -1,0 +1,119 @@
+/* NeoPop design tokens, ported verbatim from the legacy styles.css :root
+   (including the v1.2 contrast corrections to --text-3/--text-4). The visual
+   identity survives the rebuild; only the rendering architecture changes. */
+:root {
+  --gold: #f0be18;
+  --emerald: #00dfa2;
+  --coral: #ff3d1f;
+  --azure: #2979ff;
+  --amber: #ff8c00;
+  --violet: #aa00ff;
+
+  --bg: #070707;
+  --surface-1: #0f0f0f;
+  --surface-2: #161616;
+  --surface-3: #1e1e1e;
+  --surface-4: #262626;
+
+  --text-1: #f0ebe0;
+  --text-2: #a8a09a;
+  /* N-10 / WCAG 2.1 AA — measured against --bg #070707:
+       --text-3 #787878 = 4.56:1  (passes AA body text, 4.5:1)
+       --text-4 #525252 = 2.58:1  (FAILED — below even the 3.0:1 UI minimum)
+     --text-4 carries 11px metadata: timestamps, record ids, counts. Small text
+     needs the full 4.5:1, so it moves to the old --text-3 value and --text-3
+     moves lighter to keep the two levels visually distinct. */
+  --text-3: #8f8f8f;   /* 6.23:1 */
+  --text-4: #787878;   /* 4.56:1 — was #525252 at 2.58:1 */
+
+  --shadow-gold: 4px 4px 0px var(--gold);
+  --shadow-emerald: 4px 4px 0px var(--emerald);
+  --shadow-coral: 4px 4px 0px var(--coral);
+  --shadow-azure: 4px 4px 0px var(--azure);
+  --shadow-dark: 4px 4px 0px #000;
+
+  --font-display: 'Gilroy-ExtraBold', 'Arial Black', sans-serif;
+  --font-body: 'Gilroy-Light', 'Helvetica Neue', sans-serif;
+  --font-accent: 'Cormorant Garamond', serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* ── NeoPop primitives (class-level, shared) ── */
+.neo-btn {
+  background: var(--surface-3);
+  color: var(--text-1);
+  border: 2px solid #000;
+  box-shadow: var(--shadow-dark);
+  padding: 10px 18px;
+  font-family: var(--font-display);
+  letter-spacing: 0.5px;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+.neo-btn:hover {
+  transform: translate(-1px, -1px);
+}
+.neo-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 #000;
+}
+.neo-btn.gold {
+  background: var(--gold);
+  color: #000;
+}
+.neo-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.card {
+  background: var(--surface-1);
+  border: 2px solid var(--surface-4);
+  box-shadow: var(--shadow-dark);
+}
+
+.form-input {
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 2px solid var(--surface-4);
+  padding: 10px 12px;
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.form-label {
+  display: block;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}

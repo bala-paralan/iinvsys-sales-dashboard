@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "dev:local": "node dev-local.js",
     "seed": "node src/utils/seed.js",
     "seed:prod": "node src/utils/seedProduction.js",
     "test": "jest --runInBand --forceExit --detectOpenHandles",

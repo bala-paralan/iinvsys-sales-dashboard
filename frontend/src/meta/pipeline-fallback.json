@@ -1,0 +1,59 @@
+{
+  "version": "fallback",
+  "sales": [
+    {
+      "key": "suspect",
+      "label": "Suspect",
+      "order": 1,
+      "color": "var(--gold)",
+      "terminal": false,
+      "won": false,
+      "lost": false
+    },
+    {
+      "key": "prospect",
+      "label": "Prospect",
+      "order": 2,
+      "color": "var(--azure)",
+      "terminal": false,
+      "won": false,
+      "lost": false
+    },
+    {
+      "key": "engagement",
+      "label": "Engagement",
+      "order": 3,
+      "color": "var(--violet)",
+      "terminal": false,
+      "won": false,
+      "lost": false
+    },
+    {
+      "key": "negotiation",
+      "label": "Negotiation",
+      "order": 4,
+      "color": "var(--amber)",
+      "terminal": false,
+      "won": false,
+      "lost": false
+    },
+    {
+      "key": "commercial_order",
+      "label": "Commercial Order",
+      "order": 5,
+      "color": "var(--emerald)",
+      "terminal": true,
+      "won": true,
+      "lost": false
+    },
+    {
+      "key": "order_lost",
+      "label": "Order Lost",
+      "order": 6,
+      "color": "var(--coral)",
+      "terminal": true,
+      "won": false,
+      "lost": true
+    }
+  ]
+}

@@ -8,10 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,600&display=swap" rel="stylesheet"/>
 <link href="https://fonts.cdnfonts.com/css/gilroy-free" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- N-7: SRI-pinned. Without integrity, a compromised or hijacked CDN serves
+     arbitrary JavaScript into a page holding an authenticated session. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+        integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="vendor/tesseract/tesseract.min.js"></script>
 <script src="vendor/jsqr/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+        integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
@@ -53,13 +59,13 @@
       <div id="loginError" class="login-error hidden">⚠ Invalid credentials. Try again.</div>
       <div class="form-group">
         <label class="form-label">Email Address</label>
-        <input type="email" id="loginEmail" class="form-input" placeholder="you@iinvsys.com" value="admin@iinvsys.com"/>
+        <input type="email" id="loginEmail" class="form-input" placeholder="you@iinvsys.com" autocomplete="username"/>
       </div>
       <div class="form-group">
         <label class="form-label">Password</label>
         <div class="pwd-wrap">
-          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" value="Admin@123"/>
-          <button type="button" class="pwd-toggle" id="pwdToggle">👁</button>
+          <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" autocomplete="current-password"/>
+          <button type="button" class="pwd-toggle" id="pwdToggle" aria-label="Show password">👁</button>
         </div>
       </div>
       <button type="submit" class="neo-btn yellow full-w">Sign In →</button>
@@ -1075,24 +1081,27 @@
           <label class="form-label">Referrer Name <span class="req">*</span></label>
           <input type="text" id="refName" class="form-input" placeholder="e.g. Sunita Patil"/>
         </div>
-        <div class="form-group">
-          <label class="form-label">Temp Password <span class="req">*</span></label>
-          <input type="text" id="refPassword" class="form-input" placeholder="e.g. Expo@2025"/>
-        </div>
       </div>
-      <button class="neo-btn yellow" id="createReferrerBtn">+ Create Referrer Account</button>
+      <button class="neo-btn yellow" id="createReferrerBtn">+ Invite Referrer</button>
     </div>
+    <!-- N-5: an invite LINK, not a password. The link is single-use, expires,
+         and is stored server-side only as a SHA-256 hash — so it cannot be
+         shown again, and a database dump yields nothing usable. -->
     <div class="ref-creds-banner hidden" id="refCredsBanner">
-      <div class="ref-creds-title">✓ Account Created — Share these credentials once:</div>
+      <div class="ref-creds-title">✓ Referrer invited — send this link once, it cannot be shown again:</div>
       <div class="ref-creds-row">
         <span class="ref-creds-label">Email:</span>
         <code class="ref-creds-val" id="refCredsEmail"></code>
         <button class="copy-btn" id="copyEmailBtn">Copy</button>
       </div>
       <div class="ref-creds-row">
-        <span class="ref-creds-label">Password:</span>
-        <code class="ref-creds-val" id="refCredsPass"></code>
-        <button class="copy-btn" id="copyPassBtn">Copy</button>
+        <span class="ref-creds-label">Invite link:</span>
+        <code class="ref-creds-val" id="refCredsInvite"></code>
+        <button class="copy-btn" id="copyInviteBtn">Copy</button>
+      </div>
+      <div class="ref-creds-row">
+        <span class="ref-creds-label">Expires:</span>
+        <code class="ref-creds-val" id="refCredsExpiry"></code>
       </div>
     </div>
     <div class="referrer-list-label" style="display:flex;align-items:center;justify-content:space-between">

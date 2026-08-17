@@ -33,6 +33,15 @@ const unprocessable = (res, message = 'Validation failed', errors = []) =>
   res.status(422).json({ success: false, message, ...(errors.length && { errors }) });
 
 /**
+ * A refused stage transition. Distinct from `unprocessable` because the client
+ * needs the machine-readable `code` to tell a skipped stage from an unmet gate,
+ * and `missing` to render the checklist of what is actually blocking the move.
+ * See docs/requirements/03-stage-gates.md.
+ */
+const gateFailed = (res, code, message, missing = []) =>
+  res.status(422).json({ success: false, code, message, missing });
+
+/**
  * Paginated list response
  * @param {object} res
  * @param {Array}  items     - Current page items
@@ -52,4 +61,4 @@ const paginated = (res, items, total, page, limit) =>
     },
   });
 
-module.exports = { ok, created, badRequest, unauthorized, forbidden, notFound, conflict, unprocessable, paginated };
+module.exports = { ok, created, badRequest, unauthorized, forbidden, notFound, conflict, unprocessable, gateFailed, paginated };

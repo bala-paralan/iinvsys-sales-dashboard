@@ -1,4 +1,5 @@
 'use strict';
+const { WON_STAGE, LOST_STAGE, TERMINAL_SALES_STAGES } = require('../config/pipeline');
 const Lead  = require('../models/Lead');
 const Agent = require('../models/Agent');
 const Expo  = require('../models/Expo');
@@ -23,9 +24,9 @@ async function overview(req, res, next) {
       recentLeads,
     ] = await Promise.all([
       Lead.countDocuments(baseMatch),
-      Lead.countDocuments({ ...baseMatch, stage: { $nin: ['won', 'lost'] } }),
-      Lead.countDocuments({ ...baseMatch, stage: 'won' }),
-      Lead.countDocuments({ ...baseMatch, stage: 'lost' }),
+      Lead.countDocuments({ ...baseMatch, stage: { $nin: TERMINAL_SALES_STAGES } }),
+      Lead.countDocuments({ ...baseMatch, stage: WON_STAGE }),
+      Lead.countDocuments({ ...baseMatch, stage: LOST_STAGE }),
 
       Lead.aggregate([
         { $match: baseMatch },
@@ -40,12 +41,12 @@ async function overview(req, res, next) {
       ]),
 
       Lead.aggregate([
-        { $match: { ...baseMatch, stage: { $in: ['proposal', 'negotiation', 'won'] } } },
+        { $match: { ...baseMatch, stage: { $in: ['engagement', 'negotiation', WON_STAGE] } } },
         { $group: { _id: '$stage', totalValue: { $sum: '$value' } } },
       ]),
 
       agentScope ? [] : Lead.aggregate([
-        { $group: { _id: '$assignedAgent', wonCount: { $sum: { $cond: [{ $eq: ['$stage', 'won'] }, 1, 0] } }, totalValue: { $sum: '$value' }, leadCount: { $sum: 1 } } },
+        { $group: { _id: '$assignedAgent', wonCount: { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, 1, 0] } }, totalValue: { $sum: '$value' }, leadCount: { $sum: 1 } } },
         { $sort: { wonCount: -1 } },
         { $limit: 5 },
         { $lookup: { from: 'agents', localField: '_id', foreignField: '_id', as: 'agent' } },
@@ -61,7 +62,7 @@ async function overview(req, res, next) {
     ]);
 
     const pipeline    = stageBreakdown.reduce((s, d) => s + d.value, 0);
-    const wonRevenue  = stageBreakdown.find(d => d._id === 'won')?.value || 0;
+    const wonRevenue  = stageBreakdown.find(d => d._id === WON_STAGE)?.value || 0;
     const convRate    = totalLeads ? Math.round((wonLeads / totalLeads) * 100) : 0;
 
     return ok(res, {
@@ -95,7 +96,7 @@ async function trends(req, res, next) {
           _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
           count: { $sum: 1 },
           value: { $sum: '$value' },
-          won:   { $sum: { $cond: [{ $eq: ['$stage', 'won'] }, 1, 0] } },
+          won:   { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, 1, 0] } },
         },
       },
       { $sort: { '_id.year': 1, '_id.month': 1 } },
@@ -128,7 +129,7 @@ async function expoStats(req, res, next) {
     const stats = await Promise.all(
       expos.map(async expo => {
         const leads = await Lead.find({ expo: expo._id }).lean();
-        const won   = leads.filter(l => l.stage === 'won');
+        const won   = leads.filter(l => l.stage === WON_STAGE);
         return {
           ...expo,
           leadCount: leads.length,

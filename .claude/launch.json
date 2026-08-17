@@ -6,6 +6,18 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "."],
       "autoPort": true
+    },
+    {
+      "name": "iinvsys-react",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/mac_user_01/Desktop/Sales_Dashboard/frontend", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "iinvsys-api",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/mac_user_01/Desktop/Sales_Dashboard/backend/dev-local.js"],
+      "port": 5001
     }
   ]
 }

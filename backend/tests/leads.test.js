@@ -47,7 +47,7 @@ describe('POST /api/leads', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Lead One', phone: '9111111111', source: 'direct', assignedAgent: agentProfile._id });
+      .send({ name: 'Lead One', phone: '9111111111', source: 'inbound_enquiry', assignedAgent: agentProfile._id });
     expect(res.status).toBe(201);
     expect(res.body.data.name).toBe('Lead One');
   });
@@ -59,7 +59,7 @@ describe('POST /api/leads', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Lead Two', phone: '9111111112', source: 'direct' });
+      .send({ name: 'Lead Two', phone: '9111111112', source: 'inbound_enquiry' });
     expect(res.status).toBe(201);
   });
 });
@@ -70,9 +70,9 @@ describe('GET /api/leads', () => {
     const mgrToken = await loginToken('mgr@t.com');
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'L1', phone: '91001', source: 'direct', assignedAgent: agentProfile._id });
+      .send({ name: 'L1', phone: '91001', source: 'inbound_enquiry', assignedAgent: agentProfile._id });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'L2', phone: '91002', source: 'direct', assignedAgent: agentProfile2._id });
+      .send({ name: 'L2', phone: '91002', source: 'inbound_enquiry', assignedAgent: agentProfile2._id });
 
     const res = await request(app).get('/api/leads').set('Authorization', `Bearer ${mgrToken}`);
     expect(res.status).toBe(200);
@@ -84,9 +84,9 @@ describe('GET /api/leads', () => {
     const mgrToken = await loginToken('mgr@t.com');
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'L1', phone: '91001', source: 'direct', assignedAgent: agentProfile._id });
+      .send({ name: 'L1', phone: '91001', source: 'inbound_enquiry', assignedAgent: agentProfile._id });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'L2', phone: '91002', source: 'direct', assignedAgent: agentProfile2._id });
+      .send({ name: 'L2', phone: '91002', source: 'inbound_enquiry', assignedAgent: agentProfile2._id });
 
     const agtToken = await loginToken('agt1@t.com');
     const res = await request(app).get('/api/leads').set('Authorization', `Bearer ${agtToken}`);
@@ -97,34 +97,34 @@ describe('GET /api/leads', () => {
 });
 
 describe('PUT /api/leads/:id (agent restrictions)', () => {
-  it('agent can only update stage/notes', async () => {
+  it('agent can only update notes — name/phone are stripped', async () => {
     const { agentProfile } = await setupUsers();
     const mgrToken = await loginToken('mgr@t.com');
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Lead Edit', phone: '91003', source: 'direct', assignedAgent: agentProfile._id });
+      .send({ name: 'Lead Edit', phone: '91003', source: 'inbound_enquiry', assignedAgent: agentProfile._id });
     const id = create.body.data._id;
 
     const agtToken = await loginToken('agt1@t.com');
     const res = await request(app).put(`/api/leads/${id}`)
       .set('Authorization', `Bearer ${agtToken}`)
-      .send({ stage: 'contacted', name: 'HACKED', phone: '0000' });
+      .send({ notes: 'Called today', name: 'HACKED', phone: '0000' });
 
     expect(res.status).toBe(200);
     /* Name and phone must remain unchanged */
     expect(res.body.data.name).toBe('Lead Edit');
     expect(res.body.data.phone).toBe('91003');
-    expect(res.body.data.stage).toBe('contacted');
+    expect(res.body.data.notes).toBe('Called today');
   });
 
   it('agent cannot edit another agent lead', async () => {
     const { agentProfile2 } = await setupUsers();
     const mgrToken = await loginToken('mgr@t.com');
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Other Lead', phone: '91004', source: 'direct', assignedAgent: agentProfile2._id });
+      .send({ name: 'Other Lead', phone: '91004', source: 'inbound_enquiry', assignedAgent: agentProfile2._id });
     const id = create.body.data._id;
 
     const agtToken = await loginToken('agt1@t.com');
-    const res = await request(app).put(`/api/leads/${id}`).set('Authorization', `Bearer ${agtToken}`).send({ stage: 'won' });
+    const res = await request(app).put(`/api/leads/${id}`).set('Authorization', `Bearer ${agtToken}`).send({ stage: 'commercial_order' });
     expect(res.status).toBe(403);
   });
 });
@@ -135,7 +135,7 @@ describe('POST /api/leads/bulk', () => {
     const token = await loginToken('mgr@t.com');
 
     const leads = [
-      { name: 'Bulk 1', phone: '92001', source: 'direct', assignedAgent: agentProfile._id },
+      { name: 'Bulk 1', phone: '92001', source: 'inbound_enquiry', assignedAgent: agentProfile._id },
       { name: 'Bulk 2', phone: '92002', source: 'referral', assignedAgent: agentProfile._id },
     ];
     const res = await request(app).post('/api/leads/bulk').set('Authorization', `Bearer ${token}`).send({ leads });
@@ -148,10 +148,10 @@ describe('POST /api/leads/bulk', () => {
     const token = await loginToken('mgr@t.com');
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Existing', phone: '92001', source: 'direct', assignedAgent: agentProfile._id });
+      .send({ name: 'Existing', phone: '92001', source: 'inbound_enquiry', assignedAgent: agentProfile._id });
 
     const leads = [
-      { name: 'Dup',   phone: '92001', source: 'direct',   assignedAgent: agentProfile._id },
+      { name: 'Dup',   phone: '92001', source: 'inbound_enquiry',   assignedAgent: agentProfile._id },
       { name: 'New1',  phone: '92003', source: 'referral', assignedAgent: agentProfile._id },
     ];
     const res = await request(app).post('/api/leads/bulk').set('Authorization', `Bearer ${token}`).send({ leads });
@@ -166,7 +166,7 @@ describe('POST /api/leads/:id/followups', () => {
     const { agentProfile } = await setupUsers();
     const mgrToken = await loginToken('mgr@t.com');
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'FU Lead', phone: '93001', source: 'direct', assignedAgent: agentProfile._id });
+      .send({ name: 'FU Lead', phone: '93001', source: 'inbound_enquiry', assignedAgent: agentProfile._id });
     const id = create.body.data._id;
 
     const agtToken = await loginToken('agt1@t.com');

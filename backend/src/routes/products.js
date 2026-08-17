@@ -12,11 +12,19 @@ const productValidation = [
   body('price').isFloat({ min: 0 }),
 ];
 
+/* PUT is a partial update — see the note in routes/agents.js. */
+const productUpdateValidation = [
+  body('name').optional().trim().notEmpty(),
+  body('sku').optional().trim().notEmpty(),
+  body('category').optional().isIn(['hardware', 'software', 'service', 'bundle']),
+  body('price').optional().isFloat({ min: 0 }),
+];
+
 router.get('/',    authenticate, requireMinRole('readonly'), ctrl.listProducts);
 router.post('/',   authenticate, requireMinRole('superadmin'), productValidation, ctrl.createProduct);
 
 router.get('/:id',    authenticate, requireMinRole('readonly'),    ctrl.getProduct);
-router.put('/:id',    authenticate, requireMinRole('superadmin'),  productValidation, ctrl.updateProduct);
+router.put('/:id',    authenticate, requireMinRole('superadmin'),  productUpdateValidation, ctrl.updateProduct);
 router.delete('/:id', authenticate, requireMinRole('superadmin'),  ctrl.deleteProduct);
 
 module.exports = router;

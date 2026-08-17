@@ -287,12 +287,15 @@ describe('POST /api/expos/:id/referrers', () => {
     const res = await request(app)
       .post(`/api/expos/${expoId}/referrers`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'John Ref', password: 'RefPass@123' });
+      .send({ name: 'John Ref' });
 
     expect(res.status).toBe(201);
     expect(res.body.data).toHaveProperty('email');
     expect(res.body.data).toHaveProperty('expiresAt');
-    expect(res.body.data.password).toBe('RefPass@123');
+    /* N-5: this used to assert the response CONTAINED the plaintext password.
+       It now asserts the opposite — a single-use invite link, no secret. */
+    expect(res.body.data.password).toBeUndefined();
+    expect(res.body.data.inviteToken).toBeTruthy();
   });
 
   it('referrer email contains expo-based slug', async () => {
@@ -303,7 +306,7 @@ describe('POST /api/expos/:id/referrers', () => {
     const res = await request(app)
       .post(`/api/expos/${expoId}/referrers`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Jane Ref', password: 'Pass@123' });
+      .send({ name: 'Jane Ref' });
 
     expect(res.status).toBe(201);
     expect(res.body.data.email).toContain('iinvsys');
@@ -323,7 +326,7 @@ describe('POST /api/expos/:id/referrers', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 when password is missing', async () => {
+  it('needs no password — the referrer chooses their own via the invite', async () => {
     const token  = await tokenFor('manager');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
@@ -333,7 +336,7 @@ describe('POST /api/expos/:id/referrers', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ name: 'Test Ref' });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
   });
 
   it('returns 404 for non-existent expo', async () => {

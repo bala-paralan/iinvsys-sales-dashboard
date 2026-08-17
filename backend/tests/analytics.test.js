@@ -46,8 +46,8 @@ async function createAgentWithUser(mgrId, suffix = '1') {
 
 async function createLead(overrides, createdById) {
   return Lead.create({
-    name: 'Test Lead', phone: '9000000000', source: 'direct',
-    stage: 'new', value: 10000, createdBy: createdById,
+    name: 'Test Lead', phone: '9000000000', source: 'inbound_enquiry',
+    stage: 'suspect', value: 10000, createdBy: createdById,
     ...overrides,
   });
 }
@@ -93,10 +93,10 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'won',       value: 50000, phone: '9001' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'lost',      value: 20000, phone: '9002' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'new',       value: 10000, phone: '9003' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'contacted', value: 8000,  phone: '9004' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'commercial_order',       value: 50000, phone: '9001' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'order_lost',      value: 20000, phone: '9002' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'suspect',       value: 10000, phone: '9003' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'prospect', value: 8000,  phone: '9004' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -116,9 +116,9 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'proposal',    value: 30000, phone: '9011' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'engagement',    value: 30000, phone: '9011' }, admin._id);
     await createLead({ assignedAgent: agent._id, stage: 'negotiation', value: 40000, phone: '9012' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'new',         value: 10000, phone: '9013' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'suspect',         value: 10000, phone: '9013' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -132,8 +132,8 @@ describe('GET /api/analytics/overview', () => {
     const { agent: a1, token: agt1Token } = await createAgentWithUser(admin._id, '1');
     const { agent: a2 }                   = await createAgentWithUser(admin._id, '2');
 
-    await createLead({ assignedAgent: a1._id, stage: 'won', value: 50000, phone: '9021' }, admin._id);
-    await createLead({ assignedAgent: a2._id, stage: 'won', value: 70000, phone: '9022' }, admin._id);
+    await createLead({ assignedAgent: a1._id, stage: 'commercial_order', value: 50000, phone: '9021' }, admin._id);
+    await createLead({ assignedAgent: a2._id, stage: 'commercial_order', value: 70000, phone: '9022' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -148,15 +148,15 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'won',  phone: '9031', value: 1000 }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'won',  phone: '9032', value: 2000 }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'lost', phone: '9033', value: 0    }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'commercial_order',  phone: '9031', value: 1000 }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'commercial_order',  phone: '9032', value: 2000 }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'order_lost', phone: '9033', value: 0    }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
       .set('Authorization', `Bearer ${admin.token}`);
 
-    const wonStage = res.body.data.stageBreakdown.find(s => s._id === 'won');
+    const wonStage = res.body.data.stageBreakdown.find(s => s._id === 'commercial_order');
     expect(wonStage).toBeDefined();
     expect(wonStage.count).toBe(2);
     expect(wonStage.value).toBe(3000);
@@ -166,7 +166,7 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'won', phone: '9041' }, admin._id);
+    await createLead({ assignedAgent: agent._id, stage: 'commercial_order', phone: '9041' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -311,9 +311,9 @@ describe('GET /api/analytics/expos', () => {
     const { agent } = await createAgentWithUser(admin._id, '1');
     const expo = await createExpo(admin._id);
 
-    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'won',  value: 30000, phone: '9081' }, admin._id);
-    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'lost', value: 0,     phone: '9082' }, admin._id);
-    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'new',  value: 0,     phone: '9083' }, admin._id);
+    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'commercial_order',  value: 30000, phone: '9081' }, admin._id);
+    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'order_lost', value: 0,     phone: '9082' }, admin._id);
+    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'suspect',  value: 0,     phone: '9083' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/expos')
@@ -341,6 +341,14 @@ describe('GET /api/analytics/expos', () => {
       .set('Authorization', `Bearer ${admin.token}`);
 
     const expoData = res.body.data.find(e => e._id === expo._id.toString());
+
+    /* This test failed once in a full run and could not be reproduced in eight
+       subsequent runs. Asserting the inputs before the derived value means a
+       recurrence says WHICH input was wrong — a bare `roiPercent` mismatch is
+       almost useless to debug after the fact. */
+    expect(expoData).toBeDefined();
+    expect(expoData.leadCount).toBe(25);
+    expect(expo.targetLeads).toBe(50);
     expect(expoData.roiPercent).toBe(50);
   });
 

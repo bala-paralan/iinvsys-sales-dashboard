@@ -1,13 +1,47 @@
 'use strict';
 const { validationResult } = require('express-validator');
+const multer      = require('multer');
+const fileStore   = require('../utils/fileStore');
 const Lead        = require('../models/Lead');
 const Telemetry   = require('../models/Telemetry');
 const { enrichLead, ENRICHABLE } = require('../enrichment');
 const { normalizePhone, jaroWinkler, nameCompanyScore } = require('../utils/matching');
-const { ok, created, notFound, forbidden, badRequest, unprocessable, paginated } = require('../utils/response');
+const { ok, created, notFound, forbidden, badRequest, unprocessable, gateFailed, paginated } = require('../utils/response');
+const { parsePaging } = require('../utils/pagination');
+const audit = require('../services/auditService');
+const pipeline = require('../config/pipeline');
+const { applyTransition, previewGate } = require('../services/stageService');
+const { can } = require('../middleware/rbac');
 const { nanoid } = (() => {
   try { return require('nanoid'); } catch { return { nanoid: () => Math.random().toString(36).slice(2, 10) }; }
 })();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: fileStore.MAX_BYTES },
+});
+
+/**
+ * Fields the SERVER owns. Stripped from every client payload on create and
+ * update, whatever the caller's role.
+ *
+ * `stageHistory` and `attachments` are the load-bearing pair. A forged
+ * stageHistory inflates every Sales conversion KPI, which is computed entirely
+ * from it. A forged attachment defeats the document gates outright — the S-8
+ * PO gate is `hasDoc:po`, so `PUT { attachments: [{ docType: 'po' }] }` closed
+ * a deal with no purchase order on file. Documents now arrive only through
+ * POST /:id/upload, which puts real bytes in GridFS first.
+ */
+const SERVER_OWNED_FIELDS = [
+  'stageHistory', 'stageEnteredAt', 'attachments',
+  'needsReview', 'reviewIssues', 'workOrder', 'createdBy',
+];
+
+function stripServerOwned(body) {
+  if (!body || typeof body !== 'object') return body;
+  SERVER_OWNED_FIELDS.forEach((f) => delete body[f]);
+  return body;
+}
 
 /* Allow-list of telemetry events from PRD AC8 + cross-cutting contract */
 const TELEMETRY_EVENTS = new Set([
@@ -20,6 +54,25 @@ const TELEMETRY_EVENTS = new Set([
   'scan_language_detected', 'scan_language_mismatch',
   'voice_memo_recorded', 'voice_memo_transcribed', 'voice_memo_field_corrected',
 ]);
+
+/**
+ * Fire enrichment without blocking the response (PRD 5 AC1).
+ *
+ * Skipped under NODE_ENV=test, deliberately. `setImmediate` schedules a
+ * database WRITE that lands after the HTTP response — i.e. after the test that
+ * triggered it has already moved on, and potentially after its
+ * `clearCollections()`. Background writes racing the next test are a classic
+ * source of the kind of intermittent failure that gets dismissed as "flaky"
+ * and erodes trust in the whole suite.
+ *
+ * The explicit `POST /api/leads/:id/enrich` endpoint still runs normally, so
+ * enrichment behaviour remains directly tested — just not as a side effect of
+ * every unrelated lead creation.
+ */
+function queueEnrichment(leadId, userId) {
+  if (process.env.NODE_ENV === 'test') return;
+  setImmediate(() => enrichLead(leadId, userId).catch(() => {}));
+}
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 
@@ -43,7 +96,7 @@ function buildFilter(query, agentScope) {
 
   if (overdue === 'true') {
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
-    filter.stage       = { $nin: ['won', 'lost'] };
+    filter.stage       = { $nin: ['commercial_order', 'order_lost'] };
     filter.$or = [
       { lastContact: { $lt: sevenDaysAgo } },
       { lastContact: null, followUps: { $size: 0 } },
@@ -56,13 +109,13 @@ function buildFilter(query, agentScope) {
 
 async function listLeads(req, res, next) {
   try {
-    const { page = 1, limit = 500, sort = '-createdAt' } = req.query;
+    const { sort = '-createdAt' } = req.query;
     const filter = buildFilter(req.query, req.agentScope);
 
     /* Referrers see all leads for their expo only */
     if (req.referrerExpoId) filter.expo = req.referrerExpoId;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { page, limit, skip } = parsePaging(req.query, { defaultLimit: 500 });
 
     const [leads, total] = await Promise.all([
       Lead.find(filter)
@@ -72,11 +125,11 @@ async function listLeads(req, res, next) {
         .populate('createdBy', 'name role')
         .sort(sort)
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(limit)
         .lean({ virtuals: true }),
       Lead.countDocuments(filter),
     ]);
-    return paginated(res, leads, total, parseInt(page), parseInt(limit));
+    return paginated(res, leads, total, page, limit);
   } catch (err) {
     next(err);
   }
@@ -121,21 +174,27 @@ async function createLead(req, res, next) {
     /* Referrers: auto-tag expo and source, never let the client pick an agent */
     if (req.referrerExpoId) {
       req.body.expo   = req.referrerExpoId;
-      req.body.source = 'expo';
+      req.body.source = 'exhibition_event';
       delete req.body.assignedAgent;
     }
 
     /* Agents can only create leads assigned to themselves */
     if (req.agentScope) req.body.assignedAgent = req.agentScope;
 
-    const lead = await Lead.create({ ...req.body, createdBy: req.user._id });
+    const lead = await Lead.create({ ...stripServerOwned(req.body), createdBy: req.user._id });
+    /* The model seeded the opening stageHistory entry; name the actor on it. */
+    if (lead.stageHistory.length === 1 && !lead.stageHistory[0].by) {
+      lead.stageHistory[0].by = req.user._id;
+      lead.stageHistory[0].byName = req.user.name || req.user.email || '';
+      await lead.save();
+    }
     const populated = await Lead.findById(lead._id)
       .populate('assignedAgent', 'name initials color')
       .populate('products', 'name sku price')
       .lean({ virtuals: true });
 
     /* PRD 5 AC1 — fire enrichment async; rep never blocked */
-    setImmediate(() => enrichLead(lead._id, req.user._id).catch(() => {}));
+    queueEnrichment(lead._id, req.user._id);
 
     return created(res, populated, 'Lead created');
   } catch (err) {
@@ -167,6 +226,21 @@ async function updateLead(req, res, next) {
       Object.keys(req.body).forEach(k => { if (!allowed.includes(k)) delete req.body[k]; });
     }
 
+    /* A stage change must go through POST /:id/advance, which runs canAdvance()
+       and the entry gate. Allowing it here would make every gate optional —
+       `PUT { stage: 'commercial_order' }` would close a deal with no PO, no PO
+       number and no AMC answer, which is exactly what S-1 forbids.
+       An unchanged stage is a no-op, so an ordinary Save never trips this. */
+    if (req.body.stage !== undefined && req.body.stage !== lead.stage) {
+      return gateFailed(
+        res, 'STAGE_CHANGE_VIA_ADVANCE',
+        'Stage changes go through POST /api/leads/:id/advance so the entry gate runs',
+        [],
+      );
+    }
+    delete req.body.stage;
+    stripServerOwned(req.body);
+
     Object.assign(lead, req.body);
     await lead.save();
 
@@ -191,6 +265,18 @@ async function deleteLead(req, res, next) {
       return forbidden(res, 'Access denied');
     }
     await Lead.findByIdAndDelete(req.params.id);
+    /* Hard delete with no soft-delete flag anywhere — the audit snapshot is the
+       only remaining record that this lead existed. */
+    await audit.destruction({
+      entityType: 'lead',
+      entityId: lead._id,
+      label: lead.name,
+      snapshot: {
+        name: lead.name, phone: lead.phone, email: lead.email, company: lead.company,
+        stage: lead.stage, source: lead.source, value: lead.value,
+        assignedAgent: lead.assignedAgent, expo: lead.expo, createdAt: lead.createdAt,
+      },
+    }, req);
     return ok(res, {}, 'Lead deleted');
   } catch (err) {
     next(err);
@@ -252,7 +338,7 @@ async function bulkImport(req, res, next) {
     const toInsert  = leads.filter(l => !dupPhones.has(l.phone))
                            .map(l => {
                              if (req.referrerExpoId) {
-                               const row = { createdBy: req.user._id, expo: req.referrerExpoId, source: 'expo' };
+                               const row = { createdBy: req.user._id, expo: req.referrerExpoId, source: 'exhibition_event' };
                                for (const k of REFERRER_BULK_FIELDS) if (l[k] !== undefined) row[k] = l[k];
                                return row;
                              }
@@ -384,6 +470,22 @@ async function mergeLead(req, res, next) {
 
     await target.save();
     await Lead.findByIdAndDelete(sourceId);
+    await audit.record({
+      action: 'record.merge',
+      entityType: 'lead',
+      entityId: target._id,
+      summary: `Merged lead "${source.name}" into "${target.name}"`,
+      meta: {
+        sourceId: String(sourceId),
+        targetId: String(target._id),
+        /* The source row is destroyed by the merge; keep enough to answer
+           "where did that lead go?" months later. */
+        sourceSnapshot: {
+          name: source.name, phone: source.phone, email: source.email,
+          company: source.company, stage: source.stage, createdAt: source.createdAt,
+        },
+      },
+    }, req);
 
     const populated = await Lead.findById(target._id)
       .populate('assignedAgent', 'name initials color')
@@ -443,8 +545,8 @@ async function bulkScan(req, res, next) {
           email:         l.email  || '',
           company:       l.company || '',
           notes:         l.notes  || '',
-          source:        l.source || 'direct',
-          stage:         'new',
+          source:        l.source || 'inbound_enquiry',
+          stage:         'suspect',
           assignedAgent: agentId,
           ocrCapture:    l.ocrCapture || null,
           batch:         { batchId, batchName },
@@ -452,7 +554,7 @@ async function bulkScan(req, res, next) {
         };
         if (req.referrerExpoId) {
           row.expo          = req.referrerExpoId;
-          row.source        = 'expo';
+          row.source        = 'exhibition_event';
           row.assignedAgent = null;
         }
         return row;
@@ -462,9 +564,7 @@ async function bulkScan(req, res, next) {
     if (toInsert.length) inserted = await Lead.insertMany(toInsert);
 
     /* PRD 5 — trigger enrichment async for each inserted lead */
-    for (const lead of inserted) {
-      setImmediate(() => enrichLead(lead._id, req.user._id).catch(() => {}));
-    }
+    for (const lead of inserted) queueEnrichment(lead._id, req.user._id);
 
     await Telemetry.create({
       eventName: 'bulk_scan_saved',
@@ -548,8 +648,224 @@ async function getBatch(req, res, next) {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   B1c — the stage transition contract
+   docs/requirements/03-stage-gates.md
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Agents may only touch their own book; everyone else is already permission-gated. */
+function denyIfOutOfScope(req, lead) {
+  if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return true;
+  if (req.referrerExpoId && String(lead.expo) !== String(req.referrerExpoId)) return true;
+  return false;
+}
+
+/* ── POST /api/leads/:id/advance ─────────────────────────────────────── */
+
+async function advanceLead(req, res, next) {
+  try {
+    const { toStage, note = '', patch, force = false, gateOverrideNote = '' } = req.body || {};
+    if (!toStage) return badRequest(res, 'toStage is required');
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return notFound(res, 'Lead not found');
+    if (denyIfOutOfScope(req, lead)) return forbidden(res, 'Access denied');
+
+    /* An override is a privilege, not a flag anyone can set. A caller without
+       lead.gate_override is treated as if they had not asked. */
+    const mayOverride = can(req.user, 'lead.gate_override');
+    const wantsOverride = force === true || force === 'true';
+    if (wantsOverride && !mayOverride) {
+      return forbidden(res, 'You are not permitted to override a stage gate');
+    }
+    if (wantsOverride && !String(gateOverrideNote).trim()) {
+      return badRequest(res, 'gateOverrideNote is required when forcing a transition');
+    }
+
+    const result = applyTransition(lead, pipeline.SALES_STAGES, {
+      toStage,
+      patch,
+      note,
+      force: wantsOverride && mayOverride,
+      gateOverrideNote,
+      actor: req.user,
+    });
+
+    if (!result.ok) {
+      /* Nothing was saved — the in-memory merge above is discarded with `lead`. */
+      return gateFailed(res, result.code, result.message, result.missing);
+    }
+
+    await lead.save();
+
+    await audit.stageTransition({
+      entityType: 'lead',
+      entityId: lead._id,
+      from: result.from,
+      to: result.to,
+      direction: result.direction,
+      note,
+      label: lead.name,
+    }, req);
+
+    if (result.gateOverride) {
+      await audit.gateOverride({
+        entityType: 'lead',
+        entityId: lead._id,
+        from: result.from,
+        to: result.to,
+        missing: result.missing.map((m) => m.code),
+        note: gateOverrideNote,
+        label: lead.name,
+      }, req);
+    }
+
+    /* Handoff 1 (S-9): a verified PO becomes a Delivery Work Order. Fired
+       AFTER the lead is saved — the sale is already true; a handoff failure
+       is logged and repaired by the nightly sweep, never surfaced as a
+       failure of the transition that caused it. */
+    let workOrder = null;
+    if (result.to === 'commercial_order') {
+      const { createWorkOrderForLead } = require('../services/handoffService');
+      const populated_ = await Lead.findById(lead._id).populate('products', 'name sku price');
+      workOrder = await createWorkOrderForLead(populated_, req);
+    }
+
+    const populated = await Lead.findById(lead._id)
+      .populate('assignedAgent', 'name initials color')
+      .populate('products', 'name sku price')
+      .lean({ virtuals: true });
+
+    return ok(res, {
+      lead: populated,
+      transition: {
+        from: result.from, to: result.to, direction: result.direction,
+        gateOverride: result.gateOverride,
+        waived: result.missing.map((m) => m.code),
+      },
+      ...(workOrder && {
+        workOrder: { _id: workOrder._id, woNumber: workOrder.woNumber, stage: workOrder.stage },
+      }),
+    }, `Moved to ${pipeline.stageLabel(pipeline.SALES_STAGES, result.to)}`);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── GET /api/leads/:id/gate?to= ─────────────────────────────────────── */
+
+async function previewLeadGate(req, res, next) {
+  try {
+    const lead = await Lead.findById(req.params.id).lean({ virtuals: true });
+    if (!lead) return notFound(res, 'Lead not found');
+    if (denyIfOutOfScope(req, lead)) return forbidden(res, 'Access denied');
+
+    /* Default to the next stage forward, which is what the UI asks for 95% of
+       the time when it renders "what is blocking this deal?". */
+    const toStage = req.query.to || pipeline.nextStage(pipeline.SALES_STAGES, lead.stage);
+    if (!toStage) {
+      return ok(res, {
+        from: lead.stage, to: null, allowed: false,
+        message: `${pipeline.stageLabel(pipeline.SALES_STAGES, lead.stage)} is a closed stage`,
+        requirements: [],
+      });
+    }
+
+    const preview = previewGate(lead, pipeline.SALES_STAGES, toStage);
+    return ok(res, { from: lead.stage, to: toStage, ...preview });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── GET /api/leads/hygiene ──────────────────────────────────────────── */
+
+async function hygieneQueue(req, res, next) {
+  try {
+    const filter = { needsReview: true };
+    if (req.agentScope) filter.assignedAgent = req.agentScope;
+    if (req.referrerExpoId) filter.expo = req.referrerExpoId;
+    if (req.query.code) filter.reviewIssues = req.query.code;
+
+    const { page, limit, skip } = parsePaging(req.query, { defaultLimit: 50 });
+
+    const [leads, total, byCode] = await Promise.all([
+      Lead.find(filter)
+        .select('name phone company stage stageEnteredAt assignedAgent reviewIssues '
+              + 'needsReview expectedCloseDate nextFollowUpDate value')
+        .populate('assignedAgent', 'name initials color')
+        .sort({ stageEnteredAt: 1 })
+        .skip(skip).limit(limit)
+        .lean(),
+      Lead.countDocuments(filter),
+      /* The worklist is only actionable if a manager can see WHICH rule is
+         failing across the book, not just how many records are flagged. */
+      Lead.aggregate([
+        { $match: filter },
+        { $unwind: '$reviewIssues' },
+        { $group: { _id: '$reviewIssues', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+    ]);
+
+    return paginated(res, { leads, byCode }, total, page, limit);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── POST /api/leads/:id/upload ───────────────────────────────────────────
+   The counterpart to stripping `attachments` from the write payloads. Without
+   this the S-8 PO gate is unsatisfiable through the API at all: the gate wants
+   a `po` document and nothing could put one on the lead. */
+
+async function uploadAttachment(req, res, next) {
+  try {
+    const { docType } = req.body || {};
+    if (!pipeline.DOC_TYPE_KEYS.includes(docType)) {
+      return unprocessable(res, `docType must be one of: ${pipeline.DOC_TYPE_KEYS.join(', ')}`);
+    }
+    if (!req.file) return badRequest(res, 'Attach a file under the field name "file"');
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return notFound(res, 'Lead not found');
+
+    /* Same scoping the rest of the controller applies — an agent may only
+       attach to a lead assigned to them. */
+    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) {
+      return forbidden(res, 'Access denied');
+    }
+
+    const stored = await fileStore.put(req.file.buffer, {
+      filename: req.file.originalname,
+      mimeType: req.file.mimetype,
+      docType,
+      uploadedBy: req.user._id,
+    });
+
+    lead.attachments.push({ ...stored, docType, uploadedBy: req.user._id });
+    await lead.save();
+
+    /* `record.update` rather than a new action: a document arriving on a lead
+       is an update to that record, and the gate-relevant detail is the
+       docType, which `meta` carries. */
+    await audit.record({
+      action: 'record.update', entityType: 'lead', entityId: lead._id,
+      summary: `${docType} attached to lead ${lead.name}`,
+      meta: { docType, filename: req.file.originalname },
+    }, req);
+
+    return created(res, lead.attachments.at(-1), `${docType} attached`);
+  } catch (err) {
+    if (err instanceof fileStore.FileStoreError) return unprocessable(res, err.message);
+    next(err);
+  }
+}
+
 module.exports = {
   listLeads, getLead, createLead, updateLead, deleteLead, addFollowUp, bulkImport,
   checkDuplicate, mergeLead, logTelemetry,
   bulkScan, triggerEnrich, rollbackEnrichField, getBatch,
+  advanceLead, previewLeadGate, hygieneQueue,
+  uploadAttachment, uploadMiddleware: upload.single('file'),
 };

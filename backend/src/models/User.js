@@ -1,12 +1,16 @@
 'use strict';
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
+/* Single source of truth for the role list. `permissions.js` has no mongoose
+   dependency, so importing it here cannot create a require cycle.
+   See docs/requirements/04-roles-and-permissions.md. */
+const { ALL_ROLES } = require('../config/permissions');
 
 const UserSchema = new mongoose.Schema({
   name:     { type: String, required: true, trim: true },
   email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, minlength: 6, select: false },
-  role:        { type: String, enum: ['superadmin','manager','agent','referrer','readonly'], default: 'agent' },
+  role:        { type: String, enum: ALL_ROLES, default: 'agent' },
   agentId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', default: null },
   /* Referrer-specific */
   expoId:      { type: mongoose.Schema.Types.ObjectId, ref: 'Expo', default: null },

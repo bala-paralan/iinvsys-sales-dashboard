@@ -182,6 +182,19 @@ function contentSpinner(msg = 'Loading…') {
 }
 
 /* ═══════════ AUTH ═══════════ */
+/* Turn a login failure into something actionable.
+   `api()` attaches `.status` when the server answered; its absence means the
+   request never got there at all. */
+function loginErrorMessage(err) {
+  const status = err && err.status;
+  if (!status)         return '⚠ Cannot reach the server. Is the API running on port 5001?';
+  if (status === 401)  return '⚠ Invalid credentials. Try again.';
+  if (status === 429)  return '⚠ Too many failed attempts for this account. Try again in 15 minutes.';
+  if (status === 403)  return '⚠ This account is not allowed to sign in.';
+  if (status >= 500)   return '⚠ The server returned an error. Try again shortly.';
+  return `⚠ ${(err && err.message) || 'Sign-in failed.'}`;
+}
+
 document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email   = document.getElementById('loginEmail').value.trim().toLowerCase();
@@ -191,15 +204,20 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   btnLoad(signBtn, true, 'Signing in…');
   showLoader('Signing in…');
 
-  // ── Step 1: authenticate only — catch shows "Invalid credentials"
+  // ── Step 1: authenticate.
+  // The banner used to read "Invalid credentials" for EVERY failure — including
+  // the API being unreachable, or a rate-limit lockout. That sends people to
+  // check their password when the real problem is elsewhere, so say what
+  // actually happened.
   let loginRes;
   try {
     loginRes = await api('POST', '/auth/login', { email, password: pass });
   } catch (err) {
     hideLoader();
     btnLoad(signBtn, false);
+    errEl.textContent = loginErrorMessage(err);
     errEl.classList.remove('hidden');
-    setTimeout(() => errEl.classList.add('hidden'), 4000);
+    setTimeout(() => errEl.classList.add('hidden'), 6000);
     return;
   }
 
@@ -2957,7 +2975,8 @@ window.openReferrerModal = async function(expoId, expoName) {
   _currentReferrerExpoId = expoId;
   document.getElementById('referrerModalTitle').innerHTML = `<em>${expoName}</em> Referrers`;
   document.getElementById('refName').value     = '';
-  document.getElementById('refPassword').value = '';
+  const _refPass = document.getElementById('refPassword');
+  if (_refPass) _refPass.value = '';
   document.getElementById('refCredsBanner').classList.add('hidden');
   document.getElementById('referrerModal').classList.add('open');
   await loadReferrerList(expoId);
@@ -2991,20 +3010,26 @@ async function loadReferrerList(expoId) {
 
 document.getElementById('createReferrerBtn')?.addEventListener('click', async () => {
   const name = document.getElementById('refName').value.trim();
-  const pass = document.getElementById('refPassword').value.trim();
-  if (!name || !pass) { flash('Name and password are required', 'error'); return; }
+  /* N-5: no password is chosen here any more. An admin-chosen password is one
+     the admin still knows after handing it over, and it travelled through the
+     API response, the browser's network log and a WhatsApp message. The
+     referrer now sets their own via a single-use invite link. */
+  if (!name) { flash('Name is required', 'error'); return; }
   const btn = document.getElementById('createReferrerBtn');
-  btnLoad(btn, true, 'Creating…');
+  btnLoad(btn, true, 'Inviting…');
   try {
-    const res = await api('POST', `/expos/${_currentReferrerExpoId}/referrers`, { name, password: pass });
+    const res = await api('POST', `/expos/${_currentReferrerExpoId}/referrers`, { name });
     const creds = res.data;
-    document.getElementById('refCredsEmail').textContent = creds.email;
-    document.getElementById('refCredsPass').textContent  = creds.password;
+    document.getElementById('refCredsEmail').textContent  = creds.email;
+    document.getElementById('refCredsInvite').textContent = creds.inviteUrl;
+    document.getElementById('refCredsExpiry').textContent =
+      new Date(creds.inviteExpiresAt).toLocaleString('en-IN');
     document.getElementById('refCredsBanner').classList.remove('hidden');
     document.getElementById('refName').value     = '';
-    document.getElementById('refPassword').value = '';
+    const passField = document.getElementById('refPassword');
+    if (passField) passField.value = '';
     await loadReferrerList(_currentReferrerExpoId);
-    flash('Referrer account created');
+    flash('Referrer invited — share the link once');
   } catch (err) {
     flash(err.message || 'Failed to create referrer', 'error');
   } finally {
@@ -3015,8 +3040,9 @@ document.getElementById('createReferrerBtn')?.addEventListener('click', async ()
 document.getElementById('copyEmailBtn')?.addEventListener('click', () => {
   navigator.clipboard?.writeText(document.getElementById('refCredsEmail').textContent).then(() => flash('Email copied'));
 });
-document.getElementById('copyPassBtn')?.addEventListener('click', () => {
-  navigator.clipboard?.writeText(document.getElementById('refCredsPass').textContent).then(() => flash('Password copied'));
+document.getElementById('copyInviteBtn')?.addEventListener('click', () => {
+  navigator.clipboard?.writeText(document.getElementById('refCredsInvite').textContent)
+    .then(() => flash('Invite link copied'));
 });
 
 window.deleteReferrer = async function(expoId, uid) {
@@ -3084,13 +3110,13 @@ window.downloadReferrerSheet = async function(expoId, expoName) {
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Expo Summary');
 
   /* ── Sheet 2: Referrer Credentials ── */
-  const headers = ['#', 'Name', 'Login Email', 'Temp Password', 'Leads Captured', 'Status'];
+  const headers = ['#', 'Name', 'Login Email', 'Password', 'Leads Captured', 'Status'];
   const rows = referrers.map((r, i) => {
     return [
       i + 1,
       r.name,
       r.email,
-      '(set at creation — not stored)',
+      '(referrer sets their own via invite link)',
       r.leadCount || 0,
       'Active',
     ];

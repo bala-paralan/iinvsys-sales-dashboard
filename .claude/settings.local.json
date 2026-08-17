@@ -60,7 +60,15 @@
       "Bash(lsof -nP -iTCP:5050 -iTCP:5001 -iTCP:5500 -iTCP:8080 -sTCP:LISTEN)",
       "Bash(gh pr *)",
       "Bash(gh auth *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(openssl rand *)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes balap@103.191.208.50 'cd /opt/iinvsys/iinvsys-sales-dashboard/backend && docker compose ps --format \"{{.Name}} {{.State}}\" 2>/dev/null || docker ps --format \"{{.Names}} {{.Status}}\"')",
+      "Bash(mkdir -p ~/.ssh/cm)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=no balap@192.168.10.33 'echo KEYAUTH_OK')",
+      "Bash(mkdir -p /Users/mac_user_01/Desktop/Sales_Dashboard/docs/requirements/source)",
+      "Bash(cp \"/Users/mac_user_01/Downloads/Sales CRM_Dictionary.pdf\" /Users/mac_user_01/Desktop/Sales_Dashboard/docs/requirements/source/Sales_CRM_Dictionary.pdf)",
+      "Bash(cp \"/Users/mac_user_01/Downloads/iinvsys_Business_Process_Framework.pdf\" /Users/mac_user_01/Desktop/Sales_Dashboard/docs/requirements/source/)",
+      "Bash(node -e ' *)"
     ]
   }
 }
