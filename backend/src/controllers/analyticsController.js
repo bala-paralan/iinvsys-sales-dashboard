@@ -1,16 +1,20 @@
 'use strict';
 const { WON_STAGE, LOST_STAGE, TERMINAL_SALES_STAGES } = require('../config/pipeline');
 const Lead  = require('../models/Lead');
-const Agent = require('../models/Agent');
 const Expo  = require('../models/Expo');
 const { ok } = require('../utils/response');
+const { scopeFilter } = require('../services/scopeService');
+const { can } = require('../middleware/rbac');
 
 /* ── GET /api/analytics/overview ────────────────────────────────── */
 
 async function overview(req, res, next) {
   try {
-    const agentScope = req.agentScope;
-    const baseMatch  = agentScope ? { assignedAgent: agentScope } : {};
+    const baseMatch = scopeFilter(req.scope, 'owner');
+    /* A leaderboard IS peer comparison, which doc 1 (IS-DIR-01) and doc 2 (SA-DIR-01)
+       both restrict to the people above you — an executive must never see how they rank
+       against the person at the next desk. `kpi.read_team` is exactly that right. */
+    const showLeaderboard = can(req.user, 'kpi.read_team');
 
     const [
       totalLeads,
@@ -45,11 +49,12 @@ async function overview(req, res, next) {
         { $group: { _id: '$stage', totalValue: { $sum: '$value' } } },
       ]),
 
-      agentScope ? [] : Lead.aggregate([
-        { $group: { _id: '$assignedAgent', wonCount: { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, 1, 0] } }, totalValue: { $sum: '$value' }, leadCount: { $sum: 1 } } },
+      !showLeaderboard ? [] : Lead.aggregate([
+        { $match: baseMatch },
+        { $group: { _id: '$owner', wonCount: { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, 1, 0] } }, totalValue: { $sum: '$value' }, leadCount: { $sum: 1 } } },
         { $sort: { wonCount: -1 } },
         { $limit: 5 },
-        { $lookup: { from: 'agents', localField: '_id', foreignField: '_id', as: 'agent' } },
+        { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'agent' } },
         { $unwind: '$agent' },
         { $project: { wonCount: 1, totalValue: 1, leadCount: 1, 'agent.name': 1, 'agent.initials': 1, 'agent.color': 1 } },
       ]),
@@ -57,7 +62,7 @@ async function overview(req, res, next) {
       Lead.find(baseMatch)
         .sort({ createdAt: -1 })
         .limit(5)
-        .populate('assignedAgent', 'name initials color')
+        .populate('owner', 'name initials color')
         .lean(),
     ]);
 
@@ -82,8 +87,11 @@ async function overview(req, res, next) {
 
 async function trends(req, res, next) {
   try {
-    const agentScope = req.agentScope;
-    const baseMatch  = agentScope ? { assignedAgent: agentScope } : {};
+    const baseMatch = scopeFilter(req.scope, 'owner');
+    /* A leaderboard IS peer comparison, which doc 1 (IS-DIR-01) and doc 2 (SA-DIR-01)
+       both restrict to the people above you — an executive must never see how they rank
+       against the person at the next desk. `kpi.read_team` is exactly that right. */
+    const showLeaderboard = can(req.user, 'kpi.read_team');
 
     /* Leads created per month (last 6 months) */
     const sixMonthsAgo = new Date();

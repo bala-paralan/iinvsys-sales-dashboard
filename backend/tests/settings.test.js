@@ -12,18 +12,18 @@ afterAll(async () => { await db.disconnect(); });
 /* ─── helpers ─────────────────────────────────────────────────── */
 
 async function tokenFor(role) {
-  const emailMap = {
-    superadmin: 'admin@test.com', manager: 'mgr@test.com',
-    readonly: 'ro@test.com', agent: 'agt@test.com',
-  };
-  const result = await User.collection.insertOne({
-    name: role, email: emailMap[role],
+  /* Derived from the role rather than a lookup table: the table was keyed by the v2 role
+     names, so every V3 role silently mapped to `undefined` and failed validation. */
+  const email = `${role}@test.com`;
+  const existing = await User.collection.findOne({ email });
+  const userId = existing ? existing._id : (await User.collection.insertOne({
+    name: role, email,
     password: '$2b$01$placeholder',
-    role, agentId: null, expoId: null, expiresAt: null,
+    role, expoId: null, expiresAt: null,
     isTemporary: false, isActive: true,
     lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
-  });
-  return jwt.sign({ userId: result.insertedId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  })).insertedId;
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
 /* ─── GET /api/settings ──────────────────────────────────────── */
@@ -34,8 +34,8 @@ describe('GET /api/settings', () => {
     expect(res.status).toBe(401);
   });
 
-  it('readonly can list settings', async () => {
-    const token = await tokenFor('readonly');
+  it('sales_director can list settings', async () => {
+    const token = await tokenFor('sales_director');
     const res   = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveProperty('settings');
@@ -43,7 +43,7 @@ describe('GET /api/settings', () => {
   });
 
   it('seeds default settings on first call', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -57,7 +57,7 @@ describe('GET /api/settings', () => {
   });
 
   it('returns flat map for easy consumption', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
 
     const map = res.body.data.map;
@@ -68,7 +68,7 @@ describe('GET /api/settings', () => {
   });
 
   it('does not re-seed defaults if settings already exist', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
 
     await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
     const res2 = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
@@ -79,7 +79,7 @@ describe('GET /api/settings', () => {
   });
 
   it('lead.stages contains all expected pipeline stages', async () => {
-    const token  = await tokenFor('readonly');
+    const token  = await tokenFor('sales_director');
     const res    = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
     const stages = res.body.data.map['lead.stages'];
 
@@ -88,7 +88,7 @@ describe('GET /api/settings', () => {
   });
 
   it('product.categories contains expected values', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
     const cats  = res.body.data.map['product.categories'];
 
@@ -105,7 +105,7 @@ describe('GET /api/settings/:key', () => {
   });
 
   it('returns single setting by key', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
 
     await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
 
@@ -119,7 +119,7 @@ describe('GET /api/settings/:key', () => {
   });
 
   it('returns 404 for non-existent key', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
     const res   = await request(app)
       .get('/api/settings/nonexistent.key')
       .set('Authorization', `Bearer ${token}`);
@@ -127,7 +127,7 @@ describe('GET /api/settings/:key', () => {
   });
 
   it('returns setting with all metadata fields', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_director');
 
     await request(app).get('/api/settings').set('Authorization', `Bearer ${token}`);
 
@@ -170,7 +170,7 @@ describe('PUT /api/settings', () => {
   });
 
   it('non-superadmin cannot update settings', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
 
     const res = await request(app)
       .put('/api/settings')
@@ -222,7 +222,7 @@ describe('PUT /api/settings', () => {
   });
 
   it('agent cannot update settings', async () => {
-    const token = await tokenFor('agent');
+    const token = await tokenFor('sales_executive');
 
     const res = await request(app)
       .put('/api/settings')

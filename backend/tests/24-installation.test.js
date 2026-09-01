@@ -16,7 +16,7 @@ const Lead = require('../src/models/Lead');
 const WorkOrder = require('../src/models/WorkOrder');
 const InstallationJob = require('../src/models/InstallationJob');
 const Notification = require('../src/models/Notification');
-const handoff = require('../src/services/handoffService');
+const handoff = require('../src/services/processHandoffService');
 const sweeps = require('../src/utils/jobs/installationSweeps');
 const pipeline = require('../src/config/pipeline');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
@@ -25,7 +25,7 @@ const { insertUser, tok } = require('./helpers/testUtils');
 const PDF = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(64, 0x20)]);
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]);
 
-let imToken, techToken, techId, csToken, dmToken, managerId;
+let imToken, techToken, techId, csToken, csMgrToken, dmToken, managerId;
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 
@@ -73,12 +73,15 @@ beforeAll(connect);
 afterAll(disconnect);
 beforeEach(async () => {
   await clearCollections();
-  imToken = tok(await insertUser({ role: 'installation_manager', name: 'Ivan' }));
-  techId = await insertUser({ role: 'technician', name: 'Tara' });
+  imToken = tok(await insertUser({ role: 'install_head', name: 'Ivan' }));
+  techId = await insertUser({ role: 'field_engineer', name: 'Tara' });
   techToken = tok(techId);
-  csToken = tok(await insertUser({ role: 'cs_executive', name: 'Chandni' }));
-  dmToken = tok(await insertUser({ role: 'delivery_manager', name: 'Dev' }));
-  managerId = await insertUser({ role: 'manager', name: 'Sneha' });
+  csToken = tok(await insertUser({ role: 'cs_agent', name: 'Chandni' }));
+  /* Doc 4: a CS Agent logs feedback; documenting the corrective-action plan a low CSAT
+     triggers is the CS Manager's — `feedback.corrective_action`. */
+  csMgrToken = tok(await insertUser({ role: 'cs_manager', name: 'Chitra' }));
+  dmToken = tok(await insertUser({ role: 'production_head', name: 'Dev' }));
+  managerId = await insertUser({ role: 'sales_director', name: 'Sneha' });
 });
 
 describe('Handoff 2 — signed DA creates the Installation Job (H-2)', () => {
@@ -359,7 +362,7 @@ describe('I6 — the closure gate (I-7, I-8)', () => {
     expect(blocked.status).toBe(422);
     expect(blocked.body.missing.map((m) => m.field)).toContain('correctiveAction.documentedAt');
 
-    await as(csToken).post(`/${job._id}/corrective-action`, {
+    await as(csMgrToken).post(`/${job._id}/corrective-action`, {
       plan: 'Site revisit booked; replacing the controller and retraining the operators.',
     });
     expect((await as(csToken).post(`/${job._id}/close`)).status).toBe(200);

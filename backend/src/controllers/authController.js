@@ -2,10 +2,10 @@
 const jwt  = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const User  = require('../models/User');
-const Agent = require('../models/Agent');
 const { ok, created, badRequest, unauthorized, unprocessable } = require('../utils/response');
 const Invite = require('../models/Invite');
 const audit = require('../services/auditService');
+const orgService = require('../services/orgService');
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 
@@ -51,13 +51,11 @@ async function login(req, res, next) {
 
     const token = signToken(user._id);
 
-    /* Attach agent profile if role=agent */
-    let agentProfile = null;
-    if (user.role === 'agent' && user.agentId) {
-      agentProfile = await Agent.findById(user.agentId).lean();
-    }
-
-    return ok(res, { token, user, agentProfile }, 'Login successful');
+    /* `agentProfile` was a second document the legacy client fetched alongside the
+       login. Its fields now live on User, so it is the same object — kept in the
+       response under the old key so the legacy root app, still the default route in
+       vercel.json, does not break during the cutover. */
+    return ok(res, { token, user, agentProfile: user }, 'Login successful');
   } catch (err) {
     next(err);
   }
@@ -67,11 +65,7 @@ async function login(req, res, next) {
 
 async function getMe(req, res, next) {
   try {
-    let agentProfile = null;
-    if (req.user.role === 'agent' && req.user.agentId) {
-      agentProfile = await Agent.findById(req.user.agentId).lean();
-    }
-    return ok(res, { user: req.user, agentProfile });
+    return ok(res, { user: req.user, agentProfile: req.user });
   } catch (err) {
     next(err);
   }
@@ -84,12 +78,16 @@ async function register(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
-    const { name, email, password, role, agentId } = req.body;
+    const { name, email, password, role, reportsTo } = req.body;
 
     const exists = await User.findOne({ email: email.toLowerCase() });
     if (exists) return badRequest(res, 'Email already in use');
 
-    const user = await User.create({ name, email, password, role: role || 'readonly', agentId });
+    /* Was `role || 'readonly'` — a role the enum no longer accepts, so every register
+       call that omitted a role failed validation. `agentId` is gone with the Agent model;
+       reporting lines are set through PATCH /api/users/:id/manager so `chain` is always
+       maintained by orgService. */
+    const user = await orgService.createUser({ name, email, password, role, reportsTo: reportsTo || null });
     return created(res, { user }, 'User created');
   } catch (err) {
     next(err);

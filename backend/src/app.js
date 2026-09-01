@@ -225,6 +225,87 @@ app.get('/api/ready', async (req, res) => {
 });
 
 /* ── API Routes ── */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Fail closed, structurally
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Routes that authenticate but deliberately carry no permission guard.
+ *
+ * Every entry is a route whose whole purpose is to answer "who am I and what may I do",
+ * or one already scoped to req.user._id in the handler, so a permission test would be
+ * circular. Keep it SHORT: every addition is a route nobody will re-examine.
+ */
+const UNGUARDED_ALLOWLIST = new Set([
+  'GET /auth/me',
+  'PATCH /auth/password',
+  'GET /meta/pipeline',   // stage labels — every role needs them to render anything
+  'GET /meta/me',         // the caller's own permissions, scope and portal
+  'GET /notifications',   // every handler filters on req.user._id
+  'GET /notifications/unread-count',
+  'PATCH /notifications/read-all',
+  'PATCH /notifications/:id/read',
+  'POST /leads/telemetry',
+]);
+
+/**
+ * Refuse to boot if any authenticated route lacks an authorisation guard.
+ *
+ * This is the structural replacement for the `ROLE_LEVEL` ladder. The ladder had exactly
+ * one genuine virtue: a route that forgot its guard still refused outsiders by accident,
+ * because `requireMinRole` was on nearly everything. Deleting it without this check would
+ * make deny-by-default a matter of everyone remembering — and the history in this
+ * repository is that they did not: `deal.approve_deviation` and `po.verify` shipped wired
+ * to nothing for a whole release, and `requireMinRole('readonly')` admitted every
+ * authenticated user for longer than that.
+ *
+ * Guards mark themselves with `isGuard` (see middleware/rbac.js), so a composite guard
+ * written inline in a route file still counts, and anything that is not marked reads as
+ * unguarded — which is the safe direction to fail.
+ */
+function assertRoutesGuarded(router, basePath = '') {
+  const problems = [];
+
+  const walk = (stack, prefix) => {
+    for (const layer of stack || []) {
+      if (layer.route) {
+        const handlers = layer.route.stack.map((l) => l.handle);
+        const authed = handlers.some((h) => h && h.name === 'authenticate');
+        const guarded = handlers.some((h) => h && h.isGuard);
+        if (authed && !guarded) {
+          for (const m of Object.keys(layer.route.methods)) {
+            const path = `${prefix}${layer.route.path}`.replace(/\/+/g, '/').replace(/(.)\/$/, '$1');
+            const sig = `${m.toUpperCase()} ${path}`;
+            if (!UNGUARDED_ALLOWLIST.has(sig)) problems.push(sig);
+          }
+        }
+      } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
+        walk(layer.handle.stack, prefix + mountPath(layer));
+      }
+    }
+  };
+
+  walk(router.stack, basePath);
+  if (problems.length) {
+    throw new Error(
+      'Unguarded authenticated route(s) — add requirePermission()/requireRole(), or an '
+      + `explicit entry in UNGUARDED_ALLOWLIST:\n  ${problems.join('\n  ')}`,
+    );
+  }
+  return true;
+}
+
+/** Recover a mounted router's path from the regexp Express compiled it into. */
+function mountPath(layer) {
+  const src = layer.regexp && layer.regexp.source;
+  if (!src) return '';
+  const m = src.match(/^\^\\\/((?:[\w\-]|\\.)+)/);
+  return m ? '/' + m[1].replace(/\\(.)/g, '$1') : '';
+}
+
+
+assertRoutesGuarded(routes);
 app.use('/api', routes);
 
 /* ── 404 Handler ── */
@@ -239,3 +320,4 @@ app.use((req, res) => res.status(404).json({
 app.use(errorHandler);
 
 module.exports = app;
+module.exports.assertRoutesGuarded = assertRoutesGuarded;

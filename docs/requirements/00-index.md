@@ -41,11 +41,18 @@ controllers, validators, scheduler, Excel builder and the `GET /api/meta/pipelin
 consume the same definitions without a require cycle. The browser gets the same tables over
 `/api/meta/pipeline` rather than duplicating them.
 
-> **`pipeline.js` is finished; almost nothing consumes it yet.** The stage tables, gates, checklist
-> templates and KPI targets are complete and correct, but as of today the models, services, jobs and
-> routes that would evaluate them largely do not exist.
-> [`06-erp-configuration-requirements.md`](06-erp-configuration-requirements.md) marks those rows 🔧
-> *Spec only*. Read it before assuming a rule is enforced.
+> **`pipeline.js` is consumed.** This note previously warned that nothing evaluated the stage
+> tables. That was true before v2.0.0 and has not been true since: the models, services, sweeps,
+> routes and the Excel builder all read them, and
+> [`06-erp-configuration-requirements.md`](06-erp-configuration-requirements.md) is the honest
+> inventory of what is enforced and what is still 🔧 *Spec only*. Read 06 before assuming a rule
+> is enforced — and trust 06 over this file, which is a map, not a record.
+
+> **Two specifications are live.** `01`–`03` and `09` describe the three-process pipeline that
+> v2 ships. `new_requirement_21Aug/` — "ERP Bible V3", four HTML documents, 72 screens across 11
+> roles — is being delivered in phases on top of it. Where they differ, V3 wins and
+> [`04-roles-and-permissions.md`](04-roles-and-permissions.md) records the reconciliation. The
+> SPENCO stage table is common to both.
 
 **If you change an enum or a gate, change `03-stage-gates.md` and `pipeline.js` in the same
 commit.** Each file carries a comment pointing at the other.

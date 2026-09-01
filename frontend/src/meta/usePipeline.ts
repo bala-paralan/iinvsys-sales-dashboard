@@ -53,7 +53,10 @@ export interface PipelineMeta {
   };
   rules: Record<string, unknown>;
   kpiTargets: Record<string, unknown>;
-  me: { role: string; permissions: string[] };
+  /* `me` used to ride along here. It does not any more — see portal/useMe.ts.
+     This payload is cached with `staleTime: Infinity` keyed on `version`, so while the
+     per-user block lived inside it a role or permission change never reached an
+     already-signed-in client. */
 }
 
 /**
@@ -78,7 +81,13 @@ export function usePipeline() {
   });
 }
 
-/** Convenience: permission check against the payload's `me`. */
-export function can(meta: PipelineMeta | undefined, permission: string): boolean {
-  return meta?.me.permissions.includes(permission) ?? false;
+/**
+ * Permission check.
+ *
+ * Takes the session block from portal/useMe.ts, not the pipeline payload — permissions
+ * change without the pipeline changing, and the two are cached on different terms.
+ * Re-exported here so the ~40 existing `can(meta, 'perm')` call sites keep one import.
+ */
+export function can(me: { permissions: string[] } | undefined, permission: string): boolean {
+  return me?.permissions.includes(permission) ?? false;
 }

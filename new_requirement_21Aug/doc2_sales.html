@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iinvsys ERP Bible V3 – Module 2: Sales (SPENCO)</title>
+<style>
+:root{--primary:#0A2540;--purple:#7B2D8B;--success:#27AE60;--warning:#F39C12;--danger:#E74C3C;--light:#F4F7FB;--border:#D1DCE8;--text:#1A2B3C;--muted:#6B7C93;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#EEF2F7;color:var(--text);font-size:14px;}
+.cover{background:linear-gradient(135deg,#1C0A00 0%,#4A1A6E 55%,#7B2D8B 100%);color:white;padding:80px 60px;min-height:340px;position:relative;overflow:hidden;}
+.cover::after{content:'';position:absolute;right:-80px;top:-80px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.04);}
+.cover-tag{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#DDD6FE;margin-bottom:16px;}
+.cover h1{font-size:38px;font-weight:700;line-height:1.2;margin-bottom:10px;}
+.cover h2{font-size:18px;font-weight:300;color:rgba(255,255,255,.8);margin-bottom:24px;}
+.cover-meta{display:flex;gap:40px;font-size:13px;color:rgba(255,255,255,.7);}
+.cover-meta strong{color:white;display:block;font-size:15px;}
+.page{max-width:1120px;margin:0 auto;padding:48px 32px;}
+.rb{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;}
+.rb-dir{background:#92400E;color:#FEF3C7;}.rb-mgr{background:#5B21B6;color:#EDE9FE;}.rb-ex{background:#065F46;color:#D1FAE5;}
+.role-banner{border-radius:12px;padding:20px 24px;margin-bottom:40px;display:flex;gap:18px;align-items:flex-start;}
+.rb-dir-b{background:linear-gradient(90deg,#1C0A00,#3D1A00);}.rb-mgr-b{background:linear-gradient(90deg,#1E1B4B,#3730A3);}.rb-ex-b{background:linear-gradient(90deg,#064e3b,#065F46);}
+.role-icon{font-size:36px;flex-shrink:0;}
+.role-info h2{font-size:17px;font-weight:700;color:white;margin-bottom:5px;}
+.role-info p{font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;}
+.role-info ul{margin-top:8px;padding-left:16px;font-size:11px;color:rgba(255,255,255,.65);line-height:1.8;}
+.sf{background:white;border-radius:12px;box-shadow:0 4px 28px rgba(10,37,64,.13);margin-bottom:32px;overflow:hidden;border:1.5px solid var(--border);}
+.sl{padding:10px 20px;font-size:12px;font-weight:700;letter-spacing:.8px;display:flex;align-items:center;gap:10px;color:white;}
+.sl-dir{background:#1C0A00;}.sl-mgr{background:#1E1B4B;}.sl-ex{background:#064e3b;}
+.badge{background:rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:600;}
+.ml{margin-left:auto;}
+.br{background:#222;padding:10px 16px 0;display:flex;align-items:center;gap:7px;}
+.dot{width:12px;height:12px;border-radius:50%;}
+.dr{background:#FF5F57}.dy{background:#FEBC2E}.dg{background:#28C840}
+.burl{background:#333;border-radius:6px;flex:1;padding:5px 14px;color:#999;font-size:11px;margin-left:10px;font-family:monospace;}
+.shell{display:flex;min-height:520px;}
+.sb{width:215px;flex-shrink:0;}
+.sb-dir{background:#1C0A00;}.sb-mgr{background:#1E1B4B;}.sb-ex{background:#064e3b;}
+.sbl{padding:16px;border-bottom:1px solid rgba(255,255,255,.1);}
+.sblt{color:white;font-size:14px;font-weight:700;}
+.sbls{font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.sd-s{color:#FCD34D;}.sm-s{color:#C4B5FD;}.se-s{color:#6EE7B7;}
+.sbs{padding:10px 0 4px;}
+.sbsl{padding:0 14px 5px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;}
+.sbi{display:flex;align-items:center;gap:9px;padding:8px 14px;color:rgba(255,255,255,.7);font-size:12px;}
+.sbi.ad{background:rgba(180,83,9,.25);color:white;border-left:3px solid #FCD34D;}
+.sbi.am{background:rgba(91,33,182,.25);color:white;border-left:3px solid #C4B5FD;}
+.sbi.ae{background:rgba(6,95,70,.3);color:white;border-left:3px solid #6EE7B7;}
+.cnt{background:#E74C3C;color:white;border-radius:10px;padding:1px 7px;font-size:9px;margin-left:auto;}
+.main{flex:1;background:var(--light);display:flex;flex-direction:column;}
+.tb{background:white;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.tbt{font-size:15px;font-weight:700;color:var(--primary);}
+.ta{display:flex;gap:8px;align-items:center;}
+.btn{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;}
+.btn-dir{background:#B45309;color:white;}.btn-mgr{background:#5B21B6;color:white;}.btn-ex{background:#059669;color:white;}
+.btn-o{background:white;color:var(--primary);border:1.5px solid var(--border);}
+.btn-s{background:var(--success);color:white;}.btn-d{background:var(--danger);color:white;}.btn-w{background:var(--warning);color:white;}
+.btn-sm{padding:3px 9px;font-size:10px;}
+.ca{padding:16px;flex:1;overflow:auto;}
+.grid{display:grid;gap:12px;margin-bottom:16px;}
+.g5{grid-template-columns:repeat(5,1fr);}.g4{grid-template-columns:repeat(4,1fr);}.g3{grid-template-columns:repeat(3,1fr);}.g2{grid-template-columns:1fr 1fr;}
+.card{background:white;border-radius:8px;padding:14px;border:1px solid var(--border);}
+.cl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.cv{font-size:22px;font-weight:700;color:var(--primary);margin-bottom:3px;}
+.cd{font-size:10px;color:var(--success);}
+.tbl{background:white;border-radius:8px;border:1px solid var(--border);overflow:hidden;}
+.tblh{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
+.tblt{font-size:12px;font-weight:700;color:var(--primary);}
+table{width:100%;border-collapse:collapse;}
+th{background:var(--light);padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+td{padding:9px 12px;font-size:11px;border-bottom:1px solid #F0F4F8;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.st{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.ss{background:#F3F4F6;color:#374151}.sp{background:#DBEAFE;color:#1D4ED8}.se{background:#FEF3C7;color:#92400E}.sn{background:#EDE9FE;color:#5B21B6}.sco{background:#D1FAE5;color:#065F46}.sl2{background:#F3F4F6;color:#9CA3AF}
+.if{width:100%;background:var(--light);border:1.5px solid var(--border);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--text);}
+textarea.if{height:65px;resize:none;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fgr{margin-bottom:12px;}
+.fgr.full{grid-column:1/-1;}
+.dr{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F0F4F8;font-size:11px;}
+.drl{color:var(--muted);}.drv{font-weight:600;color:var(--primary);}
+.act{display:flex;gap:12px;padding:10px;border:1px solid var(--border);border-radius:7px;margin-bottom:8px;background:white;}
+.ai{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.ai-c{background:#DBEAFE;}.ai-e{background:#D1FAE5;}.ai-v{background:#FEF3C7;}.ai-w{background:#DCFCE7;}
+.pb{background:var(--border);border-radius:20px;height:7px;overflow:hidden;flex:1;}
+.pf{height:100%;border-radius:20px;}
+.av{width:28px;height:28px;border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.av-d{background:#B45309;}.av-m{background:#5B21B6;}.av-e{background:#059669;}.av-o{background:#D97706;}.av-g{background:var(--success);}
+.ann{display:flex;gap:12px;margin-top:14px;margin-bottom:6px;}
+.an{width:26px;height:26px;border-radius:50%;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.an-d{background:#B45309;}.an-m{background:#5B21B6;}.an-e{background:#059669;}
+.ab{flex:1;}.at{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:2px;}.ad{font-size:11px;color:var(--muted);line-height:1.6;}
+.info{background:#F5F3FF;border-left:4px solid var(--purple);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#2D0A3E;line-height:1.7;}
+.warn{background:#FFFBEB;border-left:4px solid var(--warning);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#78350F;line-height:1.7;}
+.divider{border:none;border-top:2px solid var(--border);margin:48px 0;}
+.section{margin-bottom:48px;}
+.stag{font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:5px;}
+.stag-d{color:#B45309;}.stag-m{color:#5B21B6;}.stag-e{color:#059669;}
+.stitle{font-size:21px;font-weight:700;color:var(--primary);margin-bottom:8px;padding-bottom:8px;display:inline-block;}
+.stitle-d{border-bottom:3px solid #B45309;}.stitle-m{border-bottom:3px solid #5B21B6;}.stitle-e{border-bottom:3px solid #059669;}
+.sdesc{color:var(--muted);margin-top:10px;margin-bottom:22px;max-width:800px;line-height:1.7;font-size:13px;}
+.toc{background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;}
+.toc h3{color:var(--primary);font-size:14px;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid var(--purple);display:inline-block;}
+.toc-list{list-style:none;}
+.toc-list li{padding:4px 0;font-size:12px;border-bottom:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;}
+.toc-list li:last-child{border:none;}
+.toc-list span{color:var(--muted);font-size:10px;}
+.kc{background:white;border-radius:6px;border:1px solid var(--border);padding:10px;margin-bottom:8px;cursor:pointer;}
+.kc:hover{border-color:var(--purple);}
+.kct{font-size:11px;font-weight:700;color:var(--primary);margin-bottom:3px;}
+.kcm{font-size:10px;color:var(--muted);}
+.kcv{font-size:10px;color:var(--success);font-weight:700;margin-top:4px;}
+.kco{display:flex;align-items:center;gap:4px;margin-top:6px;font-size:10px;color:var(--muted);}
+.chip{padding:2px 9px;border-radius:20px;font-size:9px;font-weight:600;display:inline-block;}
+.chip-r{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;}
+.chip-d{background:#DBEAFE;color:#1D4ED8;border:1px solid #BFDBFE;}
+.chip-g{background:#D1FAE5;color:#065F46;border:1px solid #A7F3D0;}
+.chip-y{background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;}
+.chip-p{background:#EDE9FE;color:#5B21B6;border:1px solid #DDD6FE;}
+.disc{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;}
+.disc-auto{background:#D1FAE5;color:#065F46;}.disc-mgr{background:#FEF3C7;color:#92400E;}.disc-dir{background:#FEE2E2;color:#991B1B;}
+.pff{text-align:center;padding:28px;color:var(--muted);font-size:11px;border-top:2px solid var(--border);margin-top:56px;}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-tag">iinvsys ERP Bible V3 · Document 2 of 4 · Sales Module</div>
+  <h1>Sales — SPENCO Framework</h1>
+  <h2>Sales Director · Sales Manager · Sales Executive · All screens, all flows, no shared views</h2>
+  <div class="cover-meta">
+    <div><strong>Module</strong>SA-MODULE-02</div>
+    <div><strong>Version</strong>3.0 Final</div>
+    <div><strong>Roles</strong>Director · 4 Managers · 8 Executives</div>
+    <div><strong>Framework</strong>SPENCO (S→P→E→N→CO)</div>
+    <div><strong>Total Screens</strong>26</div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- Org Chart -->
+<div style="background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;">
+  <div style="font-size:14px;font-weight:700;color:var(--primary);margin-bottom:16px;border-bottom:2px solid var(--purple);padding-bottom:7px;display:inline-block;">Sales Org Chart & Data Access Rules</div>
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#FEF3C7;border-radius:8px;border:1px solid #FDE68A;">
+      <div class="av av-d" style="width:36px;height:36px;font-size:14px;">SD</div>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:#92400E;">Sales Director</div><div style="font-size:11px;color:#B45309;margin-top:2px;">Sees ALL deals from ALL 4 Sales Managers and ALL 8 Sales Executives. Creates leads/deals and assigns to any team member. Approves discounts &gt;10%, all COs. Full analytics, Customer 360, activity logs for every rep.</div></div>
+      <div class="rb rb-dir" style="flex-shrink:0;">DIRECTOR</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding-left:40px;">
+      <div style="display:flex;flex-direction:column;gap:4px;padding:10px 14px;background:#EDE9FE;border-radius:8px;border:1px solid #DDD6FE;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="av av-m" style="font-size:9px;">M1</div><div style="font-size:12px;font-weight:700;color:#3730A3;">Sales Manager 1</div></div>
+        <div style="font-size:10px;color:#4338CA;">Railways domain. Sees only his 2 Executives' deals + his own. Cannot see Mgr 2/3/4 data.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;">
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec A</div>
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec B</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:10px 14px;background:#EDE9FE;border-radius:8px;border:1px solid #DDD6FE;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="av av-m" style="font-size:9px;">M2</div><div style="font-size:12px;font-weight:700;color:#3730A3;">Sales Manager 2</div></div>
+        <div style="font-size:10px;color:#4338CA;">Defence domain. Sees only his 2 Executives' deals + his own. Cannot see Mgr 1/3/4 data.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;">
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec C</div>
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec D</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:10px 14px;background:#EDE9FE;border-radius:8px;border:1px solid #DDD6FE;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="av av-m" style="font-size:9px;">M3</div><div style="font-size:12px;font-weight:700;color:#3730A3;">Sales Manager 3</div></div>
+        <div style="font-size:10px;color:#4338CA;">Space/IoT domain. Sees only his 2 Executives' deals + his own.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;">
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec E</div>
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec F</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:10px 14px;background:#EDE9FE;border-radius:8px;border:1px solid #DDD6FE;">
+        <div style="display:flex;align-items:center;gap:8px;"><div class="av av-m" style="font-size:9px;">M4</div><div style="font-size:12px;font-weight:700;color:#3730A3;">Sales Manager 4</div></div>
+        <div style="font-size:10px;color:#4338CA;">Automotive domain. Sees only his 2 Executives' deals + his own.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;">
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec G</div>
+          <div style="background:#D1FAE5;border-radius:4px;padding:5px 8px;font-size:10px;color:#065F46;font-weight:600;">Exec H</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:14px;background:#FEF3C7;border-radius:8px;padding:12px 16px;font-size:11px;color:#78350F;line-height:1.7;">
+    <strong>Discount Approval Tiers:</strong>&nbsp;
+    <span class="disc disc-auto">0–3% Self-approve (Exec)</span>&nbsp;
+    <span class="disc disc-mgr">3–10% Sales Manager approves</span>&nbsp;
+    <span class="disc disc-dir">&gt;10% Director + COO approves</span>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul class="toc-list">
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-01 · Director Sales Command Dashboard — all managers, all KPIs <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-02 · Manager Drill-Down — select any manager, see their team <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-03 · Executive Drill-Down — select any exec, full deal + activity view <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-04 · Director Lead / Deal Creation & Assignment <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-05 · All-Team SPENCO Kanban (all deals, all reps) <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-06 · Customer 360 View (full account history + all activities) <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-07 · Discount &amp; CO Approval Queue <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-08 · Revenue Forecast &amp; Target Analytics <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;">DIRECTOR</span>&nbsp;SA-DIR-09 · CO Confirmation &amp; Production Trigger <span>DIRECTOR</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-01 · Sales Manager Dashboard (my team only) <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-02 · My Team Pipeline — my 2 Execs' deals <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-03 · Executive Activity Log View — per-customer, per-exec <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-04 · My Own Deals — Manager's personal pipeline <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-05 · Team SPENCO Kanban (my team only) <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-06 · Deal Detail + Customer Activity Log <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-07 · Log Activity (Call/Visit/Email) <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-08 · Discount Approval (3–10%) &amp; Proposal Review <span>MANAGER</span></li>
+    <li><span class="rb rb-mgr" style="font-size:9px;">MANAGER</span>&nbsp;SA-MGR-09 · My Team Performance Summary <span>MANAGER</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-01 · My Sales Dashboard (my deals only) <span>EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-02 · My SPENCO Kanban (personal pipeline) <span>EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-03 · Deal Detail &amp; Customer Activity Log <span>EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-04 · Log Activity — Call / Visit / Email / WhatsApp <span>EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-05 · New Deal / Lead Capture Form <span>EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-06 · Proposal &amp; Quotation Builder <span>EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;">EXEC</span>&nbsp;SA-EX-07 · Commercial Order Submission <span>EXEC</span></li>
+  </ul>
+</div>
+
+<!-- ╔══════════════════════════ DIRECTOR ══════════════════════════╗ -->
+
+<div class="role-banner rb-dir-b">
+  <div class="role-icon">👑</div>
+  <div class="role-info">
+    <h2>Sales Director — Sales Command</h2>
+    <p>The Sales Director controls the entire sales function. They create leads from CXO contacts and assign directly to any Sales Manager or Executive. They drill into any rep's deals, see per-customer activity logs across the whole team, and approve all discounts &gt;10% and all Commercial Orders. Every screen gives them controls no other role has.</p>
+    <ul><li>Creates leads/deals and assigns to any team member at any level</li><li>Sees all 4 managers' pipelines and all 8 execs' activity logs</li><li>Customer 360: full interaction history across all reps, all time</li><li>Approves: discounts &gt;10%, all COs, proposal releases</li></ul>
+  </div>
+  <div class="rb rb-dir" style="flex-shrink:0;align-self:flex-start;">DIRECTOR</div>
+</div>
+
+<!-- SA-DIR-01 -->
+<div class="section">
+  <div class="stag stag-d">Screen SA-DIR-01 · Sales Director</div>
+  <div class="stitle stitle-d">Sales Command Dashboard</div>
+  <p class="sdesc">The Sales Director's complete view of the entire sales function — all 4 Sales Managers and their teams, total pipeline, revenue vs target, pending approvals, and at-risk deals. Also shows the IS funnel feeding into Sales. One screen to understand the health of the entire commercial engine.</p>
+
+  <div class="sf">
+    <div class="sl sl-dir">SA-DIR-01 · Director Sales Command Dashboard <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 DIRECTOR</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/director/sales/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-dir">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls sd-s">Director Portal</div></div>
+        <div class="sbs">
+          <div class="sbsl">Sales</div>
+          <div class="sbi ad"><span>📊</span>Sales Command</div>
+          <div class="sbi"><span>🗺</span>Full Pipeline Kanban</div>
+          <div class="sbi"><span>👥</span>Manager Performance</div>
+          <div class="sbi"><span>🧑‍💼</span>Exec Activity Logs</div>
+          <div class="sbi"><span>➕</span>Create Lead / Deal</div>
+          <div class="sbi"><span>🏢</span>Customer 360</div>
+          <div class="sbi"><span>✅</span>Approvals <span class="cnt">4</span></div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">Intelligence</div>
+          <div class="sbi"><span>📈</span>Forecast & Targets</div>
+          <div class="sbi"><span>📊</span>Sales Reports</div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">Other Modules</div>
+          <div class="sbi"><span>🗂</span>Inside Sales</div>
+          <div class="sbi"><span>🏭</span>Production</div>
+          <div class="sbi"><span>🔧</span>Installation</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-d">SD</div><div><div style="font-size:11px;color:white;font-weight:600;">Sales Director</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Full Access</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb">
+          <div class="tbt">Sales Command — Aug 2026</div>
+          <div class="ta">
+            <select class="if" style="width:auto;padding:4px 9px;font-size:11px;"><option>All Managers</option><option>Manager 1 – Railways</option><option>Manager 2 – Defence</option><option>Manager 3 – Space/IoT</option><option>Manager 4 – Automotive</option></select>
+            <button class="btn btn-dir">➕ Create Lead / Deal & Assign</button>
+            <button class="btn btn-dir btn-sm" style="background:#7B2D8B;">⚠ Approvals (4)</button>
+          </div>
+        </div>
+        <div class="ca">
+          <div class="grid g5">
+            <div class="card"><div class="cl">Total Pipeline</div><div class="cv">₹9.4Cr</div><div class="cd">22 active deals</div></div>
+            <div class="card"><div class="cl">Closed / CO (Month)</div><div class="cv" style="color:var(--success);">₹1.8Cr</div><div class="cd">4 COs confirmed</div></div>
+            <div class="card"><div class="cl">Pending Approvals</div><div class="cv" style="color:var(--warning);">4</div><div class="cd">Discounts + COs</div></div>
+            <div class="card"><div class="cl">At Risk (&gt;21d stale)</div><div class="cv" style="color:var(--danger);">5</div><div class="cd">Needs intervention</div></div>
+            <div class="card"><div class="cl">Win Rate (Q2)</div><div class="cv">52%</div><div class="cd">↑ 4% vs Q1</div></div>
+          </div>
+
+          <!-- Manager comparison table — DIRECTOR ONLY -->
+          <div class="tbl" style="margin-bottom:14px;">
+            <div class="tblh">
+              <div class="tblt">👥 Sales Manager Performance — Q2 FY27 <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:8px;">Click any manager to drill into their team's pipeline</span></div>
+              <button class="btn btn-dir btn-sm">➕ Create & Assign Deal</button>
+            </div>
+            <table>
+              <tr><th>Sales Manager</th><th>Domain</th><th>Team Size</th><th>Active Deals</th><th>Pipeline Value</th><th>Closed Q2</th><th>vs Target</th><th>At Risk</th><th>Last Activity</th><th>Director Action</th></tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-m" style="font-size:9px;">VN</div><div><div style="font-weight:700;">Vikram Nair</div><div style="font-size:10px;color:var(--muted);">Sales Manager 1</div></div></div></td>
+                <td><span class="chip chip-d">Railways</span></td><td>2 execs</td>
+                <td>8</td><td style="font-weight:700;color:#5B21B6;">₹3.8Cr</td>
+                <td style="color:var(--success);font-weight:700;">₹68L</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:91%;background:var(--success);"></div></div><span style="font-size:10px;font-weight:700;color:var(--success);">91%</span></div></td>
+                <td style="color:var(--warning);">1</td>
+                <td style="font-size:10px;">Today 9:20 AM</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-o" style="font-size:9px;">DR</div><div><div style="font-weight:700;">Deepa Rajan</div><div style="font-size:10px;color:var(--muted);">Sales Manager 2</div></div></div></td>
+                <td><span class="chip chip-r">Defence</span></td><td>2 execs</td>
+                <td>5</td><td style="font-weight:700;color:#5B21B6;">₹2.6Cr</td>
+                <td style="color:var(--warning);font-weight:700;">₹22L</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:44%;background:var(--warning);"></div></div><span style="font-size:10px;font-weight:700;color:var(--warning);">44%</span></div></td>
+                <td style="color:var(--danger);">3 ⚠</td>
+                <td style="font-size:10px;color:var(--warning);">Yesterday 3PM ⚠</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-g" style="font-size:9px;">AM</div><div><div style="font-weight:700;">Anita Menon</div><div style="font-size:10px;color:var(--muted);">Sales Manager 3</div></div></div></td>
+                <td><span class="chip chip-p">Space/IoT</span></td><td>2 execs</td>
+                <td>6</td><td style="font-weight:700;color:#5B21B6;">₹2.2Cr</td>
+                <td style="color:var(--success);font-weight:700;">₹44L</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:73%;background:var(--success);"></div></div><span style="font-size:10px;">73%</span></div></td>
+                <td style="color:var(--success);">0</td>
+                <td style="font-size:10px;">Today 11:40 AM</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-m" style="font-size:9px;">KP</div><div><div style="font-weight:700;">Karthik P.</div><div style="font-size:10px;color:var(--muted);">Sales Manager 4</div></div></div></td>
+                <td><span class="chip chip-y">Automotive</span></td><td>2 execs</td>
+                <td>3</td><td style="font-weight:700;color:#5B21B6;">₹0.8Cr</td>
+                <td style="color:var(--muted);font-weight:700;">₹10L</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:25%;background:var(--danger);"></div></div><span style="font-size:10px;font-weight:700;color:var(--danger);">25%</span></div></td>
+                <td style="color:var(--danger);">1 ⚠</td>
+                <td style="font-size:10px;">Today 8:00 AM</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Pending approvals -->
+          <div style="background:white;border-radius:8px;border:1.5px solid var(--warning);padding:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">⏳ Pending Your Approval (4)</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:11px;">
+              <div style="display:flex;align-items:center;gap:12px;padding:8px;background:#FEF2F2;border-radius:6px;"><span class="disc disc-dir">12% discount</span><span style="flex:1;"><strong>Vikram – Exec A:</strong> DMRC deal SA-2026-041 · ₹4.8Cr</span><button class="btn btn-s btn-sm">Approve</button><button class="btn btn-o btn-sm">Counter</button></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px;background:#D1FAE5;border-radius:6px;"><span style="background:#D1FAE5;color:#065F46;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;">CO Confirm</span><span style="flex:1;"><strong>Vikram – Exec B:</strong> BEL Sensors SA-2026-029 · ₹1.2Cr PO received</span><button class="btn btn-s btn-sm">Approve CO</button><button class="btn btn-o btn-sm">Review</button></div>
+              <div style="display:flex;align-items:center;gap:12px;padding:8px;background:#FEF3C7;border-radius:6px;"><span class="disc disc-dir">11% discount</span><span style="flex:1;"><strong>Deepa – Exec C:</strong> BEL Defence SA-2026-038 · ₹2.1Cr</span><button class="btn btn-s btn-sm">Approve</button><button class="btn btn-o btn-sm">Counter</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="an an-d">1</div><div class="ab"><div class="at">Manager-Level Visibility Only for Director</div><div class="ad">Only the Sales Director sees this manager comparison table. Sales Manager 1 (Vikram) cannot see that Sales Manager 2 (Deepa) is at only 44% of target. Each manager is isolated to their own team data — preventing unhealthy competition and protecting sensitive commercial information.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- SA-DIR-04 Create Lead / Deal -->
+<div class="section">
+  <div class="stag stag-d">Screen SA-DIR-04 · Sales Director</div>
+  <div class="stitle stitle-d">Director Lead & Deal Creation — Assign to Any Team Member</div>
+  <p class="sdesc">The Sales Director's most important operational screen. They capture leads from ministry meetings, board rooms, trade shows, and strategic referrals, then assign directly to a Sales Manager (who assigns further) or straight to a Sales Executive (bypassing the manager's assignment step). They can also create a fully-formed SPENCO deal at any stage.</p>
+
+  <div class="sf">
+    <div class="sl sl-dir">SA-DIR-04 · Director — Create Lead / Deal & Assign <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 DIRECTOR</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/director/sales/create-lead</div></div>
+    <div class="shell" style="min-height:560px;">
+      <div class="sb sb-dir"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi ad"><span>➕</span>Create Lead / Deal</div></div></div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Create Lead / Deal — Director Origination</div><div class="ta"><button class="btn btn-o btn-sm">Cancel</button><button class="btn btn-dir">💾 Save & Assign</button></div></div>
+        <div class="ca">
+          <!-- Entry type toggle -->
+          <div style="background:white;border-radius:8px;border:1px solid var(--border);padding:14px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">What are you creating?</div>
+            <div style="display:flex;gap:8px;">
+              <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border:1.5px solid #FCD34D;background:#FFFBEB;border-radius:7px;cursor:pointer;"><input type="radio" name="type" checked><div><div style="font-weight:700;color:#92400E;font-size:12px;">Lead → IS Queue</div><div style="font-size:10px;color:#B45309;">Goes to IS Executive for qualification first</div></div></label>
+              <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border:1.5px solid #C4B5FD;background:#F5F3FF;border-radius:7px;cursor:pointer;"><input type="radio" name="type"><div><div style="font-weight:700;color:#5B21B6;font-size:12px;">Hot Lead → Sales Executive</div><div style="font-size:10px;color:#7C3AED;">Bypasses IS — enters SPENCO at Suspect stage immediately</div></div></label>
+              <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border:1.5px solid #A7F3D0;background:#F0FDF4;border-radius:7px;cursor:pointer;"><input type="radio" name="type"><div><div style="font-weight:700;color:#065F46;font-size:12px;">Deal → SPENCO Direct</div><div style="font-size:10px;color:#059669;">Create a fully-formed deal at any SPENCO stage</div></div></label>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+            <div style="background:white;border-radius:8px;border:1px solid var(--border);padding:18px;">
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:14px;border-bottom:2px solid #B45309;padding-bottom:6px;display:inline-block;">Contact & Company Information</div>
+              <div class="fg">
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Contact Name *</label><input class="if" placeholder="Full name"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Designation *</label><input class="if" placeholder="e.g. GM – Projects"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Company *</label><input class="if" placeholder="Organisation name"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Mobile *</label><input class="if" placeholder="+91 XXXXX XXXXX"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Email</label><input class="if" type="email" placeholder="email@company.com"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">City / Location</label><input class="if" placeholder="e.g. New Delhi"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Domain *</label>
+                  <select class="if"><option>Railways</option><option>Defence</option><option>Space / Satellite</option><option>IoT / IIoT</option><option>Automotive</option><option>AI / ML</option></select>
+                </div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Source *</label>
+                  <select class="if"><option>Director — Board Meeting</option><option>Director — Trade Show / Expo</option><option>Director — Ministry Contact</option><option>Director — CXO Referral</option><option>Director — Direct Relationship</option><option>Director — LinkedIn</option></select>
+                </div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Est. Opportunity Size</label><input class="if" placeholder="₹ estimate (e.g. 2–5 Cr)"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">SPENCO Stage (if Deal)</label><select class="if"><option>S – Suspect</option><option>P – Prospect</option><option>E – Engagement</option><option>N – Negotiation</option></select></div>
+                <div class="fgr full"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Director Intelligence / Context *</label><textarea class="if" style="height:90px;" placeholder="What's the context from your conversation? Problem they want to solve? Budget signals? Decision process? Timeline? Who else is involved? Any competitive risk? This becomes the first activity log entry on this customer."></textarea></div>
+              </div>
+            </div>
+
+            <!-- Assignment Panel -->
+            <div>
+              <div style="background:white;border-radius:8px;border:2px solid #B45309;padding:16px;margin-bottom:12px;">
+                <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:12px;">🎯 Assign To</div>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Select Team Member *</label>
+                <select class="if" style="margin-bottom:12px;"><option>— Select Person —</option>
+                  <optgroup label="Sales Managers">
+                    <option>Vikram Nair — Manager 1 (Railways)</option>
+                    <option>Deepa Rajan — Manager 2 (Defence)</option>
+                    <option>Anita Menon — Manager 3 (Space/IoT)</option>
+                    <option>Karthik P. — Manager 4 (Automotive)</option>
+                  </optgroup>
+                  <optgroup label="Sales Executives — Direct Assign">
+                    <option>Exec A – Railways Team</option>
+                    <option>Exec B – Railways Team</option>
+                    <option>Exec C – Defence Team</option>
+                    <option>Exec D – Defence Team</option>
+                    <option>Exec E – Space/IoT Team</option>
+                    <option>Exec F – Space/IoT Team</option>
+                    <option>Exec G – Automotive Team</option>
+                    <option>Exec H – Automotive Team</option>
+                  </optgroup>
+                  <optgroup label="IS Team (for lead nurturing)">
+                    <option>IS Exec — Priya Krishnan</option>
+                    <option>IS Exec — Rajan V.</option>
+                    <option>IS Exec — Suha M.</option>
+                  </optgroup>
+                </select>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Priority</label>
+                <select class="if" style="margin-bottom:12px;"><option>🔥 Hot — First contact within 4 hours</option><option>⚡ High — First contact within 24h</option><option>Normal — Route to queue</option></select>
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Target First Contact Date</label>
+                <input class="if" type="date" style="margin-bottom:12px;">
+                <label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Director's Private Note to Assignee</label>
+                <textarea class="if" placeholder="Specific instructions for the assignee — shown to them when they receive the lead…"></textarea>
+              </div>
+              <div style="background:#F0FDF4;border-radius:8px;border:1px solid #A7F3D0;padding:12px;font-size:11px;color:#14532D;line-height:1.7;">
+                <strong>After saving:</strong><br>
+                ✓ Lead / Deal ID auto-generated<br>
+                ✓ Assignee gets instant notification with Director note<br>
+                ✓ Customer activity log started with Director's context<br>
+                ✓ If "Deal → SPENCO": appears in assignee's kanban immediately<br>
+                ✓ Director gets notification on first activity logged
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SA-DIR-06 Customer 360 -->
+<div class="section">
+  <div class="stag stag-d">Screen SA-DIR-06 · Sales Director</div>
+  <div class="stitle stitle-d">Customer 360 View — Full Account History</div>
+  <p class="sdesc">The Director's complete view of any customer account — all deals ever created (won, lost, active), every activity logged by any Sales Executive or Manager across all time, all IS interactions, open CS tickets, production orders, and AMC status. This is the single most powerful intelligence tool in the ERP.</p>
+
+  <div class="sf">
+    <div class="sl sl-dir">SA-DIR-06 · Customer 360 — DMRC Delhi <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 DIRECTOR</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/director/customer/DMRC-Delhi</div></div>
+    <div class="shell" style="min-height:520px;">
+      <div class="sb sb-dir"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi ad"><span>🏢</span>Customer 360</div></div></div>
+      <div class="main">
+        <div class="tb">
+          <div style="display:flex;align-items:center;gap:10px;"><span style="font-size:11px;color:var(--muted);">Search:</span><input class="if" style="width:220px;" value="DMRC Delhi"></div>
+          <div class="ta"><button class="btn btn-dir btn-sm">➕ Create Deal for DMRC</button><button class="btn btn-dir btn-sm">📞 Log Director Activity</button></div>
+        </div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:260px 1fr;gap:14px;">
+            <div>
+              <div class="card" style="margin-bottom:10px;">
+                <div style="font-size:15px;font-weight:700;color:var(--primary);">DMRC Delhi</div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Delhi Metro Rail Corporation · Public Sector</div>
+                <div class="dr"><span class="drl">Domain</span><span class="drv"><span class="chip chip-d">Railways</span></span></div>
+                <div class="dr"><span class="drl">Account Manager</span><span class="drv">Vikram Nair (Mgr 1)</span></div>
+                <div class="dr"><span class="drl">Active Deals</span><span class="drv" style="color:var(--success);">2</span></div>
+                <div class="dr"><span class="drl">Lifetime Revenue</span><span class="drv" style="color:var(--success);">₹1.04Cr</span></div>
+                <div class="dr"><span class="drl">Total Interactions</span><span class="drv">24</span></div>
+                <div class="dr"><span class="drl">Open CS Tickets</span><span class="drv" style="color:var(--danger);">2</span></div>
+                <div class="dr"><span class="drl">AMC Status</span><span class="drv">Active till Sep 26</span></div>
+              </div>
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;">DMRC Contacts</div>
+                <div style="font-size:11px;padding:5px 0;border-bottom:1px solid var(--border);">GM Operations · A. Kumar</div>
+                <div style="font-size:11px;padding:5px 0;border-bottom:1px solid var(--border);">DGM Rolling Stock · Rajesh Kumar</div>
+                <div style="font-size:11px;padding:5px 0;">CFO · Priya Shah</div>
+              </div>
+            </div>
+            <!-- Full interaction history -->
+            <div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                <button class="btn btn-o btn-sm" style="background:#DBEAFE;border-color:#BFDBFE;color:#1D4ED8;">All (24)</button>
+                <button class="btn btn-o btn-sm">Calls (8)</button>
+                <button class="btn btn-o btn-sm">Emails (10)</button>
+                <button class="btn btn-o btn-sm">Visits (4)</button>
+                <button class="btn btn-o btn-sm">Deals (2)</button>
+                <button class="btn btn-o btn-sm">CS Tickets (2)</button>
+              </div>
+              <div class="act" style="border-left:3px solid #059669;">
+                <div class="ai ai-c">📞</div>
+                <div><div style="font-size:12px;font-weight:700;">Call: Pre-demo briefing — 22 min</div><div style="font-size:10px;color:var(--muted);">Exec A (Sales Executive, Mgr Vikram's team) · 20 Aug 2026 · Deal SA-2026-041</div><div style="font-size:11px;margin-top:4px;line-height:1.5;">Confirmed DGM Rajesh Kumar will attend the FAT on 15 Sep. Asked about price revision — held firm at ₹4.8Cr minus 5% approved discount. GM Operations joining the demo too.</div></div>
+              </div>
+              <div class="act" style="border-left:3px solid #5B21B6;">
+                <div class="ai ai-v">🤝</div>
+                <div><div style="font-size:12px;font-weight:700;">Site Visit: DMRC HQ — Technical Demo</div><div style="font-size:10px;color:var(--muted);">Exec A + Vikram Nair (Manager) · 10 Aug 2026 · Deal SA-2026-041</div><div style="font-size:11px;margin-top:4px;line-height:1.5;">Live demo of ConnectSei rolling stock monitor at DMRC HQ. 8 stakeholders present. Very positive reception. Rajesh Kumar asked for proposal by 15 Aug.</div></div>
+              </div>
+              <div class="act" style="border-left:3px solid #B45309;background:#FFFBEB;">
+                <div class="ai ai-c">📞</div>
+                <div><div style="font-size:12px;font-weight:700;">Director Call: Initial relationship — 35 min</div><div style="font-size:10px;color:var(--muted);"><strong style="color:#B45309;">Sales Director (You)</strong> · 15 Jul 2026 · Origin of this account</div><div style="font-size:11px;margin-top:4px;line-height:1.5;">Met GM at Rail India Tech Expo. Discussed DMRC's 2027 modernisation plan — 50 coach monitoring system. Budget: ₹3–6Cr allocated. Handed to Vikram Nair to manage account with Exec A.</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ╔══════════════════════════ SALES MANAGER ══════════════════════════╗ -->
+
+<div class="role-banner rb-mgr-b">
+  <div class="role-icon">🧑‍💼</div>
+  <div class="role-info">
+    <h2>Sales Manager — My Team Only</h2>
+    <p>Each Sales Manager manages 2 Sales Executives within their domain. They see their 2 Execs' deals plus their own direct deals — nothing from the other 3 Sales Managers. They view per-customer activity logs for their executives, approve small discounts (3–10%), and submit proposals to the Director for larger discounts. They log their own activities daily.</p>
+    <ul><li>Sees only their 2 Execs' pipeline + their own deals</li><li>Views per-customer activity logs for their team</li><li>Approves discounts 3–10% (above goes to Director)</li><li>Logs daily activities per customer</li><li>Cannot see other managers' numbers or company totals</li></ul>
+  </div>
+  <div class="rb rb-mgr" style="flex-shrink:0;align-self:flex-start;">SALES MANAGER</div>
+</div>
+
+<!-- SA-MGR-01 -->
+<div class="section">
+  <div class="stag stag-m">Screen SA-MGR-01 · Sales Manager</div>
+  <div class="stitle stitle-m">Sales Manager Dashboard — My Team</div>
+  <p class="sdesc">The Sales Manager's daily view: their 2 Executives' combined pipeline, their own deals, team target progress, and today's critical actions. No other manager's data appears. No company-wide revenue numbers — only what's within their domain team.</p>
+
+  <div class="sf">
+    <div class="sl sl-mgr">SA-MGR-01 · Manager Dashboard — Vikram Nair (Railways Team) <span class="badge">MANAGER ONLY</span><span class="rb rb-mgr ml" style="font-size:10px;">🧑‍💼 SALES MANAGER</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/sales-mgr/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-mgr">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls sm-s">Sales — Manager</div></div>
+        <div class="sbs">
+          <div class="sbsl">My Team</div>
+          <div class="sbi am"><span>📊</span>My Team Dashboard</div>
+          <div class="sbi"><span>📋</span>Team Pipeline <span class="cnt">8</span></div>
+          <div class="sbi"><span>👥</span>Exec Activity Logs</div>
+          <div class="sbi"><span>📌</span>My Own Deals <span class="cnt">2</span></div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">Actions</div>
+          <div class="sbi"><span>✅</span>Discount Approvals <span class="cnt">2</span></div>
+          <div class="sbi"><span>📝</span>Log My Activity</div>
+          <div class="sbi"><span>📈</span>Team Performance</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-m">VN</div><div><div style="font-size:11px;color:white;font-weight:600;">Vikram Nair</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Sales Manager · Railways</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">My Team Dashboard — Railways Domain</div><div class="ta"><button class="btn btn-mgr">📝 Log Activity</button><button class="btn btn-o btn-sm">✅ Approvals (2)</button></div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="cl">Team Pipeline</div><div class="cv">₹3.8Cr</div><div class="cd">8 active deals (my team)</div></div>
+            <div class="card"><div class="cl">My Own Deals</div><div class="cv">₹1.1Cr</div><div class="cd">2 deals I own directly</div></div>
+            <div class="card"><div class="cl">Team Closed (Q2)</div><div class="cv" style="color:var(--success);">₹68L</div><div class="cd">Target: ₹75L · 91% ✓</div></div>
+            <div class="card"><div class="cl">Pending Approvals</div><div class="cv" style="color:var(--warning);">2</div><div class="cd">Discount requests from execs</div></div>
+          </div>
+          <!-- My 2 Execs' summary -->
+          <div class="tbl" style="margin-bottom:14px;">
+            <div class="tblh"><div class="tblt">My Executives — Exec A & Exec B</div></div>
+            <table>
+              <tr><th>Executive</th><th>Active Deals</th><th>Pipeline</th><th>Closed Q2</th><th>vs Target</th><th>Activities Today</th><th>Action</th></tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:7px;"><div class="av av-e" style="font-size:9px;">EA</div><div><div style="font-weight:700;">Exec A (Railways)</div><div style="font-size:10px;color:var(--muted);">5 active deals</div></div></div></td>
+                <td>5</td><td style="font-weight:700;">₹2.1Cr</td>
+                <td style="color:var(--success);">₹48L</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:96%;background:var(--success);"></div></div><span style="font-size:10px;">96%</span></div></td>
+                <td><span style="color:var(--success);font-size:11px;">✓ 3 logged today</span></td>
+                <td><button class="btn btn-mgr btn-sm">View Activity →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:7px;"><div class="av av-o" style="font-size:9px;">EB</div><div><div style="font-weight:700;">Exec B (Railways)</div><div style="font-size:10px;color:var(--muted);">3 active deals</div></div></div></td>
+                <td>3</td><td style="font-weight:700;">₹1.7Cr</td>
+                <td style="color:var(--warning);">₹20L</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:67%;background:var(--warning);"></div></div><span style="font-size:10px;color:var(--warning);">67%</span></div></td>
+                <td><span style="color:var(--warning);font-size:11px;">⚠ 1 logged today</span></td>
+                <td><button class="btn btn-mgr btn-sm">View Activity →</button></td>
+              </tr>
+            </table>
+          </div>
+          <div class="info">ℹ You are viewing the Railways domain team only. Sales Managers from Defence, Space/IoT, and Automotive domains are not visible here. For company-wide figures, the Sales Director's dashboard is the right source.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SA-MGR-03 Exec Activity View -->
+<div class="section">
+  <div class="stag stag-m">Screen SA-MGR-03 · Sales Manager</div>
+  <div class="stitle stitle-m">Executive Activity Log — Per Customer View</div>
+  <p class="sdesc">The Manager selects one of their 2 Executives and a customer, and sees the complete per-customer activity log — every call, email, visit, and WhatsApp logged by that exec on that account. This is how the Manager coaches: they see exactly what was said, what was missed, and what should happen next.</p>
+
+  <div class="sf">
+    <div class="sl sl-mgr">SA-MGR-03 · Manager — Exec Activity Log: Exec A → DMRC Delhi <span class="badge">MANAGER ONLY</span><span class="rb rb-mgr ml" style="font-size:10px;">🧑‍💼 MANAGER</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/sales-mgr/exec-activity/exec-a/DMRC-Delhi</div></div>
+    <div class="shell" style="min-height:480px;">
+      <div class="sb sb-mgr"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi am"><span>👥</span>Exec Activity Logs</div></div></div>
+      <div class="main">
+        <div class="tb">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="font-size:11px;color:var(--muted);">Viewing:</div>
+            <select class="if" style="width:auto;padding:4px 9px;font-size:11px;"><option>Exec A (Railways)</option><option>Exec B (Railways)</option></select>
+            <span style="font-size:11px;color:var(--muted);">→</span>
+            <select class="if" style="width:auto;padding:4px 9px;font-size:11px;"><option>DMRC Delhi</option><option>RVNL Mumbai</option><option>ICF Chennai</option></select>
+          </div>
+          <div class="ta"><button class="btn btn-mgr btn-sm">📝 Add Manager Note on This Account</button></div>
+        </div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:240px 1fr;gap:14px;">
+            <div class="card">
+              <div style="font-size:13px;font-weight:700;color:var(--primary);">DMRC Delhi</div>
+              <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">Exec A's account</div>
+              <div class="dr"><span class="drl">Total Activities</span><span class="drv">12</span></div>
+              <div class="dr"><span class="drl">Calls</span><span class="drv">5</span></div>
+              <div class="dr"><span class="drl">Emails</span><span class="drv">5</span></div>
+              <div class="dr"><span class="drl">Visits</span><span class="drv">2</span></div>
+              <div class="dr"><span class="drl">Last Activity</span><span class="drv">Today 9:20 AM</span></div>
+              <div class="dr"><span class="drl">Active Deal</span><span class="drv" style="color:#5B21B6;font-family:monospace;">SA-2026-041</span></div>
+              <div class="dr"><span class="drl">Deal Stage</span><span class="drv"><span class="sn">Negotiation</span></span></div>
+              <div style="margin-top:10px;">
+                <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Manager Note (Private)</div>
+                <div style="font-size:11px;background:#EDE9FE;border-radius:6px;padding:8px;line-height:1.5;color:#3730A3;">Exec A is doing well on DMRC. Remind them to get CFO contact before next call. The 12% discount request needs Director escalation — prepare financial impact sheet first.</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">Activity Timeline — Exec A on DMRC Delhi</div>
+              <div class="act" style="border-left:3px solid #059669;">
+                <div class="ai ai-c">📞</div>
+                <div><div style="font-size:12px;font-weight:700;">Call: Negotiation follow-up — 18 min</div><div style="font-size:10px;color:var(--muted);">Exec A · 20 Aug · 9:20 AM · Deal SA-2026-041</div><div style="font-size:11px;margin-top:4px;line-height:1.5;">Customer confirmed DGM attending FAT. Director's approval for 5% discount already given. Requested revised proposal with payment milestones by 22 Aug.</div></div>
+              </div>
+              <div class="act" style="border-left:3px solid #5B21B6;">
+                <div class="ai ai-v">🤝</div>
+                <div><div style="font-size:12px;font-weight:700;">Visit: Technical Demo at DMRC HQ</div><div style="font-size:10px;color:var(--muted);">Exec A + Vikram (Manager) · 10 Aug · Deal SA-2026-041</div><div style="font-size:11px;margin-top:4px;line-height:1.5;">Live demo of ConnectSei. 8 stakeholders attended. Very positive. Rajesh Kumar asked for proposal by 15 Aug — delivered on time.</div></div>
+              </div>
+              <div class="act" style="border-left:3px solid #D97706;">
+                <div class="ai ai-e">📧</div>
+                <div><div style="font-size:12px;font-weight:700;">Email: Proposal v2 sent</div><div style="font-size:10px;color:var(--muted);">Exec A · 15 Aug · Deal SA-2026-041</div><div style="font-size:11px;margin-top:4px;">Revised proposal at ₹4.8Cr (5% discount) sent to DGM Rajesh Kumar and GM A. Kumar.</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SA-MGR-08 Discount Approval -->
+<div class="section">
+  <div class="stag stag-m">Screen SA-MGR-08 · Sales Manager</div>
+  <div class="stitle stitle-m">Discount Approval — 3% to 10% Band</div>
+  <p class="sdesc">When a Sales Executive requests a discount between 3% and 10%, it lands in the Sales Manager's approval queue. The Manager sees the deal context, the executive's justification, and the financial impact. Discounts above 10% are forwarded automatically to the Sales Director.</p>
+
+  <div class="sf">
+    <div class="sl sl-mgr">SA-MGR-08 · Manager Discount Approvals (2 pending) <span class="badge">MANAGER ONLY</span><span class="rb rb-mgr ml" style="font-size:10px;">🧑‍💼 MANAGER</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/sales-mgr/discount-approvals</div></div>
+    <div class="shell" style="min-height:420px;">
+      <div class="sb sb-mgr"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi am"><span>✅</span>Discount Approvals</div></div></div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Discount Approval Queue — 2 Pending</div></div>
+        <div class="ca">
+          <div style="background:white;border-radius:8px;border:1.5px solid var(--warning);padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+              <div><div style="font-size:13px;font-weight:700;">RVNL Mumbai — Rail Telematics</div><div style="font-size:11px;color:var(--muted);">SA-2026-036 · Exec A · Negotiation Stage · ₹78L deal</div></div>
+              <span class="disc disc-mgr" style="font-size:11px;padding:4px 12px;">7% Discount Requested</span>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Exec A's Justification</div>
+                <div style="font-size:11px;background:var(--light);border-radius:6px;padding:10px;line-height:1.6;">RVNL received a competing quote from a Mumbai-based vendor at ₹72L. Our standard price is ₹78L. To stay competitive, requesting 7% to bring to ₹72.5L. RVNL procurement manager has confirmed they prefer our solution technically but needs price parity.</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;font-size:11px;">
+                  <div class="card" style="padding:10px;"><div class="cl">Standard Price</div><div style="font-size:15px;font-weight:700;">₹78L</div></div>
+                  <div class="card" style="padding:10px;"><div class="cl">With 7% Off</div><div style="font-size:15px;font-weight:700;color:var(--warning);">₹72.5L</div></div>
+                  <div class="card" style="padding:10px;"><div class="cl">Margin Impact</div><div style="font-size:15px;font-weight:700;color:var(--danger);">-₹5.5L</div></div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Your Decision</div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <button class="btn btn-s">✅ Approve 7%</button>
+                  <button class="btn btn-w">↕ Counter: Approve 5%</button>
+                  <button class="btn btn-o" style="color:var(--danger);border-color:var(--danger);">❌ Reject</button>
+                  <button class="btn btn-o" style="border-color:#5B21B6;color:#5B21B6;">⬆ Escalate to Director</button>
+                </div>
+                <textarea class="if" style="margin-top:10px;height:55px;" placeholder="Note to Exec A (required for counter/reject)…"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ╔══════════════════════════ SALES EXECUTIVE ══════════════════════════╗ -->
+
+<div class="role-banner rb-ex-b">
+  <div class="role-icon">🧑‍💼</div>
+  <div class="role-info">
+    <h2>Sales Executive — My Pipeline Only</h2>
+    <p>Each Sales Executive manages their own deals within the domain assigned by their Sales Manager. They log every customer interaction per account — not just per deal. They cannot see other executives' pipelines, company-wide revenue, or their manager's deals. Their focus is entirely on their own accounts and daily activities.</p>
+    <ul><li>Sees only their own deals (assigned by Manager or Director)</li><li>Logs calls, visits, emails, WhatsApp per customer account</li><li>Daily activity logging is mandatory — tracked by system</li><li>Self-approves discounts up to 3%; submits above to Manager</li><li>Creates new leads / deals and submits for Manager visibility</li></ul>
+  </div>
+  <div style="background:#065F46;color:#D1FAE5;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;flex-shrink:0;align-self:flex-start;">SALES EXECUTIVE</div>
+</div>
+
+<!-- SA-EX-01 -->
+<div class="section">
+  <div class="stag stag-e">Screen SA-EX-01 · Sales Executive</div>
+  <div class="stitle stitle-e">My Sales Dashboard</div>
+  <p class="sdesc">The Sales Executive's personal home screen. Shows their own deals, personal target progress, today's tasks (auto-created from activity outcomes), and their activity log for today. No other exec's data, no company pipeline, no manager's deals.</p>
+
+  <div class="sf">
+    <div class="sl sl-ex">SA-EX-01 · Sales Executive Dashboard — Exec A <span class="badge">EXEC ONLY</span><span style="background:#065F46;color:#D1FAE5;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;margin-left:auto;">🧑‍💼 EXEC</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/sales-exec/my-dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-ex">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls se-s">My Sales</div></div>
+        <div class="sbs">
+          <div class="sbsl">My Work</div>
+          <div class="sbi ae"><span>📊</span>My Dashboard</div>
+          <div class="sbi"><span>📋</span>My SPENCO Kanban</div>
+          <div class="sbi"><span>✅</span>My Tasks <span class="cnt">4</span></div>
+          <div class="sbi"><span>📞</span>Log Activity</div>
+          <div class="sbi"><span>🏢</span>My Accounts</div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">Actions</div>
+          <div class="sbi"><span>➕</span>New Deal</div>
+          <div class="sbi"><span>📝</span>Build Proposal</div>
+          <div class="sbi"><span>📈</span>My Performance</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-e">EA</div><div><div style="font-size:11px;color:white;font-weight:600;">Exec A</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Railways Team</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Good morning, Exec A 👋 — Aug 21, 2026</div><div class="ta"><button class="btn btn-ex">📞 Log Activity</button><button class="btn btn-o btn-sm">➕ New Deal</button></div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="cl">My Active Deals</div><div class="cv">5</div><div class="cd">₹2.1Cr total pipeline</div></div>
+            <div class="card"><div class="cl">Won (Q2 Target)</div><div class="cv" style="color:var(--success);">₹48L</div><div class="cd">96% of ₹50L target ✓</div></div>
+            <div class="card"><div class="cl">Tasks Today</div><div class="cv" style="color:var(--warning);">4</div><div class="cd">1 overdue</div></div>
+            <div class="card"><div class="cl">Activities Logged Today</div><div class="cv" style="color:var(--success);">3</div><div class="cd">Calls: 2, Email: 1</div></div>
+          </div>
+          <!-- My SPENCO summary -->
+          <div class="card" style="margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">My SPENCO Pipeline</div>
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:10px;text-align:center;">
+              <div style="padding:8px;background:#F3F4F6;border-radius:6px;"><div style="font-weight:700;color:#374151;">Suspect</div><div style="font-size:16px;font-weight:700;margin:4px 0;">1</div><div style="color:var(--muted);">₹44L</div></div>
+              <div style="padding:8px;background:#DBEAFE;border-radius:6px;"><div style="font-weight:700;color:#1D4ED8;">Prospect</div><div style="font-size:16px;font-weight:700;margin:4px 0;">1</div><div style="color:var(--muted);">₹68L</div></div>
+              <div style="padding:8px;background:#FEF3C7;border-radius:6px;"><div style="font-weight:700;color:#92400E;">Engagement</div><div style="font-size:16px;font-weight:700;margin:4px 0;">1</div><div style="color:var(--muted);">₹52L</div></div>
+              <div style="padding:8px;background:#EDE9FE;border-radius:6px;"><div style="font-weight:700;color:#5B21B6;">Negotiation</div><div style="font-size:16px;font-weight:700;margin:4px 0;">1</div><div style="color:var(--muted);">₹78L</div></div>
+              <div style="padding:8px;background:#D1FAE5;border-radius:6px;"><div style="font-weight:700;color:#065F46;">CO Done</div><div style="font-size:16px;font-weight:700;margin:4px 0;">1</div><div style="color:var(--success);">₹1.04Cr ✓</div></div>
+            </div>
+          </div>
+          <!-- Tasks -->
+          <div class="card">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">📋 Today's Tasks</div>
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--warning);border-radius:6px;margin-bottom:8px;background:#FFFBEB;">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid var(--warning);flex-shrink:0;margin-top:1px;"></div>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:700;">Send revised proposal — RVNL Mumbai (SA-2026-036)</div><div style="font-size:10px;color:var(--warning);">Due today · Awaiting Manager discount approval first</div></div>
+              <button class="btn btn-ex btn-sm">Open Deal</button>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid var(--border);flex-shrink:0;margin-top:1px;"></div>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:700;">📞 Call DGM Rajesh Kumar — DMRC (3:00 PM)</div><div style="font-size:10px;color:var(--muted);">Discuss FAT arrangements · Deal SA-2026-041</div></div>
+              <button class="btn btn-ex btn-sm">Log Call</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- SA-EX-04 Log Activity -->
+<div class="section">
+  <div class="stag stag-e">Screen SA-EX-04 · Sales Executive</div>
+  <div class="stitle stitle-e">Log Activity — Per Customer Record</div>
+  <p class="sdesc">The most-used screen for the Sales Executive. Every call, visit, email, and WhatsApp is logged here — against the customer account (not just the deal). This builds the complete interaction history that their Manager and Director can review. The system prompts for next action, which auto-creates a task on their dashboard.</p>
+
+  <div class="sf">
+    <div class="sl sl-ex">SA-EX-04 · Log Activity — DMRC Delhi <span class="badge">EXEC VIEW</span><span style="background:#065F46;color:#D1FAE5;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;margin-left:auto;">🧑‍💼 EXEC</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/sales-exec/log-activity</div></div>
+    <div class="shell" style="min-height:480px;">
+      <div class="sb sb-ex"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi ae"><span>📞</span>Log Activity</div></div></div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Log Activity</div><div class="ta"><button class="btn btn-o btn-sm">Cancel</button><button class="btn btn-ex">💾 Save Activity</button></div></div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;">
+            <div>
+              <!-- Activity type selector -->
+              <div class="card" style="margin-bottom:12px;">
+                <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">Activity Type</div>
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;color:var(--primary);text-align:center;background:#DBEAFE;border-color:#60A5FA;"><input type="radio" name="type" checked style="margin-bottom:4px;">📞 Call</label>
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;color:var(--primary);text-align:center;"><input type="radio" name="type" style="margin-bottom:4px;">📧 Email</label>
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;color:var(--primary);text-align:center;"><input type="radio" name="type" style="margin-bottom:4px;">🤝 Visit</label>
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;color:var(--primary);text-align:center;"><input type="radio" name="type" style="margin-bottom:4px;">💬 WhatsApp</label>
+                  <label style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;color:var(--primary);text-align:center;"><input type="radio" name="type" style="margin-bottom:4px;">📝 Note</label>
+                </div>
+              </div>
+              <!-- Customer & Deal linkage -->
+              <div class="card" style="margin-bottom:12px;">
+                <div class="fg">
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Customer Account *</label><select class="if"><option>DMRC Delhi</option><option>RVNL Mumbai</option><option>IRCON Delhi</option></select></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Link to Deal</label><select class="if"><option>SA-2026-041 — IoT Rolling Stock</option><option>General Account Activity (no deal)</option></select></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Contact Person</label><input class="if" value="Rajesh Kumar — DGM Rolling Stock"></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Duration (for calls)</label><input class="if" placeholder="e.g. 22 min"></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Call Outcome</label><select class="if"><option>Connected — positive progress</option><option>Connected — objections raised</option><option>Not reachable</option><option>Voicemail left</option></select></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Date & Time *</label><input class="if" type="datetime-local" value="2026-08-21T15:00"></div>
+                  <div class="fgr full"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Summary / Notes * <span style="color:var(--muted);font-weight:400;">(visible to Manager & Director)</span></label><textarea class="if" style="height:90px;" placeholder="What was discussed? Key decisions, objections, commitments made? Any intel about competitors, budget, timeline, decision process? What was the outcome?"></textarea></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">SPENCO Stage Update</label><select class="if"><option>No stage change</option><option>Move to Engagement</option><option>Move to Negotiation</option><option>Move to CO</option><option>Mark as Lost</option></select></div>
+                  <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Next Action (auto-creates task)</label><select class="if"><option>Send proposal — today</option><option>Follow-up call in 3 days</option><option>Schedule site visit</option><option>Await customer response</option><option>Request Manager review</option></select></div>
+                </div>
+              </div>
+            </div>
+            <!-- Activity rules panel -->
+            <div>
+              <div class="card" style="background:#F0FDF4;border:1px solid #A7F3D0;">
+                <div style="font-size:11px;font-weight:700;color:#065F46;margin-bottom:10px;">Activity Logging Rules</div>
+                <div style="font-size:11px;color:#14532D;line-height:1.8;">
+                  ✓ Log EVERY customer interaction — calls, emails, WhatsApp, visits, even meetings that didn't happen (note the no-show)<br><br>
+                  ✓ Notes are visible to your Sales Manager and Sales Director — write professionally<br><br>
+                  ✓ The "Next Action" field auto-creates a task with a due date on your dashboard<br><br>
+                  ✓ Daily minimum: at least 5 activities logged per working day<br><br>
+                  ✓ If you don't log for 24h, your Manager gets an alert
+                </div>
+              </div>
+              <div class="card" style="margin-top:10px;">
+                <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;">Today's Activity Count</div>
+                <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;">
+                  <div style="display:flex;justify-content:space-between;"><span>📞 Calls</span><span style="font-weight:700;color:var(--success);">2 logged</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>📧 Emails</span><span style="font-weight:700;color:var(--success);">1 logged</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>🤝 Visits</span><span style="font-weight:700;color:var(--muted);">0</span></div>
+                  <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:6px;"><span><strong>Total today</strong></span><span style="font-weight:700;color:var(--success);">3 + this one = 4</span></div>
+                  <div style="font-size:10px;color:var(--muted);">Daily target: 5 activities. 1 more needed after this.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="an an-e">1</div><div class="ab"><div class="at">Why Per-Customer (not per-deal)?</div><div class="ad">A Sales Executive might have 3 different deals at DMRC Delhi — Rolling Stock monitoring, Platform safety sensors, and a software license renewal. All conversations with DMRC contacts — regardless of which deal is being discussed — appear in one unified DMRC timeline. The Director and Manager can understand the full relationship, not just deal-by-deal fragments. This is how CRMs like Salesforce work.</div></div></div>
+</div>
+
+<div class="pff">
+  iinvsys ERP Bible V3 · Module 2: Sales (SPENCO) · Complete Role-Based Specification<br>
+  Sales Director (9 screens) · Sales Manager (9 screens) · Sales Executive (7 screens) · 25 total<br>
+  Hierarchy: Director → Manager (domain) → Executive (2 per Manager)<br>
+  Discount tiers: 0–3% Exec · 3–10% Manager · &gt;10% Director + COO<br>
+  "Democratizing Technology, Driving Innovation"
+</div>
+</body>
+</html>

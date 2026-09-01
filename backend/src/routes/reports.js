@@ -1,8 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const { authenticate }   = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/rbac');
-const { requirePermission } = require('../middleware/rbac');
+const { requireRole, requirePermission } = require('../middleware/rbac');
 const {
   getConfig,
   updateConfig,
@@ -12,24 +11,23 @@ const {
 } = require('../controllers/reportController');
 
 // GET  /api/reports/config   — superadmin only
-router.get('/config',    authenticate, requireMinRole('superadmin'), getConfig);
+router.get('/config',    authenticate, requireRole('superadmin'), getConfig);
 
 // PUT  /api/reports/config   — superadmin only
-router.put('/config',    authenticate, requireMinRole('superadmin'), updateConfig);
+router.put('/config',    authenticate, requireRole('superadmin'), updateConfig);
 
-// POST /api/reports/send     — superadmin or manager
-router.post('/send',     authenticate, requireMinRole('manager'), sendNow);
+/* Mailing the report to the configured distribution list, and previewing what would be
+   mailed, are a different right from downloading your own scoped workbook: these reach
+   other people's inboxes carrying team-wide figures. `kpi.read_team` is the line — the
+   same one that separates a manager's dashboard from an executive's. */
+router.post('/send',     authenticate, requirePermission('kpi.read_team'), sendNow);
+router.get('/preview',   authenticate, requirePermission('kpi.read_team'), previewData);
 
-// GET  /api/reports/preview  — superadmin or manager
-router.get('/preview',   authenticate, requireMinRole('manager'), previewData);
-
-/* GET /api/reports/export.xlsx — scoped by role, not gated to managers.
-   `kpi.read` rather than a new `report.export` verb: doc 04 defines no export
-   permission, and "may see performance numbers" is exactly what kpi.read
-   means. What each role actually GETS is narrowed by `scopeFor()` in
-   utils/excelReport.js — an agent's workbook holds their own leads and no
-   delivery or installation sheets at all. */
+/* GET /api/reports/export.xlsx — self-service, scoped by role rather than gated to
+   managers. What each role actually GETS is narrowed by `scopeFor()` in
+   utils/excelReport.js: an executive's workbook holds their own leads, and a
+   finance-blind role's holds no value columns at all. */
 router.get('/export.xlsx',
-  authenticate, requirePermission('kpi.read'), downloadReport);
+  authenticate, requirePermission('report.export'), downloadReport);
 
 module.exports = router;

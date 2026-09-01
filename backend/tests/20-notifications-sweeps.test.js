@@ -29,21 +29,23 @@ beforeAll(connect);
 afterAll(disconnect);
 beforeEach(async () => {
   await clearCollections();
-  managerId = await insertUser({ role: 'manager', name: 'Sneha' });
-  agentId   = await insertUser({ role: 'agent',   name: 'Rahul' });
+  managerId = await insertUser({ role: 'sales_director', name: 'Sneha' });
+  agentId   = await insertUser({ role: 'sales_executive',   name: 'Rahul' });
   managerToken = tok(managerId);
   agentToken   = tok(agentId);
 });
 
 describe('recipients resolve by permission, not by role name', () => {
   it('finds every role holding the permission', async () => {
-    await insertUser({ role: 'delivery_manager', name: 'Dev' });
+    await insertUser({ role: 'production_head', name: 'Dev' });
     const users = await notify.recipientsFor(['workorder.accept']);
     const roles = users.map((u) => u.role);
 
-    expect(roles).toContain('delivery_manager');
-    expect(roles).toContain('manager');       // also holds it
-    expect(roles).not.toContain('agent');
+    expect(roles).toContain('production_head');
+    /* NOT the Sales Director: doc 3 PD-HD-01 makes accepting a production order the
+       Production Head's, and the Director holds `workorder.read` alone. */
+    expect(roles).not.toContain('sales_director');
+    expect(roles).not.toContain('sales_executive');
   });
 
   it('excludes deactivated accounts', async () => {

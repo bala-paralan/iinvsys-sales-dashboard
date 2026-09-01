@@ -113,14 +113,14 @@ describe('AUTH — JWT Token Validation', () => {
   });
 
   it('TC-A016 returns 401 with expired token', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = jwt.sign({ userId: uid }, process.env.JWT_SECRET, { expiresIn: '-1s' });
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(401);
   });
 
   it('TC-A017 returns 401 with wrong secret', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = jwt.sign({ userId: uid }, 'wrong-secret');
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(401);
@@ -132,7 +132,7 @@ describe('AUTH — JWT Token Validation', () => {
   });
 
   it('TC-A019 returns 401 with token for deleted user', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = tok(uid);
     await User.deleteOne({ _id: uid });
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${token}`);
@@ -140,20 +140,20 @@ describe('AUTH — JWT Token Validation', () => {
   });
 
   it('TC-A020 returns 401 with token for inactive user', async () => {
-    const uid = await insertUser({ role: 'agent', isActive: false });
+    const uid = await insertUser({ role: 'sales_executive', isActive: false });
     const token = tok(uid);
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(401);
   });
 
   it('TC-A021 valid token grants access to protected route', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${tok(uid)}`);
     expect([200, 403]).toContain(r.status);
   });
 
   it('TC-A022 token with wrong userId field is rejected', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = jwt.sign({ id: uid }, process.env.JWT_SECRET); // wrong field
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${token}`);
     expect(r.status).toBe(401);
@@ -181,25 +181,25 @@ describe('AUTH — Get current user (GET /api/auth/me)', () => {
   });
 
   it('TC-A026 returns 200 with valid token', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
 
   it('TC-A027 response includes user role', async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${tok(uid)}`);
-    expect(r.body.data?.role || r.body.data?.user?.role).toBe('manager');
+    expect(r.body.data?.role || r.body.data?.user?.role).toBe('sales_director');
   });
 
   it('TC-A028 response does not include password hash', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${tok(uid)}`);
     expect(JSON.stringify(r.body)).not.toMatch(/"password"/);
   });
 
   it('TC-A029 response includes user _id', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.body.success).toBe(true);
   });
@@ -211,7 +211,7 @@ describe('AUTH — Get current user (GET /api/auth/me)', () => {
 describe('SECURITY — RBAC: readonly role restrictions', () => {
   let readonlyToken;
   beforeEach(async () => {
-    const uid = await insertUser({ role: 'readonly' });
+    const uid = await insertUser({ role: 'sales_executive' });
     readonlyToken = tok(uid);
   });
 
@@ -236,7 +236,7 @@ describe('SECURITY — RBAC: readonly role restrictions', () => {
   });
 
   /* SKIP(open decision): `readonly` is documented as an internal view-only role, but
-     GET /api/leads is guarded by requireMinRole('agent'), so readonly gets 403. The app
+     GET /api/leads is guarded by requireMinRole('sales_executive'), so readonly gets 403. The app
      is MORE restrictive than this test — not a hole. Needs an owner ruling on whether
      readonly reads leads; see docs/requirements/04-roles-and-permissions.md. */
   it.skip('TC-S005 readonly can GET /api/leads', async () => {
@@ -263,7 +263,7 @@ describe('SECURITY — RBAC: readonly role restrictions', () => {
 describe('SECURITY — RBAC: agent role restrictions', () => {
   let agentToken;
   beforeEach(async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     agentToken = tok(uid);
   });
 
@@ -301,7 +301,7 @@ describe('SECURITY — RBAC: agent role restrictions', () => {
 describe('SECURITY — RBAC: manager role privileges', () => {
   let managerToken;
   beforeEach(async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     managerToken = tok(uid);
   });
 
@@ -375,14 +375,14 @@ describe('SECURITY — NoSQL Injection prevention', () => {
   });
 
   it.skip('TC-S025 query param with $where is sanitized', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/leads?stage[$ne]=new').set('Authorization', `Bearer ${tok(uid)}`);
     expect([200, 400]).toContain(r.status);
     expect(r.status).not.toBe(500);
   });
 
   it('TC-S026 search param with $regex operator does not crash', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/leads?search[$regex]=.*').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).not.toBe(500);
   });
@@ -449,13 +449,13 @@ describe('SECURITY — HTTP Security Headers (Helmet)', () => {
 ═══════════════════════════════════════════════ */
 describe('SECURITY — Mass Assignment & Data Exposure', () => {
   it('TC-S035 cannot escalate own role via profile update', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${tok(uid)}`);
-    expect(r.body.data?.role || r.body.data?.user?.role).toBe('agent');
+    expect(r.body.data?.role || r.body.data?.user?.role).toBe('sales_executive');
   });
 
   it('TC-S036 GET /api/agents does not expose password field', async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/agents').set('Authorization', `Bearer ${tok(uid)}`);
     expect(JSON.stringify(r.body)).not.toMatch(/"password"/);
   });
@@ -465,7 +465,7 @@ describe('SECURITY — Mass Assignment & Data Exposure', () => {
      .lean() bypasses toJSON so __v does leak on list endpoints. Tracked under R-9;
      re-enable this once readonly access is settled, as it is the regression for it. */
   it.skip('TC-S037 GET /api/leads response does not contain __v in nested objects', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/leads').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
@@ -551,7 +551,7 @@ describe('SECURITY — RBAC: referrer role restrictions', () => {
 ═══════════════════════════════════════════════ */
 describe('AUTH — Token lifecycle', () => {
   it('TC-A030 token is a valid JWT string', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = tok(uid);
     const decoded = jwt.decode(token);
     expect(decoded).not.toBeNull();
@@ -559,7 +559,7 @@ describe('AUTH — Token lifecycle', () => {
   });
 
   it('TC-A031 decoded token contains userId not id', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = tok(uid);
     const decoded = jwt.decode(token);
     expect(decoded.userId).toBeDefined();
@@ -567,7 +567,7 @@ describe('AUTH — Token lifecycle', () => {
   });
 
   it('TC-A032 token has expiry claim', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = tok(uid);
     const decoded = jwt.decode(token);
     expect(decoded.exp).toBeDefined();
@@ -575,22 +575,22 @@ describe('AUTH — Token lifecycle', () => {
   });
 
   it('TC-A033 token issued-at is in the past or now', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const token = tok(uid);
     const decoded = jwt.decode(token);
     expect(decoded.iat).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 1);
   });
 
   it('TC-A034 two tokens for different users are different', async () => {
-    const uid1 = await insertUser({ role: 'agent', email: 'u1@t.com' });
-    const uid2 = await insertUser({ role: 'agent', email: 'u2@t.com' });
+    const uid1 = await insertUser({ role: 'sales_executive', email: 'u1@t.com' });
+    const uid2 = await insertUser({ role: 'sales_executive', email: 'u2@t.com' });
     expect(tok(uid1)).not.toBe(tok(uid2));
   });
 
   /* SKIP(stale): calls PUT /api/auth/change-password. That route has never existed in
      this codebase — password change is PATCH /api/auth/password, which IS covered. */
   it.skip('TC-A035 PUT /api/auth/change-password requires current password', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).put('/api/auth/change-password')
       .set('Authorization', `Bearer ${tok(uid)}`)
       .send({ newPassword: 'NewPass@123' });

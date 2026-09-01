@@ -8,7 +8,7 @@ const request  = require('supertest');
 const app      = require('../src/app');
 const db       = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
-const Agent    = require('../src/models/Agent');
+const Agent    = require('./helpers/owner');
 const Lead     = require('../src/models/Lead');
 
 beforeAll(() => db.connect());
@@ -149,7 +149,7 @@ describe('PERFORMANCE — Large dataset pagination', () => {
     const agent = await Agent.create({ name: 'A', initials: 'A', email: 'a@a.com', phone: '9000000000', territory: 'X', target: 0, color: '#fff', createdBy: adminId });
     const leads = Array.from({ length: 50 }, (_, i) => ({
       name: `Lead${i}`, phone: `91000000${String(i).padStart(2, '0')}`, source: 'inbound_enquiry',
-      assignedAgent: agent._id, createdBy: adminId,
+      owner: agent._id, createdBy: adminId,
     }));
     await Lead.insertMany(leads);
     const t = Date.now();
@@ -163,7 +163,7 @@ describe('PERFORMANCE — Large dataset pagination', () => {
     const agent = await Agent.create({ name: 'B', initials: 'B', email: 'b@b.com', phone: '9000000001', territory: 'Y', target: 0, color: '#fff', createdBy: adminId });
     const leads = Array.from({ length: 20 }, (_, i) => ({
       name: `Lead${i}`, phone: `92000000${String(i).padStart(2, '0')}`, source: 'inbound_enquiry',
-      assignedAgent: agent._id, createdBy: adminId,
+      owner: agent._id, createdBy: adminId,
     }));
     await Lead.insertMany(leads);
     const r = await request(app).get('/api/leads?limit=5').set('Authorization', `Bearer ${adminToken}`);
@@ -175,7 +175,7 @@ describe('PERFORMANCE — Large dataset pagination', () => {
     const agent = await Agent.create({ name: 'C', initials: 'C', email: 'c@c.com', phone: '9000000002', territory: 'Z', target: 0, color: '#fff', createdBy: adminId });
     const leads = Array.from({ length: 7 }, (_, i) => ({
       name: `Lead${i}`, phone: `93000000${String(i).padStart(2, '0')}`, source: 'inbound_enquiry',
-      assignedAgent: agent._id, createdBy: adminId,
+      owner: agent._id, createdBy: adminId,
     }));
     await Lead.insertMany(leads);
     const r = await request(app).get('/api/leads?page=2&limit=5').set('Authorization', `Bearer ${adminToken}`);

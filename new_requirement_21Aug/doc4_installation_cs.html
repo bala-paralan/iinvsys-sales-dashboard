@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iinvsys ERP Bible V3 – Module 4: Installation & Customer Support</title>
+<style>
+:root{--primary:#0A2540;--indigo:#4F46E5;--success:#27AE60;--warning:#F39C12;--danger:#E74C3C;--light:#F4F7FB;--border:#D1DCE8;--text:#1A2B3C;--muted:#6B7C93;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#EEF2F7;color:var(--text);font-size:14px;}
+.cover{background:linear-gradient(135deg,#0F0A3C 0%,#2D1E8B 55%,#4F46E5 100%);color:white;padding:80px 60px;min-height:340px;position:relative;overflow:hidden;}
+.cover::after{content:'';position:absolute;right:-80px;top:-80px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.04);}
+.cover-tag{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C7D2FE;margin-bottom:16px;}
+.cover h1{font-size:38px;font-weight:700;line-height:1.2;margin-bottom:10px;}
+.cover h2{font-size:18px;font-weight:300;color:rgba(255,255,255,.8);margin-bottom:24px;}
+.cover-meta{display:flex;gap:40px;font-size:13px;color:rgba(255,255,255,.7);}
+.cover-meta strong{color:white;display:block;font-size:15px;}
+.page{max-width:1120px;margin:0 auto;padding:48px 32px;}
+.rb{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;}
+.rb-ih{background:#312E81;color:#E0E7FF;}.rb-csm{background:#7C3AED;color:#EDE9FE;}.rb-fe{background:#065F46;color:#D1FAE5;}.rb-ag{background:#0F766E;color:#CCFBF1;}
+.role-banner{border-radius:12px;padding:20px 24px;margin-bottom:40px;display:flex;gap:18px;align-items:flex-start;}
+.rb-ih-b{background:linear-gradient(90deg,#0F0A3C,#312E81);}
+.rb-csm-b{background:linear-gradient(90deg,#2E1065,#6D28D9);}
+.rb-fe-b{background:linear-gradient(90deg,#022c22,#064e3b);}
+.rb-ag-b{background:linear-gradient(90deg,#134e4a,#0F766E);}
+.role-icon{font-size:36px;flex-shrink:0;}
+.role-info h2{font-size:17px;font-weight:700;color:white;margin-bottom:5px;}
+.role-info p{font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;}
+.role-info ul{margin-top:8px;padding-left:16px;font-size:11px;color:rgba(255,255,255,.65);line-height:1.8;}
+.sf{background:white;border-radius:12px;box-shadow:0 4px 28px rgba(10,37,64,.13);margin-bottom:32px;overflow:hidden;border:1.5px solid var(--border);}
+.sl{padding:10px 20px;font-size:12px;font-weight:700;letter-spacing:.8px;display:flex;align-items:center;gap:10px;color:white;}
+.sl-ih{background:#0F0A3C;}.sl-csm{background:#2E1065;}.sl-fe{background:#064e3b;}.sl-ag{background:#134e4a;}
+.badge{background:rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:600;}
+.ml{margin-left:auto;}
+.br{background:#222;padding:10px 16px 0;display:flex;align-items:center;gap:7px;}
+.dot{width:12px;height:12px;border-radius:50%;}
+.dr{background:#FF5F57}.dy{background:#FEBC2E}.dg{background:#28C840}
+.burl{background:#333;border-radius:6px;flex:1;padding:5px 14px;color:#999;font-size:11px;margin-left:10px;font-family:monospace;}
+.shell{display:flex;min-height:520px;}
+.sb{width:215px;flex-shrink:0;}
+.sb-ih{background:#0F0A3C;}.sb-csm{background:#2E1065;}.sb-fe{background:#064e3b;}.sb-ag{background:#134e4a;}
+.sbl{padding:16px;border-bottom:1px solid rgba(255,255,255,.1);}
+.sblt{color:white;font-size:14px;font-weight:700;}
+.sbls{font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.sih-s{color:#C7D2FE;}.scsm-s{color:#DDD6FE;}.sfe-s{color:#99F6E4;}.sag-s{color:#CCFBF1;}
+.sbs{padding:10a 0 4px;}
+.sbsl{padding:0 14px 5px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;}
+.sbi{display:flex;align-items:center;gap:9px;padding:8px 14px;color:rgba(255,255,255,.7);font-size:12px;}
+.sbi.aih{background:rgba(79,70,229,.3);color:white;border-left:3px solid #C7D2FE;}
+.sbi.acsm{background:rgba(124,58,237,.3);color:white;border-left:3px solid #DDD6FE;}
+.sbi.afe{background:rgba(6,95,70,.3);color:white;border-left:3px solid #99F6E4;}
+.sbi.aag{background:rgba(15,118,110,.3);color:white;border-left:3px solid #CCFBF1;}
+.cnt{background:#E74C3C;color:white;border-radius:10px;padding:1px 7px;font-size:9px;margin-left:auto;}
+.main{flex:1;background:var(--light);display:flex;flex-direction:column;}
+.tb{background:white;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.tbt{font-size:15px;font-weight:700;color:var(--primary);}
+.ta{display:flex;gap:8px;align-items:center;}
+.btn{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;}
+.btn-ih{background:#4F46E5;color:white;}.btn-csm{background:#7C3AED;color:white;}.btn-fe{background:#0F766E;color:white;}.btn-ag{background:#0D9488;color:white;}
+.btn-o{background:white;color:var(--primary);border:1.5px solid var(--border);}
+.btn-s{background:var(--success);color:white;}.btn-d{background:var(--danger);color:white;}.btn-w{background:var(--warning);color:white;}
+.btn-sm{padding:3px 9px;font-size:10px;}
+.ca{padding:16px;flex:1;overflow:auto;}
+.grid{display:grid;gap:12px;margin-bottom:16px;}
+.g5{grid-template-columns:repeat(5,1fr);}.g4{grid-template-columns:repeat(4,1fr);}.g3{grid-template-columns:repeat(3,1fr);}.g2{grid-template-columns:1fr 1fr;}
+.card{background:white;border-radius:8px;padding:14px;border:1px solid var(--border);}
+.cl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.cv{font-size:22px;font-weight:700;color:var(--primary);margin-bottom:3px;}
+.cd{font-size:10px;color:var(--success);}
+.tbl{background:white;border-radius:8px;border:1px solid var(--border);overflow:hidden;}
+.tblh{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
+.tblt{font-size:12px;font-weight:700;color:var(--primary);}
+table{width:100%;border-collapse:collapse;}
+th{background:var(--light);padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+td{padding:9px 12px;font-size:11px;border-bottom:1px solid #F0F4F8;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.if{width:100%;background:var(--light);border:1.5px solid var(--border);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--text);}
+textarea.if{height:65px;resize:none;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fgr{margin-bottom:12px;}
+.fgr.full{grid-column:1/-1;}
+.dr2{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F0F4F8;font-size:11px;}
+.drl{color:var(--muted);}.drv{font-weight:600;color:var(--primary);}
+.pb{background:var(--border);border-radius:20px;height:7px;overflow:hidden;flex:1;}
+.pf{height:100%;border-radius:20px;}
+.av{width:28px;height:28px;border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.av-ih{background:#4F46E5;}.av-csm{background:#7C3AED;}.av-fe{background:#059669;}.av-ag{background:#0F766E;}.av-o{background:#D97706;}
+.ann{display:flex;gap:12px;margin-top:14px;margin-bottom:6px;}
+.an{width:26px;height:26px;border-radius:50%;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.an-ih{background:#4F46E5;}.an-csm{background:#7C3AED;}.an-fe{background:#059669;}.an-ag{background:#0F766E;}
+.ab{flex:1;}.at{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:2px;}.ad{font-size:11px;color:var(--muted);line-height:1.6;}
+.info{background:#EEF2FF;border-left:4px solid var(--indigo);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#1E1B4B;line-height:1.7;}
+.warn{background:#FFFBEB;border-left:4px solid var(--warning);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#78350F;line-height:1.7;}
+.divider{border:none;border-top:2px solid var(--border);margin:48px 0;}
+.section{margin-bottom:48px;}
+.stag{font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:5px;}
+.stag-ih{color:#4F46E5;}.stag-csm{color:#7C3AED;}.stag-fe{color:#059669;}.stag-ag{color:#0F766E;}
+.stitle{font-size:21px;font-weight:700;color:var(--primary);margin-bottom:8px;padding-bottom:8px;display:inline-block;}
+.stitle-ih{border-bottom:3px solid #4F46E5;}.stitle-csm{border-bottom:3px solid #7C3AED;}.stitle-fe{border-bottom:3px solid #059669;}.stitle-ag{border-bottom:3px solid #0F766E;}
+.sdesc{color:var(--muted);margin-top:10px;margin-bottom:22px;max-width:800px;line-height:1.7;font-size:13px;}
+.toc{background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;}
+.toc h3{color:var(--primary);font-size:14px;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid var(--indigo);display:inline-block;}
+.toc-list{list-style:none;}
+.toc-list li{padding:4px 0;font-size:12px;border-bottom:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;}
+.toc-list li:last-child{border:none;}
+.toc-list span{color:var(--muted);font-size:10px;}
+.chip{padding:2px 9px;border-radius:20px;font-size:9px;font-weight:600;display:inline-block;}
+.chip-r{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;}
+.chip-d{background:#DBEAFE;color:#1D4ED8;border:1px solid #BFDBFE;}
+.chip-g{background:#D1FAE5;color:#065F46;border:1px solid #A7F3D0;}
+.chip-y{background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;}
+.chip-p{background:#EDE9FE;color:#5B21B6;border:1px solid #DDD6FE;}
+.sla-ok{color:var(--success);font-weight:700;font-size:10px;}
+.sla-warn{color:var(--warning);font-weight:700;font-size:10px;}
+.sla-breach{color:var(--danger);font-weight:700;font-size:10px;}
+.pff{text-align:center;padding:28px;color:var(--muted);font-size:11px;border-top:2px solid var(--border);margin-top:56px;}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-tag">iinvsys ERP Bible V3 · Document 4 of 4 · Installation & Customer Support</div>
+  <h1>Installation & Customer Support</h1>
+  <h2>Install Head · CS Manager · Field Engineer · CS Agent · All screens, all flows, no shared views</h2>
+  <div class="cover-meta">
+    <div><strong>Module</strong>IC-MODULE-04</div>
+    <div><strong>Version</strong>3.0 Final</div>
+    <div><strong>Roles</strong>Install Head · CS Manager · Field Engineer · CS Agent</div>
+    <div><strong>Total Screens</strong>18</div>
+    <div><strong>Loops Back To</strong>Sales (AMC renewal → Suspect)</div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- Flow overview -->
+<div style="background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;">
+  <div style="font-size:14px;font-weight:700;color:var(--primary);margin-bottom:16px;border-bottom:2px solid var(--indigo);padding-bottom:7px;display:inline-block;">Module 4 — Trigger, Flow & Loop-back to Sales</div>
+  <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;margin-bottom:14px;">
+    <div style="padding:10px 14px;background:#CCFBF1;border-radius:8px;border:1px solid #99F6E4;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#0F766E;">Production POD</div><div style="font-size:10px;color:#0D9488;margin-top:1px;">Confirmed delivery</div></div>
+    <div style="padding:0 8px;font-size:18px;color:var(--muted);">→</div>
+    <div style="padding:10px 14px;background:#EEF2FF;border-radius:8px;border:1px solid #C7D2FE;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#4F46E5;">Auto INS-XXXX</div><div style="font-size:10px;color:#6366F1;margin-top:1px;">Install job created</div></div>
+    <div style="padding:0 8px;font-size:18px;color:var(--muted);">→</div>
+    <div style="padding:10px 14px;background:#EEF2FF;border-radius:8px;border:1px solid #C7D2FE;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#4F46E5;">Install Head</div><div style="font-size:10px;color:#6366F1;margin-top:1px;">Assigns Field Eng.</div></div>
+    <div style="padding:0 8px;font-size:18px;color:var(--muted);">→</div>
+    <div style="padding:10px 14px;background:#D1FAE5;border-radius:8px;border:1px solid #A7F3D0;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#065F46;">Field Engineer</div><div style="font-size:10px;color:#059669;margin-top:1px;">Site visit + install</div></div>
+    <div style="padding:0 8px;font-size:18px;color:var(--muted);">→</div>
+    <div style="padding:10px 14px;background:#EEF2FF;border-radius:8px;border:1px solid #C7D2FE;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#4F46E5;">Customer Sign-Off</div><div style="font-size:10px;color:#6366F1;margin-top:1px;">+ CSAT collected</div></div>
+    <div style="padding:0 8px;font-size:18px;color:var(--muted);">→</div>
+    <div style="padding:10px 14px;background:#EDE9FE;border-radius:8px;border:1px solid #DDD6FE;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#5B21B6;">AMC Created</div><div style="font-size:10px;color:#7C3AED;margin-top:1px;">CS Manager tracks</div></div>
+    <div style="padding:0 8px;font-size:18px;color:var(--muted);">→</div>
+    <div style="padding:10px 14px;background:#FEF3C7;border-radius:8px;border:1px solid #FDE68A;text-align:center;min-width:120px;"><div style="font-size:11px;font-weight:700;color:#92400E;">AMC Renewal</div><div style="font-size:10px;color:#B45309;margin-top:1px;">→ Sales Suspect</div></div>
+  </div>
+  <div style="background:#EEF2FF;border-radius:8px;padding:12px 16px;font-size:11px;color:#1E1B4B;line-height:1.7;">
+    <strong>CS Agent access rule:</strong> CS Agents see only their own assigned tickets. They CANNOT see other agents' tickets, SLA performance comparisons, team statistics, or AMC contract values. The CS Manager sees everything across all agents.
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul class="toc-list">
+    <li><span class="rb rb-ih" style="font-size:9px;">INSTALL HEAD</span>&nbsp;IC-HD-01 · Install Head Dashboard — all jobs + live CS SLA panel <span>INSTALL HEAD</span></li>
+    <li><span class="rb rb-ih" style="font-size:9px;">INSTALL HEAD</span>&nbsp;IC-HD-02 · Field Engineer Assignment <span>INSTALL HEAD</span></li>
+    <li><span class="rb rb-ih" style="font-size:9px;">INSTALL HEAD</span>&nbsp;IC-HD-03 · Job Detail & Progress View <span>INSTALL HEAD</span></li>
+    <li><span class="rb rb-ih" style="font-size:9px;">INSTALL HEAD</span>&nbsp;IC-HD-04 · QC / Customer Sign-Off Approval <span>INSTALL HEAD</span></li>
+    <li><span class="rb rb-ih" style="font-size:9px;">INSTALL HEAD</span>&nbsp;IC-HD-05 · CSAT & Installation Analytics <span>INSTALL HEAD</span></li>
+    <li><span class="rb rb-csm" style="font-size:9px;">CS MANAGER</span>&nbsp;IC-CSM-01 · CS Manager Dashboard — all tickets, all agents, SLA overview <span>CS MANAGER</span></li>
+    <li><span class="rb rb-csm" style="font-size:9px;">CS MANAGER</span>&nbsp;IC-CSM-02 · Ticket Queue + SLA Countdown Timers <span>CS MANAGER</span></li>
+    <li><span class="rb rb-csm" style="font-size:9px;">CS MANAGER</span>&nbsp;IC-CSM-03 · Agent Performance Comparison (Manager-only view) <span>CS MANAGER</span></li>
+    <li><span class="rb rb-csm" style="font-size:9px;">CS MANAGER</span>&nbsp;IC-CSM-04 · AMC / Warranty Tracker + Renewal Pipeline <span>CS MANAGER</span></li>
+    <li><span class="rb rb-csm" style="font-size:9px;">CS MANAGER</span>&nbsp;IC-CSM-05 · CS Analytics & Reports <span>CS MANAGER</span></li>
+    <li><span class="rb rb-fe" style="font-size:9px;">FIELD ENG</span>&nbsp;IC-FE-01 · Field Engineer Dashboard — my assigned jobs only <span>FIELD ENG</span></li>
+    <li><span class="rb rb-fe" style="font-size:9px;">FIELD ENG</span>&nbsp;IC-FE-02 · Job Detail + Site Survey Checklist <span>FIELD ENG</span></li>
+    <li><span class="rb rb-fe" style="font-size:9px;">FIELD ENG</span>&nbsp;IC-FE-03 · Installation Progress Steps + Photo Upload <span>FIELD ENG</span></li>
+    <li><span class="rb rb-fe" style="font-size:9px;">FIELD ENG</span>&nbsp;IC-FE-04 · Customer Sign-Off & CSAT Collection (tablet-optimised) <span>FIELD ENG</span></li>
+    <li><span class="rb rb-ag" style="font-size:9px;">CS AGENT</span>&nbsp;IC-AG-01 · CS Agent Ticket Queue — my tickets only, no SLA comparison <span>CS AGENT</span></li>
+    <li><span class="rb rb-ag" style="font-size:9px;">CS AGENT</span>&nbsp;IC-AG-02 · Ticket Detail & Activity Log <span>CS AGENT</span></li>
+    <li><span class="rb rb-ag" style="font-size:9px;">CS AGENT</span>&nbsp;IC-AG-03 · AMC View — read-only (no contract value) <span>CS AGENT</span></li>
+  </ul>
+</div>
+
+<!-- ══════════════ INSTALL HEAD ══════════════ -->
+
+<div class="role-banner rb-ih-b">
+  <div class="role-icon">🔧</div>
+  <div class="role-info">
+    <h2>Installation Head — All Jobs, All Engineers</h2>
+    <p>The Installation Head receives a new INS-XXXX job automatically when Production confirms POD. They assign a Field Engineer, monitor installation progress, approve the customer sign-off, and track CSAT scores. They also have a read-only view of the CS team's SLA performance — so they know if a customer is having support issues on a newly installed product.</p>
+    <ul><li>Receives auto-created installation jobs on POD confirmation</li><li>Assigns and reassigns Field Engineers to jobs</li><li>Reviews installation progress in real time</li><li>Approves customer sign-off and closes the installation</li></ul>
+  </div>
+  <div class="rb rb-ih" style="flex-shrink:0;align-self:flex-start;">INSTALL HEAD</div>
+</div>
+
+<!-- IC-HD-01 -->
+<div class="section">
+  <div class="stag stag-ih">Screen IC-HD-01 · Installation Head</div>
+  <div class="stitle stitle-ih">Installation Head Dashboard</div>
+  <p class="sdesc">The Installation Head's daily view — all active installation jobs (with stage, assigned engineer, customer site, deadline), plus a live panel showing the CS team's SLA status. Gives the Head a complete picture of after-sales health in one screen.</p>
+
+  <div class="sf">
+    <div class="sl sl-ih">IC-HD-01 · Install Head Dashboard <span class="badge">HEAD ONLY</span><span class="rb rb-ih ml" style="font-size:10px;">🔧 INSTALL HEAD</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/install-head/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-ih">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls sih-s">Installation — Head</div></div>
+        <div class="sbs">
+          <div class="sbsl">Installation</div>
+          <div class="sbi aih"><span>📊</span>Dashboard</div>
+          <div class="sbi"><span>🗂</span>All Jobs <span class="cnt">8</span></div>
+          <div class="sbi"><span>👥</span>Engineer Assignment</div>
+          <div class="sbi"><span>✅</span>Sign-Off Queue <span class="cnt">2</span></div>
+          <div class="sbi"><span>⭐</span>CSAT Analytics</div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">CS Overview</div>
+          <div class="sbi"><span>🎧</span>CS SLA Status</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-ih">IH</div><div><div style="font-size:11px;color:white;font-weight:600;">Install Head</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Full Access</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Installation Dashboard — Aug 2026</div><div class="ta"><button class="btn btn-ih btn-sm">Assign Engineer</button><button class="btn btn-o btn-sm">⬇ Report</button></div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="cl">Active Jobs</div><div class="cv">8</div><div class="cd">3 in progress</div></div>
+            <div class="card"><div class="cl">Due This Week</div><div class="cv" style="color:var(--warning);">3</div><div class="cd">Need monitoring</div></div>
+            <div class="card"><div class="cl">Sign-Off Pending</div><div class="cv" style="color:var(--warning);">2</div><div class="cd">Engineer submitted</div></div>
+            <div class="card"><div class="cl">Avg CSAT (YTD)</div><div class="cv" style="color:var(--success);">4.3/5</div><div class="cd">↑ 0.2 vs Q1</div></div>
+          </div>
+
+          <div class="tbl" style="margin-bottom:14px;">
+            <div class="tblh"><div class="tblt">Active Installation Jobs</div><button class="btn btn-ih btn-sm">+ New Job</button></div>
+            <table>
+              <tr><th>Job ID</th><th>Customer / Site</th><th>Product Installed</th><th>Stage</th><th>Field Engineer</th><th>Deadline</th><th>Action</th></tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#4F46E5;">INS-2026-029</td>
+                <td><div style="font-weight:700;">BEL Sensors</div><div style="font-size:10px;color:var(--muted);">Jalahalli, Bangalore</div></td>
+                <td>Vibration Sensor IoT Kit</td>
+                <td><span style="background:#DBEAFE;color:#1D4ED8;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Site Survey</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-fe" style="font-size:9px;">KR</div>Kumar R.</div></td>
+                <td>28 Aug</td>
+                <td><button class="btn btn-ih btn-sm">View →</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#4F46E5;">INS-2026-031</td>
+                <td><div style="font-weight:700;">ICF Chennai</div><div style="font-size:10px;color:var(--muted);">Perambur, Chennai</div></td>
+                <td>Railway Sensor Modules</td>
+                <td><span style="background:#FEF3C7;color:#92400E;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Installing</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-o" style="font-size:9px;">SM</div>Senthil M.</div></td>
+                <td style="color:var(--warning);">22 Aug ⚠</td>
+                <td><button class="btn btn-ih btn-sm">View →</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#4F46E5;">INS-2026-038</td>
+                <td><div style="font-weight:700;">BEL Defence</div><div style="font-size:10px;color:var(--muted);">Jalahalli, Bangalore</div></td>
+                <td>IIoT Edge Gateway</td>
+                <td><span style="background:#D1FAE5;color:#065F46;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Sign-Off Pending ✓</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-fe" style="font-size:9px;">KR</div>Kumar R.</div></td>
+                <td>21 Aug</td>
+                <td><button class="btn btn-s btn-sm">Approve Sign-Off →</button></td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- CS SLA snapshot for Install Head -->
+          <div style="background:white;border-radius:8px;border:1.5px solid #C7D2FE;padding:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">🎧 CS Team SLA Snapshot (Read-Only)</div>
+            <div class="grid g4" style="margin-bottom:0;">
+              <div class="card" style="padding:10px;border-color:#C7D2FE;"><div class="cl">Open Tickets</div><div class="cv" style="font-size:18px;">18</div><div class="cd">All agents</div></div>
+              <div class="card" style="padding:10px;"><div class="cl">SLA Breached</div><div class="cv" style="font-size:18px;color:var(--danger);">2</div><div class="cd">Needs escalation</div></div>
+              <div class="card" style="padding:10px;"><div class="cl">Avg Resolution</div><div class="cv" style="font-size:18px;">6.2h</div><div class="cd">Target: &lt;8h ✓</div></div>
+              <div class="card" style="padding:10px;"><div class="cl">CSAT (CS)</div><div class="cv" style="font-size:18px;color:var(--success);">4.1/5</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- IC-HD-04 Customer Sign-Off -->
+<div class="section">
+  <div class="stag stag-ih">Screen IC-HD-04 · Installation Head</div>
+  <div class="stitle stitle-ih">Customer Sign-Off Approval</div>
+  <p class="sdesc">When a Field Engineer collects the customer's digital signature on-site, it arrives here for the Head's confirmation. The Head reviews the signed document, CSAT score, and engineer's completion report before closing the job. On close, the AMC record is automatically created and the CS Manager is notified.</p>
+
+  <div class="sf">
+    <div class="sl sl-ih">IC-HD-04 · Sign-Off Review — INS-2026-038 BEL Defence <span class="badge">HEAD ONLY</span><span class="rb rb-ih ml" style="font-size:10px;">🔧 INSTALL HEAD</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/install-head/sign-off/INS-2026-038</div></div>
+    <div class="shell" style="min-height:400px;">
+      <div class="sb sb-ih"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi aih"><span>✅</span>Sign-Off Queue</div></div></div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Installation Sign-Off — INS-2026-038 · BEL Defence</div><div class="ta"><button class="btn btn-s">✅ Approve & Close Job → Create AMC</button><button class="btn btn-d btn-sm">↩ Return to Engineer</button></div></div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="card">
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;">Installation Summary</div>
+              <div class="dr2"><span class="drl">Job ID</span><span class="drv" style="font-family:monospace;color:#4F46E5;">INS-2026-038</span></div>
+              <div class="dr2"><span class="drl">Customer</span><span class="drv">BEL Defence</span></div>
+              <div class="dr2"><span class="drl">Site</span><span class="drv">Jalahalli, Bangalore</span></div>
+              <div class="dr2"><span class="drl">Product</span><span class="drv">IIoT Edge Gateway</span></div>
+              <div class="dr2"><span class="drl">Field Engineer</span><span class="drv">Kumar R.</span></div>
+              <div class="dr2"><span class="drl">Install Date</span><span class="drv">20 Aug 2026</span></div>
+              <div class="dr2"><span class="drl">Customer Signatory</span><span class="drv">Lt. Col. V. Sharma — PM</span></div>
+              <div class="dr2"><span class="drl">Signature Captured</span><span class="drv" style="color:var(--success);">✓ Digital — 20 Aug 4:15 PM</span></div>
+              <div class="dr2"><span class="drl">CSAT Score</span><span class="drv"><span style="font-size:16px;color:var(--success);">⭐⭐⭐⭐⭐ 5/5</span></span></div>
+            </div>
+            <div class="card">
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;">Engineer Completion Report</div>
+              <div style="font-size:11px;background:var(--light);border-radius:6px;padding:10px;line-height:1.6;margin-bottom:10px;">IIoT Edge Gateway installed and commissioned at BEL Defence Jalahalli. 4 gateway units mounted on DIN rail in Control Room A & B. Ethernet connected to BEL LAN. IoT cloud pairing completed and confirmed operational. Customer Lt. Col. Sharma confirmed all 4 units showing live data on ConnectSei dashboard. Training completed for 3 BEL operators. No issues — clean install.</div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px;">Photos (4 attached):</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <div style="width:65px;height:50px;background:#DBEAFE;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#1D4ED8;">📷 Rack</div>
+                <div style="width:65px;height:50px;background:#DBEAFE;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#1D4ED8;">📷 Panel</div>
+                <div style="width:65px;height:50px;background:#DBEAFE;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#1D4ED8;">📷 Live</div>
+                <div style="width:65px;height:50px;background:#DBEAFE;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#1D4ED8;">📷 Training</div>
+              </div>
+              <div style="margin-top:12px;background:#F0FDF4;border-radius:6px;padding:10px;font-size:11px;color:#14532D;line-height:1.7;">After approval: AMC record created (1-year standard). CS Manager notified to onboard BEL Defence. Sales Exec gets notification — installation complete.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════ CS MANAGER ══════════════ -->
+
+<div class="role-banner rb-csm-b">
+  <div class="role-icon">🎧</div>
+  <div class="role-info">
+    <h2>CS Manager — All Tickets, All Agents, SLA Control</h2>
+    <p>The CS Manager runs the customer support team. They see all tickets from all CS Agents, monitor SLA countdown timers, compare agent performance, track AMC renewals, and push renewal leads back to Sales. They are the ONLY role that sees agent-to-agent comparison data.</p>
+    <ul><li>Sees all tickets from all agents (cross-agent visibility)</li><li>Manages SLA timers and escalates breaching tickets</li><li>Views agent performance comparison — exclusive to CS Manager</li><li>Tracks AMC/Warranty and triggers renewal leads to Sales</li><li>Generates CS analytics and monthly service reports</li></ul>
+  </div>
+  <div class="rb rb-csm" style="flex-shrink:0;align-self:flex-start;">CS MANAGER</div>
+</div>
+
+<!-- IC-CSM-01 -->
+<div class="section">
+  <div class="stag stag-csm">Screen IC-CSM-01 · CS Manager</div>
+  <div class="stitle stitle-csm">CS Manager Dashboard</div>
+  <p class="sdesc">The CS Manager's command view — all open tickets across all agents, with SLA countdown timers, breach warnings, and agent workload. Also shows AMC renewals due soon and active installation jobs that just completed (which need to be onboarded into CS).</p>
+
+  <div class="sf">
+    <div class="sl sl-csm">IC-CSM-01 · CS Manager Dashboard <span class="badge">CS MANAGER ONLY</span><span class="rb rb-csm ml" style="font-size:10px;">🎧 CS MANAGER</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/cs-mgr/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-csm">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls scsm-s">Customer Support</div></div>
+        <div class="sbs">
+          <div class="sbsl">Support</div>
+          <div class="sbi acsm"><span>📊</span>Dashboard</div>
+          <div class="sbi"><span>🎫</span>All Tickets <span class="cnt">18</span></div>
+          <div class="sbi"><span>⚠</span>SLA Breaches <span class="cnt" style="background:var(--danger);">2</span></div>
+          <div class="sbi"><span>👥</span>Agent Performance</div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">Contracts</div>
+          <div class="sbi"><span>📋</span>AMC Tracker</div>
+          <div class="sbi"><span>🔄</span>Renewal Pipeline</div>
+          <div class="sbi"><span>📊</span>CS Reports</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-csm">CM</div><div><div style="font-size:11px;color:white;font-weight:600;">CS Manager</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Full CS Access</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">CS Dashboard — Aug 2026</div><div class="ta"><button class="btn btn-d btn-sm">⚠ SLA Breaches (2)</button><button class="btn btn-csm">📋 AMC Renewals Due</button></div></div>
+        <div class="ca">
+          <div class="grid g5">
+            <div class="card"><div class="cl">Open Tickets</div><div class="cv">18</div><div class="cd">All agents</div></div>
+            <div class="card"><div class="cl">SLA Breached</div><div class="cv" style="color:var(--danger);">2</div><div class="cd" style="color:var(--danger);">Needs escalation</div></div>
+            <div class="card"><div class="cl">Avg Resolution</div><div class="cv">6.2h</div><div class="cd">Target: &lt;8h ✓</div></div>
+            <div class="card"><div class="cl">CSAT This Month</div><div class="cv" style="color:var(--success);">4.1/5</div><div class="cd">↑ 0.2 vs last month</div></div>
+            <div class="card"><div class="cl">AMC Renewals (30d)</div><div class="cv" style="color:var(--warning);">4</div><div class="cd">Action required</div></div>
+          </div>
+
+          <div class="tbl" style="margin-bottom:14px;">
+            <div class="tblh"><div class="tblt">Active Tickets — All Agents (SLA Countdown)</div><button class="btn btn-csm btn-sm">Reassign Selected</button></div>
+            <table>
+              <tr><th>Ticket ID</th><th>Customer</th><th>Issue</th><th>Priority</th><th>Agent</th><th>SLA Remaining</th><th>Status</th><th>Action</th></tr>
+              <tr style="background:#FEF2F2;">
+                <td style="font-family:monospace;font-weight:700;color:var(--danger);">CS-2026-0188</td>
+                <td><div style="font-weight:700;">DMRC Delhi</div></td>
+                <td>ConnectSei sensor offline — 3 units</td>
+                <td><span style="background:#FEE2E2;color:#991B1B;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Critical</span></td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="av av-ag" style="font-size:9px;">A1</div>Agent Priya</div></td>
+                <td class="sla-breach">⚠ BREACHED 2h ago</td>
+                <td><span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:20px;font-size:10px;">In Progress</span></td>
+                <td><button class="btn btn-d btn-sm">Escalate</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#7C3AED;">CS-2026-0192</td>
+                <td><div style="font-weight:700;">BEL Defence</div></td>
+                <td>API integration timeout on Edge GW</td>
+                <td><span style="background:#FEF3C7;color:#92400E;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">High</span></td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="av av-o" style="font-size:9px;">A2</div>Agent Kiran</div></td>
+                <td class="sla-warn">⚡ 1h 20m left</td>
+                <td><span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-size:10px;">Open</span></td>
+                <td><button class="btn btn-w btn-sm">Monitor</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#7C3AED;">CS-2026-0187</td>
+                <td><div style="font-weight:700;">Ashok Leyland</div></td>
+                <td>IIoT dashboard data export issue</td>
+                <td><span style="background:#E0E7FF;color:#3730A3;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Medium</span></td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="av av-ag" style="font-size:9px;">A1</div>Agent Priya</div></td>
+                <td class="sla-ok">✓ 6h 45m left</td>
+                <td><span style="background:#DBEAFE;color:#1D4ED8;padding:2px 8px;border-radius:20px;font-size:10px;">In Progress</span></td>
+                <td><button class="btn btn-csm btn-sm">View</button></td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- AMC renewals -->
+          <div style="background:white;border-radius:8px;border:1.5px solid var(--warning);padding:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">🔄 AMC Renewals Due in 30 Days (4) — Send to Sales as Renewal Leads</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--light);border-radius:6px;font-size:11px;">
+                <div style="flex:1;"><strong>DMRC Delhi</strong> · AMC expires 15 Sep 2026 · ₹18L renewal value</div>
+                <button class="btn btn-csm btn-sm">→ Push to Sales as Suspect</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--light);border-radius:6px;font-size:11px;">
+                <div style="flex:1;"><strong>ICF Chennai</strong> · AMC expires 28 Sep 2026 · ₹12L renewal value</div>
+                <button class="btn btn-csm btn-sm">→ Push to Sales as Suspect</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="an an-csm">1</div><div class="ab"><div class="at">AMC Renewal Loop to Sales</div><div class="ad">When the CS Manager clicks "Push to Sales as Suspect", the system creates a new SPENCO deal at Suspect stage for the relevant Sales Executive (the one who originally closed the deal). This is the full loop: Installed → AMC → Renewal → back into SPENCO. No manual data entry — the account details, product, and contact all pre-fill.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════ FIELD ENGINEER ══════════════ -->
+
+<div class="role-banner rb-fe-b">
+  <div class="role-icon">🛠️</div>
+  <div class="role-info">
+    <h2>Field Engineer — My Assigned Jobs Only</h2>
+    <p>The Field Engineer sees only their own assigned installation jobs. They conduct the site survey, follow the installation steps, upload photos at each stage, and collect the customer's digital sign-off and CSAT score on a tablet. They cannot see other engineers' jobs, financial data, or CS tickets.</p>
+    <ul><li>Sees only their own assigned installation jobs</li><li>Conducts site survey and logs pre-installation conditions</li><li>Follows step-by-step installation checklist</li><li>Collects digital sign-off and CSAT on-site (tablet-optimised)</li></ul>
+  </div>
+  <div class="rb rb-fe" style="flex-shrink:0;align-self:flex-start;">FIELD ENGINEER</div>
+</div>
+
+<!-- IC-FE-04 Sign-Off (Tablet) -->
+<div class="section">
+  <div class="stag stag-fe">Screen IC-FE-04 · Field Engineer</div>
+  <div class="stitle stitle-fe">Customer Sign-Off & CSAT — Tablet View (On-site)</div>
+  <p class="sdesc">This screen is optimised for on-site use on a tablet. The Field Engineer hands the tablet to the customer who reviews the completion summary and provides their digital signature + CSAT score. Large touch targets, simple interface — designed for a customer unfamiliar with the app.</p>
+
+  <div class="sf">
+    <div class="sl sl-fe">IC-FE-04 · Customer Sign-Off — INS-2026-038 · BEL Defence <span class="badge">FIELD ENGINEER — TABLET</span><span class="rb rb-fe ml" style="font-size:10px;">🛠️ FIELD ENG</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/field-eng/jobs/INS-2026-038/sign-off</div></div>
+    <!-- Tablet-style interface -->
+    <div style="background:#1F1F1F;padding:20px 20px 0;display:flex;justify-content:center;">
+      <div style="background:white;border-radius:16px;overflow:hidden;width:480px;box-shadow:0 20px 60px rgba(0,0,0,.4);border:3px solid #333;">
+        <!-- Tablet header -->
+        <div style="background:#0F0A3C;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="color:white;font-size:14px;font-weight:700;">iinvsys Install</div>
+          <div style="font-size:11px;color:#C7D2FE;">INS-2026-038 · BEL Defence</div>
+        </div>
+        <!-- Sign-off content — simplified for customer -->
+        <div style="padding:24px;">
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:18px;font-weight:700;color:var(--primary);">Installation Complete ✓</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;">Please review and sign below</div>
+          </div>
+          <div style="background:#F0FDF4;border-radius:8px;padding:14px;margin-bottom:16px;font-size:12px;color:#14532D;">
+            <div style="font-weight:700;margin-bottom:8px;">Installed at your site:</div>
+            <div>• 4× IIoT Edge Gateway units — Control Room A & B</div>
+            <div>• Connected to BEL LAN and iinvsys cloud platform</div>
+            <div>• 3 operators trained on ConnectSei dashboard</div>
+            <div>• All units verified operational as of 20 Aug 2026, 3:45 PM</div>
+          </div>
+          <!-- CSAT stars — large tap targets -->
+          <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:12px;">How would you rate the installation experience?</div>
+            <div style="display:flex;justify-content:center;gap:12px;">
+              <div style="font-size:32px;cursor:pointer;">⭐</div>
+              <div style="font-size:32px;cursor:pointer;">⭐</div>
+              <div style="font-size:32px;cursor:pointer;">⭐</div>
+              <div style="font-size:32px;cursor:pointer;">⭐</div>
+              <div style="font-size:40px;cursor:pointer;filter:drop-shadow(0 0 8px gold);">⭐</div>
+            </div>
+            <div style="font-size:11px;color:#059669;font-weight:700;margin-top:6px;">5 Stars — Excellent</div>
+          </div>
+          <!-- Signature area -->
+          <div style="border:2px dashed #4F46E5;border-radius:8px;padding:16px;text-align:center;margin-bottom:14px;background:#EEF2FF;">
+            <div style="font-size:11px;color:#4F46E5;font-weight:700;margin-bottom:8px;">Customer Signature</div>
+            <div style="background:white;height:80px;border-radius:6px;border:1px solid #C7D2FE;display:flex;align-items:center;justify-content:center;">
+              <div style="font-size:24px;font-family:cursive;color:#312E81;opacity:.6;">Lt. Col. V. Sharma</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px;">Sign above with your finger or stylus</div>
+          </div>
+          <div style="background:#4F46E5;color:white;padding:14px;border-radius:8px;text-align:center;font-size:14px;font-weight:700;cursor:pointer;">✅ Submit Sign-Off</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:#1F1F1F;padding:20px;"></div>
+  </div>
+  <div class="ann"><div class="an an-fe">1</div><div class="ab"><div class="at">Tablet-Optimised for On-Site Use</div><div class="ad">This screen is designed to be handed to the customer on-site. Large star buttons (≥32px), a gesture-based signature area, clear readable text, no technical ERP jargon. The customer just sees "Installation Complete" and a friendly sign-off form. After submission, the Install Head gets the notification, reviews, and closes the job.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════ CS AGENT ══════════════ -->
+
+<div class="role-banner rb-ag-b">
+  <div class="role-icon">🎧</div>
+  <div class="role-info">
+    <h2>CS Agent — My Tickets Only</h2>
+    <p>Each CS Agent sees only their own assigned tickets. They work each ticket, log activity (calls, emails, remote access sessions), update ticket status, and close tickets when resolved. They CANNOT see other agents' tickets, team SLA comparisons, AMC contract values, or renewal pipeline.</p>
+    <ul><li>Sees only their own assigned tickets</li><li>Logs all activity per ticket (calls, emails, sessions)</li><li>Updates ticket status and resolution details</li><li>Cannot see other agents' work or team performance</li></ul>
+  </div>
+  <div class="rb rb-ag" style="flex-shrink:0;align-self:flex-start;">CS AGENT</div>
+</div>
+
+<!-- IC-AG-01 -->
+<div class="section">
+  <div class="stag stag-ag">Screen IC-AG-01 · CS Agent</div>
+  <div class="stitle stitle-ag">My Ticket Queue</div>
+  <p class="sdesc">The CS Agent's personal view — only their own assigned tickets. SLA timers are visible for their own tickets only. They cannot see how their queue compares to other agents, or any team-wide statistics.</p>
+
+  <div class="sf">
+    <div class="sl sl-ag">IC-AG-01 · Agent Ticket Queue — Agent Priya <span class="badge">AGENT ONLY</span><span class="rb rb-ag ml" style="font-size:10px;">🎧 CS AGENT</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/cs-agent/my-tickets</div></div>
+    <div class="shell">
+      <div class="sb sb-ag">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls sag-s">Customer Support</div></div>
+        <div class="sbs">
+          <div class="sbsl">My Work</div>
+          <div class="sbi aag"><span>🎫</span>My Tickets <span class="cnt">7</span></div>
+          <div class="sbi"><span>⚠</span>My SLA Status</div>
+          <div class="sbi"><span>📋</span>AMC Reference</div>
+          <div class="sbi"><span>📈</span>My Performance</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-ag">AP</div><div><div style="font-size:11px;color:white;font-weight:600;">Agent Priya</div><div style="font-size:9px;color:rgba(255,255,255,.5);">CS Agent</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">My Tickets — Aug 2026</div><div class="ta"><button class="btn btn-ag">+ Log Activity</button></div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="cl">My Open Tickets</div><div class="cv">7</div></div>
+            <div class="card"><div class="cl">SLA Breached</div><div class="cv" style="color:var(--danger);">1</div><div class="cd" style="color:var(--danger);">DMRC — 2h over ⚠</div></div>
+            <div class="card"><div class="cl">Resolved Today</div><div class="cv" style="color:var(--success);">2</div></div>
+            <div class="card"><div class="cl">Avg Resolution</div><div class="cv">5.8h</div></div>
+          </div>
+
+          <div class="tbl">
+            <div class="tblh"><div class="tblt">My Open Tickets</div></div>
+            <table>
+              <tr><th>Ticket ID</th><th>Customer</th><th>Issue</th><th>Priority</th><th>SLA</th><th>Status</th><th>Action</th></tr>
+              <tr style="background:#FEF2F2;">
+                <td style="font-family:monospace;font-weight:700;color:var(--danger);">CS-2026-0188</td>
+                <td><strong>DMRC Delhi</strong></td>
+                <td>ConnectSei sensor offline — 3 units</td>
+                <td><span style="background:#FEE2E2;color:#991B1B;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Critical</span></td>
+                <td class="sla-breach">BREACHED ⚠</td>
+                <td><span style="background:#DBEAFE;color:#1D4ED8;padding:2px 8px;border-radius:20px;font-size:10px;">In Progress</span></td>
+                <td><button class="btn btn-d btn-sm">Update Now</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#0F766E;">CS-2026-0187</td>
+                <td><strong>Ashok Leyland</strong></td>
+                <td>IIoT dashboard data export issue</td>
+                <td><span style="background:#E0E7FF;color:#3730A3;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Medium</span></td>
+                <td class="sla-ok">6h 45m left</td>
+                <td><span style="background:#DBEAFE;color:#1D4ED8;padding:2px 8px;border-radius:20px;font-size:10px;">In Progress</span></td>
+                <td><button class="btn btn-ag btn-sm">View</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#0F766E;">CS-2026-0184</td>
+                <td><strong>BEL Sensors</strong></td>
+                <td>Firmware update query</td>
+                <td><span style="background:#E0E7FF;color:#3730A3;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Low</span></td>
+                <td class="sla-ok">11h left</td>
+                <td><span style="background:#F3F4F6;color:#374151;padding:2px 8px;border-radius:20px;font-size:10px;">Open</span></td>
+                <td><button class="btn btn-ag btn-sm">View</button></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="info" style="margin-top:12px;">ℹ You are viewing only your own tickets. For cross-agent queries or escalations, contact the CS Manager.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- IC-AG-02 Ticket Detail -->
+<div class="section">
+  <div class="stag stag-ag">Screen IC-AG-02 · CS Agent</div>
+  <div class="stitle stitle-ag">Ticket Detail & Activity Log</div>
+  <p class="sdesc">The agent's working screen for each ticket. They see the full ticket history, log each interaction (call, email, remote session, WhatsApp), update the technical status, and close the ticket when resolved. Every activity logged here is visible to the CS Manager.</p>
+
+  <div class="sf">
+    <div class="sl sl-ag">IC-AG-02 · Ticket Detail — CS-2026-0188 · DMRC Delhi <span class="badge">AGENT VIEW</span><span class="rb rb-ag ml" style="font-size:10px;">🎧 AGENT</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/cs-agent/tickets/CS-2026-0188</div></div>
+    <div class="shell" style="min-height:500px;">
+      <div class="sb sb-ag"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi aag"><span>🎫</span>My Tickets</div></div></div>
+      <div class="main">
+        <div class="tb">
+          <div style="font-size:11px;color:var(--muted);">← My Tickets / <strong>CS-2026-0188 · DMRC Delhi</strong></div>
+          <div class="ta"><span style="background:#FEE2E2;color:#991B1B;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">SLA BREACHED</span><button class="btn btn-s btn-sm">✓ Mark Resolved</button><button class="btn btn-o btn-sm">⬆ Escalate to Manager</button></div>
+        </div>
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <div style="flex:1;padding:14px;overflow-y:auto;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Ticket Info</div>
+                <div class="dr2"><span class="drl">Ticket ID</span><span class="drv" style="font-family:monospace;color:#0F766E;">CS-2026-0188</span></div>
+                <div class="dr2"><span class="drl">Customer</span><span class="drv">DMRC Delhi</span></div>
+                <div class="dr2"><span class="drl">Contact</span><span class="drv">V. Anand — Operations</span></div>
+                <div class="dr2"><span class="drl">Product</span><span class="drv">ConnectSei RS Monitor</span></div>
+                <div class="dr2"><span class="drl">Issue Type</span><span class="drv">Hardware – Sensor Offline</span></div>
+                <div class="dr2"><span class="drl">SLA Target</span><span class="drv" style="color:var(--danger);">4h (Critical) — BREACHED</span></div>
+                <div class="dr2"><span class="drl">Raised At</span><span class="drv">21 Aug · 7:00 AM</span></div>
+                <div class="dr2"><span class="drl">AMC Status</span><span class="drv" style="color:var(--success);">Active till Sep 2026 ✓</span></div>
+              </div>
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Problem Description</div>
+                <div style="font-size:11px;background:var(--light);border-radius:6px;padding:10px;line-height:1.6;margin-bottom:10px;">3 out of 50 ConnectSei rolling stock sensors showing as offline on DMRC's dashboard since 7:00 AM. Sensor IDs: CSM-0012, CSM-0031, CSM-0048. Initial check — the sensors are physically installed but not reporting data. Possible connectivity or firmware issue.</div>
+                <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;">Log Activity</div>
+                <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                  <button class="btn btn-ag btn-sm">📞 Call</button>
+                  <button class="btn btn-o btn-sm">📧 Email</button>
+                  <button class="btn btn-o btn-sm">💻 Remote Session</button>
+                  <button class="btn btn-o btn-sm">💬 WhatsApp</button>
+                </div>
+                <textarea class="if" placeholder="Activity notes — what was done, what was found, next step…"></textarea>
+                <div class="fg" style="margin-top:8px;">
+                  <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Tech Status Update</label><select class="if" style="font-size:11px;"><option>Under investigation</option><option>Root cause identified</option><option>Fix deployed — awaiting confirm</option><option>Resolved</option></select></div>
+                  <div><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;">Next Action</label><select class="if" style="font-size:11px;"><option>Call customer in 30 min</option><option>Remote session now</option><option>Dispatch field engineer</option><option>Awaiting customer response</option></select></div>
+                </div>
+                <button class="btn btn-ag btn-sm" style="margin-top:8px;width:100%;">💾 Save Activity</button>
+              </div>
+            </div>
+          </div>
+          <!-- Activity timeline -->
+          <div style="width:260px;background:white;border-left:1px solid var(--border);padding:14px;overflow-y:auto;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;border-bottom:2px solid #0F766E;padding-bottom:5px;display:inline-block;">Activity Log</div>
+            <div style="border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:8px;background:white;">
+              <div style="font-size:11px;font-weight:700;margin-bottom:2px;">💻 Remote Session — 45 min</div>
+              <div style="font-size:10px;color:var(--muted);">Today 10:30 AM</div>
+              <div style="font-size:11px;margin-top:4px;line-height:1.5;">Checked sensor firmware — all 3 offline units running v2.3.9 (old). Main fleet on v2.4.1. Downgrade compatibility issue suspected. Attempting force-upgrade via OTA.</div>
+            </div>
+            <div style="border:1px solid var(--border);border-radius:7px;padding:10px;margin-bottom:8px;background:white;">
+              <div style="font-size:11px;font-weight:700;margin-bottom:2px;">📞 Call — 12 min</div>
+              <div style="font-size:10px;color:var(--muted);">Today 8:15 AM</div>
+              <div style="font-size:11px;margin-top:4px;line-height:1.5;">Called V. Anand. Confirmed 3 sensors offline since 7:00 AM — no physical changes made. Raising to Critical — DMRC operation impact.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pff">
+  iinvsys ERP Bible V3 · Module 4: Installation & Customer Support · Complete Role-Based Specification<br>
+  Install Head (5 screens) · CS Manager (5 screens) · Field Engineer (4 screens) · CS Agent (3 screens) · 17 total<br>
+  Complete loop: Production POD → Installation INS-XXXX → Sign-Off → AMC → CS Tickets → AMC Renewal → Sales Suspect<br>
+  "Democratizing Technology, Driving Innovation"
+</div>
+</body>
+</html>

@@ -8,7 +8,7 @@ const request  = require('supertest');
 const app      = require('../src/app');
 const db       = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
-const Agent    = require('../src/models/Agent');
+const Agent    = require('./helpers/owner');
 const Setting  = require('../src/models/Setting');
 
 beforeAll(() => db.connect());
@@ -43,7 +43,7 @@ describe('PRODUCTS — Create product', () => {
   });
 
   it('TC-P002 returns 403 for agent role', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).post('/api/products').set('Authorization', `Bearer ${tok(uid)}`).send(validProduct());
     expect([403, 400, 422]).toContain(r.status);
   });
@@ -146,8 +146,8 @@ describe('PRODUCTS — List & Update', () => {
     expect(Array.isArray(r.body.data)).toBe(true);
   });
 
-  it('TC-P017 readonly user can GET /api/products', async () => {
-    const uid = await insertUser({ role: 'readonly' });
+  it('TC-P017 a Sales Executive can GET /api/products', async () => {
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/products').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
@@ -277,7 +277,7 @@ describe('EXPOS — Create expo', () => {
   });
 
   it('TC-E011 agent cannot create expo', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).post('/api/expos').set('Authorization', `Bearer ${tok(uid)}`).send(validExpo());
     expect([403, 400, 422]).toContain(r.status);
   });
@@ -308,7 +308,7 @@ describe('EXPOS — List, Update & Delete', () => {
   });
 
   it('TC-E014 readonly can GET /api/expos', async () => {
-    const uid = await insertUser({ role: 'readonly' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/expos').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
@@ -421,8 +421,8 @@ describe('SETTINGS — Read settings', () => {
     r.body.data.settings.forEach(s => expect(s.type).toBeDefined());
   });
 
-  it('TC-ST009 readonly user can GET /api/settings', async () => {
-    const uid = await insertUser({ role: 'readonly' });
+  it('TC-ST009 the Director can GET /api/settings', async () => {
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/settings').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
@@ -451,14 +451,14 @@ describe('SETTINGS — Update settings', () => {
   });
 
   it('TC-ST012 PUT /api/settings returns 403 for agent', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).put('/api/settings').set('Authorization', `Bearer ${tok(uid)}`)
       .send({ updates: { company_name: 'New' } });
     expect(r.status).toBe(403);
   });
 
   it('TC-ST013 PUT /api/settings returns 403 for readonly', async () => {
-    const uid = await insertUser({ role: 'readonly' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).put('/api/settings').set('Authorization', `Bearer ${tok(uid)}`)
       .send({ updates: { company_name: 'New' } });
     expect(r.status).toBe(403);

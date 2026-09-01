@@ -29,6 +29,33 @@ genuinely finished. What does not yet exist is everything that *consumes* it.
 
 ---
 
+## ERP Bible V3 — Phase 0 (Foundation)
+
+`new_requirement_21Aug/` specifies 72 screens across 11 roles, delivered in phases. Phase 0 ships
+no V3 screens; it ships the substrate every module stands on. Same rule as everything below: a row
+is ✅ only in the commit that adds the test named in `Verified by`.
+
+| # | Requirement | Status | Implementation / gap | Verified by |
+|---|---|---|---|---|
+| V-1 | The eleven V3 roles replace the v2 taxonomy; a legacy role value is a validation error | ✅ | `config/permissions.js` `ALL_ROLES` / `V3_ROLES`; `User.role` enum imports it, so the two cannot drift | `tests/07-role-taxonomy.test.js` |
+| V-2 | One authorisation mechanism — the `ROLE_LEVEL` ladder deleted, `requirePermission` the only gate | ✅ | `middleware/rbac.js`. ~28 ladder call sites re-gated one at a time; the table is in `04-roles-and-permissions.md` | `tests/10-role-matrix.test.js` |
+| V-3 | An authenticated route with no authorisation guard must not boot | ✅ | `assertRoutesGuarded()` in `src/app.js` walks the router stack and throws. The structural replacement for the ladder's accidental deny-by-default | `tests/36-boot-guard.test.js` |
+| V-4 | Every declared permission is wired to something | ✅ | Lint over `src/`. `deal.approve_deviation`, `po.verify` and `workorder.create` were declared and wired to nothing for a whole release; they return in the phase that uses them | `tests/30-permission-coverage.test.js` |
+| V-5 | Reporting hierarchy: Director → Manager (domain) → 2 Executives; IS Head → 4 IS Executives | ✅ | `User.reportsTo` + materialised `User.chain`, maintained solely by `services/orgService.js`; cycle-guarded, subtree repaired on reassignment | `tests/32-scope-resolver.test.js` |
+| V-6 | "Sales Manager 1 cannot see Sales Manager 2's team" (doc 2 SA-DIR-01, SA-MGR-01) | ✅ | `services/scopeService.js` — one resolver replacing the four ad-hoc mechanisms v2 had. Asserted through HTTP, not by calling the resolver | `tests/32-scope-resolver.test.js` |
+| V-7 | KPIs scoped to the caller | ✅ | `salesKpis(window, scope)` etc.; `kpi.read` / `read_team` / `read_company` decide which. v2 answered the company total to every holder of `kpi.read` | `tests/32-scope-resolver.test.js` |
+| V-8 | Engineers are not SENT financial values (doc 3, twice) | ✅ | `config/fieldVisibility.js` + `utils/redact.js`, called from `ok()`/`created()`/`paginated()`. Backstops: query projections, an explicit flag in `excelReport` (which bypasses the chokepoint), and a crawler | `tests/31-financial-redaction.test.js` |
+| V-9 | Activities logged per CUSTOMER, not per lead (doc 1 IS-EX-03, doc 2 SA-EX-04) | ✅ | `models/Customer.js` + `models/Activity.js`; `Lead.followUps[]` retired. `Lead.lastActivityAt` denormalised so `pipeline.js` stays a pure function over one document | `tests/33-customer-activity.test.js` |
+| V-10 | "Next Action" auto-creates a dated task | ✅ | `activityService.logActivity()` writes both in one operation and links them back | `tests/33-customer-activity.test.js` |
+| V-11 | Customer 360 — every deal, every rep, one timeline | ✅ | `customerService.customer360()`. Every figure computed, none stored | `tests/33-customer-activity.test.js` |
+| V-12 | Customer dedupe: advisory for a human, exact-match only for automated callers | ✅ | `customerService.findOrCreateCustomer()` reusing `utils/matching.js`; 409 with candidates on the interactive path, unique-index race resolved by adopting the winner | `tests/33-customer-activity.test.js` |
+| V-13 | Approvals addressed to ONE person, not broadcast by permission | ✅ | `models/Approval.js` + `approvalService`; five kinds, one model. `notifyByPermission` would have alerted all four managers per discount request | `tests/35-approval.test.js` |
+| V-14 | Coaching notes private to the author and their ancestors, never the subject | ✅ | Separate `models/CoachingNote.js` — folded into `Activity`, one forgotten predicate on the Customer 360 timeline shows an executive their own Director's assessment | `tests/33-customer-activity.test.js` |
+| V-15 | Per-role portals — "no shared views" | ✅ | `config/portals.js` (server-side, pure data) + `frontend/src/portal/`. `nav` and `routes` derive from one object, so a hidden link cannot leave a working URL | `tests/34-portals.test.js` |
+| V-16 | A role or permission change reaches an open client | ✅ | `me` split out of the version-hashed `/meta/pipeline` payload into `GET /api/meta/me` (`staleTime: 0`); `pipelineVersion()` now also hashes the role list and every stage `ownerRole` | `tests/13-meta-endpoint.test.js`, `tests/34-portals.test.js` |
+| V-17 | `Agent` retired; `User` is the only identity model | ✅ | `Lead.assignedAgent` → `Lead.owner: ref User`. Also closes P-1: Installation Planning needs a technician ObjectId and there was no endpoint that could supply one — `GET /api/users` now can | `tests/32-scope-resolver.test.js` |
+| V-18 | Inside Sales roles cannot see the Sales pipeline (doc 1) | 🟡 | `INSIDE_SALES_ONLY_ROLES` + `scopeService.trackFilter()` confine them to `track:'inside_sales'`. The IS stage table and BANT land in Phase 1 | `tests/32-scope-resolver.test.js` |
+
 ## Sales Module
 
 | # | Requirement (verbatim intent) | Status | Implementation / gap | Verified by |

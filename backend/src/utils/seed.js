@@ -3,39 +3,136 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt   = require('bcryptjs');
 
-const User    = require('../models/User');
-const Agent   = require('../models/Agent');
-const Product = require('../models/Product');
-const Expo    = require('../models/Expo');
-const Lead    = require('../models/Lead');
+const User     = require('../models/User');
+const Product  = require('../models/Product');
+const Expo     = require('../models/Expo');
+const Lead     = require('../models/Lead');
+const Customer = require('../models/Customer');
+const Activity = require('../models/Activity');
+const Task     = require('../models/Task');
+const Approval = require('../models/Approval');
+const CoachingNote = require('../models/CoachingNote');
 const connectDB = require('../config/db');
+const orgService = require('../services/orgService');
+const customerService = require('../services/customerService');
 
-/* ─── Seed data ─────────────────────────────────────────────────── */
+/*
+ * The ERP Bible V3 org chart, using the names the documents themselves use — so a
+ * screenshot of the running app and the corresponding page of the spec show the same
+ * people, and a reviewer at a phase gate can check one against the other.
+ *
+ * `reportsTo` is an EMAIL here and resolved to an id below. Reporting lines are written
+ * through orgService.setManager() rather than by hand, which makes seeding the first
+ * real test that the `chain` maintenance works.
+ */
+const PW = { admin: 'Admin@123', director: 'Director@123', head: 'Head@123', exec: 'Exec@123' };
 
 const USERS_SEED = [
-  { name: 'Admin IINVSYS',   email: 'admin@iinvsys.com',  password: 'Admin@123',  role: 'superadmin' },
-  { name: 'Sneha Kapoor',    email: 'sneha@iinvsys.com',  password: 'Manager@123', role: 'manager' },
-  { name: 'Rahul Sharma',    email: 'rahul@iinvsys.com',  password: 'Agent@123',  role: 'agent' },
-  { name: 'Priya Singh',     email: 'priya@iinvsys.com',  password: 'Agent@123',  role: 'agent' },
-  { name: 'Amit Verma',      email: 'amit@iinvsys.com',   password: 'Agent@123',  role: 'agent' },
-  { name: 'Read Only User',  email: 'readonly@iinvsys.com', password: 'Read@1234', role: 'readonly' },
+  /* Platform */
+  { name: 'Admin IINVSYS', email: 'admin@iinvsys.com', password: PW.admin, role: 'superadmin' },
+
+  /* Sales leadership — doc 1 and doc 2 both hang off this one person */
+  { name: 'Sales Director', email: 'director@iinvsys.com', password: PW.director, role: 'sales_director',
+    designation: 'Sales Director', territory: 'India', target: 120000000 },
+
+  /* ── Module 1: Inside Sales (doc 1) ─────────────────────────────── */
+  { name: 'IS Head', email: 'ishead@iinvsys.com', password: PW.head, role: 'is_head',
+    reportsTo: 'director@iinvsys.com', designation: 'Inside Sales Head', target: 0 },
+  { name: 'Priya Krishnan', email: 'priya.k@iinvsys.com', password: PW.exec, role: 'is_executive',
+    reportsTo: 'ishead@iinvsys.com', designation: 'Sr. IS Executive', color: 'var(--emerald)' },
+  { name: 'Rajan V', email: 'rajan.v@iinvsys.com', password: PW.exec, role: 'is_executive',
+    reportsTo: 'ishead@iinvsys.com', designation: 'IS Executive', color: 'var(--amber)' },
+  { name: 'Suha M', email: 'suha.m@iinvsys.com', password: PW.exec, role: 'is_executive',
+    reportsTo: 'ishead@iinvsys.com', designation: 'IS Executive', color: 'var(--azure)' },
+  { name: 'Arun K', email: 'arun.k@iinvsys.com', password: PW.exec, role: 'is_executive',
+    reportsTo: 'ishead@iinvsys.com', designation: 'IS Executive (New)', color: 'var(--violet)' },
+
+  /* ── Module 2: Sales, four domains, two executives each (doc 2) ── */
+  { name: 'Vikram Nair', email: 'vikram.n@iinvsys.com', password: PW.head, role: 'sales_manager',
+    reportsTo: 'director@iinvsys.com', domain: 'railways', designation: 'Sales Manager 1', target: 7500000 },
+  { name: 'Deepa Rajan', email: 'deepa.r@iinvsys.com', password: PW.head, role: 'sales_manager',
+    reportsTo: 'director@iinvsys.com', domain: 'defence', designation: 'Sales Manager 2', target: 5000000 },
+  { name: 'Anita Menon', email: 'anita.m@iinvsys.com', password: PW.head, role: 'sales_manager',
+    reportsTo: 'director@iinvsys.com', domain: 'space_satellite', designation: 'Sales Manager 3', target: 6000000 },
+  { name: 'Karthik P', email: 'karthik.p@iinvsys.com', password: PW.head, role: 'sales_manager',
+    reportsTo: 'director@iinvsys.com', domain: 'automotive', designation: 'Sales Manager 4', target: 4000000 },
+
+  { name: 'Exec A', email: 'exec.a@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'vikram.n@iinvsys.com', domain: 'railways', territory: 'Delhi NCR', target: 5000000 },
+  { name: 'Exec B', email: 'exec.b@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'vikram.n@iinvsys.com', domain: 'railways', territory: 'Chennai', target: 3000000 },
+  { name: 'Exec C', email: 'exec.c@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'deepa.r@iinvsys.com', domain: 'defence', territory: 'Bangalore', target: 4000000 },
+  { name: 'Exec D', email: 'exec.d@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'deepa.r@iinvsys.com', domain: 'defence', territory: 'Hyderabad', target: 3000000 },
+  { name: 'Exec E', email: 'exec.e@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'anita.m@iinvsys.com', domain: 'space_satellite', territory: 'Bangalore', target: 3500000 },
+  { name: 'Exec F', email: 'exec.f@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'anita.m@iinvsys.com', domain: 'space_satellite', territory: 'Trivandrum', target: 3000000 },
+  { name: 'Exec G', email: 'exec.g@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'karthik.p@iinvsys.com', domain: 'automotive', territory: 'Pune', target: 3000000 },
+  { name: 'Exec H', email: 'exec.h@iinvsys.com', password: PW.exec, role: 'sales_executive',
+    reportsTo: 'karthik.p@iinvsys.com', domain: 'automotive', territory: 'Chennai', target: 2500000 },
+
+  /* ── Module 3: Production & Delivery (doc 3) ─────────────────────── */
+  { name: 'Production Head', email: 'prodhead@iinvsys.com', password: PW.head, role: 'production_head',
+    designation: 'Production Head' },
+  { name: 'Suresh R', email: 'suresh.r@iinvsys.com', password: PW.exec, role: 'production_engineer',
+    reportsTo: 'prodhead@iinvsys.com', designation: 'Production Engineer' },
+  { name: 'Ramesh M', email: 'ramesh.m@iinvsys.com', password: PW.exec, role: 'production_engineer',
+    reportsTo: 'prodhead@iinvsys.com', designation: 'Production Engineer' },
+  { name: 'Anil K', email: 'anil.k@iinvsys.com', password: PW.exec, role: 'production_engineer',
+    reportsTo: 'prodhead@iinvsys.com', designation: 'Production Engineer' },
+
+  /* ── Module 4: Installation & Customer Support (doc 4) ───────────── */
+  { name: 'Install Head', email: 'installhead@iinvsys.com', password: PW.head, role: 'install_head',
+    designation: 'Installation Head' },
+  { name: 'Kumar R', email: 'kumar.r@iinvsys.com', password: PW.exec, role: 'field_engineer',
+    reportsTo: 'installhead@iinvsys.com', designation: 'Field Engineer' },
+  { name: 'Senthil M', email: 'senthil.m@iinvsys.com', password: PW.exec, role: 'field_engineer',
+    reportsTo: 'installhead@iinvsys.com', designation: 'Field Engineer' },
+
+  { name: 'CS Manager', email: 'csmanager@iinvsys.com', password: PW.head, role: 'cs_manager',
+    designation: 'Customer Support Manager' },
+  { name: 'Agent Priya', email: 'agent.priya@iinvsys.com', password: PW.exec, role: 'cs_agent',
+    reportsTo: 'csmanager@iinvsys.com', designation: 'CS Agent' },
+  { name: 'Agent Kiran', email: 'agent.kiran@iinvsys.com', password: PW.exec, role: 'cs_agent',
+    reportsTo: 'csmanager@iinvsys.com', designation: 'CS Agent' },
 ];
 
-const AGENTS_SEED = [
-  { name: 'Rahul Sharma', initials: 'RS', email: 'rahul@iinvsys.com', phone: '9876543210', territory: 'Delhi NCR',   designation: 'Senior Sales Agent', target: 5000000, color: '#e74c3c' },
-  { name: 'Priya Singh',  initials: 'PS', email: 'priya@iinvsys.com', phone: '9876543211', territory: 'Mumbai',      designation: 'Sales Agent',         target: 4000000, color: '#8e44ad' },
-  { name: 'Amit Verma',   initials: 'AV', email: 'amit@iinvsys.com',  phone: '9876543212', territory: 'Bangalore',   designation: 'Sales Agent',         target: 3500000, color: '#27ae60' },
-  { name: 'Neha Gupta',   initials: 'NG', email: 'neha@iinvsys.com',  phone: '9876543213', territory: 'Hyderabad',   designation: 'Junior Sales Agent',  target: 2500000, color: '#f39c12' },
-  { name: 'Karan Mehta',  initials: 'KM', email: 'karan@iinvsys.com', phone: '9876543214', territory: 'Chennai',     designation: 'Sales Agent',         target: 3000000, color: '#2980b9' },
-  { name: 'Sonia Patel',  initials: 'SP', email: 'sonia@iinvsys.com', phone: '9876543215', territory: 'Pune',        designation: 'Senior Sales Agent',  target: 4500000, color: '#c0392b' },
+/* The accounts the specification's screenshots are drawn from. */
+const CUSTOMERS_SEED = [
+  { name: 'DMRC Delhi', city: 'Delhi', state: 'Delhi', domain: 'railways', owner: 'exec.a@iinvsys.com',
+    contacts: [
+      { name: 'A. Kumar', designation: 'GM Operations', isPrimary: true },
+      { name: 'Rajesh Kumar', designation: 'DGM Rolling Stock' },
+      { name: 'Priya Shah', designation: 'CFO' },
+    ] },
+  { name: 'ICF Chennai', city: 'Chennai', state: 'Tamil Nadu', domain: 'railways', owner: 'rajan.v@iinvsys.com',
+    contacts: [
+      { name: 'K. Subramaniam', designation: 'Sr. Manager – Procurement', isPrimary: true },
+      { name: 'V. Krishnaswamy', designation: 'DGM – Rolling Stock' },
+      { name: 'R. Balachandran', designation: 'GM (Technical)' },
+    ] },
+  { name: 'RVNL Mumbai', city: 'Mumbai', state: 'Maharashtra', domain: 'railways', owner: 'exec.a@iinvsys.com',
+    contacts: [{ name: 'S. Deshpande', designation: 'Procurement Manager', isPrimary: true }] },
+  { name: 'BEL Defence', city: 'Bangalore', state: 'Karnataka', domain: 'defence', owner: 'exec.c@iinvsys.com',
+    contacts: [{ name: 'Lt. Col. V. Sharma', designation: 'Project Manager', isPrimary: true }] },
+  { name: 'BEL Sensors', city: 'Bangalore', state: 'Karnataka', domain: 'iot_iiot', owner: 'exec.c@iinvsys.com',
+    contacts: [{ name: 'K. Narayana', designation: 'Logistics Head', isPrimary: true }] },
+  { name: 'BHEL Trichy', city: 'Trichy', state: 'Tamil Nadu', domain: 'railways', owner: 'rajan.v@iinvsys.com',
+    contacts: [{ name: 'Dilip Nair', designation: 'Sr. Manager – Projects', isPrimary: true }] },
+  { name: 'Ashok Leyland', city: 'Pune', state: 'Maharashtra', domain: 'automotive', owner: 'exec.g@iinvsys.com',
+    contacts: [{ name: 'Meera S', designation: 'GM – Manufacturing', isPrimary: true }] },
 ];
 
 const PRODUCTS_SEED = [
-  { name: 'IINVSYS Lite',       sku: 'INV-LT-001', category: 'software', price: 29999,  description: 'Entry-level inventory management for SMBs', isActive: true },
-  { name: 'IINVSYS Pro',        sku: 'INV-PR-002', category: 'software', price: 79999,  description: 'Full-featured inventory suite with analytics', isActive: true },
-  { name: 'IINVSYS Enterprise', sku: 'INV-EN-003', category: 'bundle',   price: 199999, description: 'Multi-warehouse, API integrations, white-label', isActive: true },
-  { name: 'Barcode Scanner Kit',sku: 'HW-BS-004',  category: 'hardware', price: 14999,  description: '2D barcode scanner with USB & BT connectivity', isActive: true },
-  { name: 'Implementation AMC', sku: 'SVC-AM-005', category: 'service',  price: 24999,  description: 'Annual maintenance & support contract', isActive: true },
+  { name: 'ConnectSei Rolling Stock Monitor', sku: 'CS-RSM-001', category: 'hardware', price: 912000, description: 'IoT condition monitoring for LHB coaches', isActive: true },
+  { name: 'IIoT Edge Gateway',                sku: 'IIOT-EG-002', category: 'hardware', price: 495000, description: 'DIN-rail edge gateway, IP67, OPC-UA + MQTT', isActive: true },
+  { name: 'Vibration Sensor IoT Kit',         sku: 'VS-IOT-003', category: 'bundle',   price: 114000, description: 'Wireless vibration + temperature sensing kit', isActive: true },
+  { name: 'Railway Sensor Module',            sku: 'RSM-004',    category: 'hardware', price: 36600,  description: 'Track-side sensor module, IEC 60068 rated', isActive: true },
+  { name: 'ConnectSei Platform Licence',      sku: 'CS-PLT-005', category: 'software', price: 299000, description: 'Annual platform licence, per site', isActive: true },
+  { name: 'Implementation AMC',               sku: 'SVC-AM-006', category: 'service',  price: 180000, description: 'Annual maintenance & support contract', isActive: true },
 ];
 
 /* ─── Seed runner ────────────────────────────────────────────────── */
@@ -44,121 +141,132 @@ async function seed() {
   await connectDB();
   console.log('🌱  Seeding database …');
 
-  /* Wipe existing data */
   await Promise.all([
-    User.deleteMany({}),
-    Agent.deleteMany({}),
-    Product.deleteMany({}),
-    Expo.deleteMany({}),
-    Lead.deleteMany({}),
+    User.deleteMany({}), Product.deleteMany({}), Expo.deleteMany({}), Lead.deleteMany({}),
+    Customer.deleteMany({}), Activity.deleteMany({}), Task.deleteMany({}),
+    Approval.deleteMany({}), CoachingNote.deleteMany({}),
   ]);
   console.log('   Cleared existing collections');
 
-  /* Users */
-  const users = await User.insertMany(
-    await Promise.all(
-      USERS_SEED.map(async u => ({
-        ...u,
-        password: await bcrypt.hash(u.password, 12),
-      }))
-    )
-  );
-  const userMap = Object.fromEntries(users.map(u => [u.email, u._id]));
-  console.log(`   Created ${users.length} users`);
+  /* Users, then reporting lines. Two passes because a manager must exist before anyone
+     can point at them, and `chain` is written from the manager's own chain. */
+  const users = await User.insertMany(await Promise.all(
+    USERS_SEED.map(async ({ reportsTo, ...u }) => ({ ...u, password: await bcrypt.hash(u.password, 12) })),
+  ));
+  const byEmail = Object.fromEntries(users.map((u) => [u.email, u._id]));
 
-  /* Agents */
-  const agents = await Agent.insertMany(
-    AGENTS_SEED.map(a => ({
-      ...a,
-      userId: userMap[a.email] || null,
-      createdBy: userMap['admin@iinvsys.com'],
-    }))
-  );
-  const agentMap = Object.fromEntries(agents.map(a => [a.email, a._id]));
-  console.log(`   Created ${agents.length} agents`);
+  for (const u of USERS_SEED) {
+    if (u.reportsTo) await orgService.setManager(byEmail[u.email], byEmail[u.reportsTo]);
+  }
+  console.log(`   Created ${users.length} users and wired the org chart`);
 
-  /* Link agent IDs back to user records */
-  await Promise.all(
-    AGENTS_SEED.filter(a => userMap[a.email]).map(a =>
-      User.findByIdAndUpdate(userMap[a.email], { agentId: agentMap[a.email] })
-    )
-  );
+  const adminId = byEmail['admin@iinvsys.com'];
 
-  /* Products */
-  const products = await Product.insertMany(
-    PRODUCTS_SEED.map(p => ({ ...p, createdBy: userMap['admin@iinvsys.com'] }))
-  );
-  const [lite, pro, ent, scanner, amc] = products;
+  const products = await Product.insertMany(PRODUCTS_SEED.map((p) => ({ ...p, createdBy: adminId })));
   console.log(`   Created ${products.length} products`);
 
-  /* Expos */
+  /* Customers — without these there is nothing for Customer 360 or the activity
+     timeline to render, and the Phase 0 gate has nothing to look at. */
+  const customers = [];
+  for (const c of CUSTOMERS_SEED) {
+    const owner = byEmail[c.owner];
+    const ownerUser = await User.findById(owner).select('reportsTo').lean();
+    const { customer } = await customerService.findOrCreateCustomer({
+      ...c, accountOwner: owner, accountManager: ownerUser ? ownerUser.reportsTo : null,
+    }, { actorId: adminId });
+    customers.push(customer);
+  }
+  const custByName = Object.fromEntries(customers.map((c) => [c.name, c]));
+  console.log(`   Created ${customers.length} customers`);
+
   const now = new Date();
-  const expos = await Expo.create([
-    {
-      name: 'PropTech Expo Delhi 2025',
-      startDate: new Date(now.getTime() - 60 * 86400000),
-      endDate:   new Date(now.getTime() - 57 * 86400000),
-      venue: 'Pragati Maidan', city: 'Delhi',
-      agents: [agents[0]._id, agents[1]._id],
-      targetLeads: 200,
-      createdBy: userMap['admin@iinvsys.com'],
-    },
-    {
-      name: 'SmartRetail Mumbai 2025',
-      startDate: new Date(now.getTime() - 5 * 86400000),
-      endDate:   new Date(now.getTime() + 2 * 86400000),
-      venue: 'MMRDA Grounds', city: 'Mumbai',
-      agents: [agents[1]._id, agents[2]._id],
-      targetLeads: 150,
-      createdBy: userMap['admin@iinvsys.com'],
-    },
-    {
-      name: 'Bengaluru Tech Summit 2025',
-      startDate: new Date(now.getTime() + 30 * 86400000),
-      endDate:   new Date(now.getTime() + 33 * 86400000),
-      venue: 'BIEC', city: 'Bangalore',
-      agents: [agents[2]._id, agents[4]._id],
-      targetLeads: 180,
-      createdBy: userMap['admin@iinvsys.com'],
-    },
-  ]);
-  console.log(`   Created ${expos.length} expos`);
+  const daysAgo = (n) => new Date(now.getTime() - n * 86400000);
 
-  /* Leads */
-  const twoWeeksAgo = new Date(now.getTime() - 14 * 86400000);
-  const oneWeekAgo  = new Date(now.getTime() -  7 * 86400000);
-  const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
-  const yesterday   = new Date(now.getTime() -  1 * 86400000);
-
+  /* A small spread of leads across both tracks, so the Kanban, the review queue and the
+     scope tests all have something real to run against. */
   const leadsData = [
-    { name: 'Vikram Nair',       phone: '9100000001', email: 'vikram@nairco.com',    source: 'exhibition_event',     expo: expos[0]._id, stage: 'engagement',     assignedAgent: agents[0]._id, products: [pro._id],                   value: 79999,  score: 82, lastContact: threeDaysAgo },
-    { name: 'Ananya Krishnan',   phone: '9100000002', email: 'ananya@kstore.in',     source: 'exhibition_event',     expo: expos[0]._id, stage: 'negotiation',  assignedAgent: agents[0]._id, products: [ent._id, amc._id],          value: 224998, score: 91, lastContact: yesterday },
-    { name: 'Suresh Patel',      phone: '9100000003', email: 'suresh@patelmart.com', source: 'referral', stage: 'commercial_order',        assignedAgent: agents[0]._id, products: [pro._id, scanner._id],    value: 94998,  score: 95, lastContact: threeDaysAgo },
-    { name: 'Deepa Menon',       phone: '9100000004', email: 'deepa@menonfash.com',  source: 'digital_website',  stage: 'prospect',  assignedAgent: agents[1]._id, products: [lite._id],                  value: 29999,  score: 55, lastContact: oneWeekAgo },
-    { name: 'Rajesh Kumar',      phone: '9100000005', email: 'rajesh@rkwholesale.in',source: 'exhibition_event',     expo: expos[1]._id, stage: 'prospect',   assignedAgent: agents[1]._id, products: [pro._id, amc._id],          value: 104998, score: 70, lastContact: threeDaysAgo },
-    { name: 'Kavitha Reddy',     phone: '9100000006', email: 'kavitha@redmart.com',  source: 'inbound_enquiry',   stage: 'suspect',        assignedAgent: agents[1]._id, products: [],                          value: 0,      score: 40, lastContact: null },
-    { name: 'Mohan Das',         phone: '9100000007', email: 'mohan@daslogistics.com',source:'referral', stage: 'order_lost',       assignedAgent: agents[2]._id, products: [lite._id],                  value: 29999,  score: 20, lastContact: twoWeeksAgo, lostReason: 'chose_competitor' },
-    { name: 'Pooja Shah',        phone: '9100000008', email: 'pooja@shahretail.in',  source: 'digital_website',  stage: 'engagement',   assignedAgent: agents[2]._id, products: [pro._id],                   value: 79999,  score: 75, lastContact: yesterday },
-    { name: 'Arjun Nambiar',     phone: '9100000009', email: 'arjun@nambco.com',     source: 'exhibition_event',     expo: expos[1]._id, stage: 'prospect',    assignedAgent: agents[2]._id, products: [ent._id],                   value: 199999, score: 60, lastContact: twoWeeksAgo },
-    { name: 'Shalini Tiwari',    phone: '9100000010', email: 'shalini@tiwarigroup.com',source:'referral', stage: 'prospect', assignedAgent: agents[3]._id, products: [pro._id, scanner._id],    value: 94998,  score: 68, lastContact: threeDaysAgo },
-    { name: 'Ravi Shankar',      phone: '9100000011', email: 'ravi@shankartech.io',  source: 'digital_website',  stage: 'negotiation',assignedAgent: agents[3]._id, products: [ent._id, amc._id, scanner._id], value: 239997, score: 88, lastContact: yesterday },
-    { name: 'Meera Iyer',        phone: '9100000012', email: 'meera@iyertextiles.com',source:'inbound_enquiry',   stage: 'suspect',        assignedAgent: agents[4]._id, products: [],                          value: 0,      score: 35, lastContact: null },
-    { name: 'Sandeep Bhatt',     phone: '9100000013', email: 'sandeep@bhattdist.com',source: 'exhibition_event',     expo: expos[0]._id, stage: 'commercial_order',          assignedAgent: agents[4]._id, products: [lite._id, amc._id],         value: 54998,  score: 93, lastContact: threeDaysAgo },
-    { name: 'Lakshmi Prasad',    phone: '9100000014', email: 'lakshmi@prasadstores.in',source:'referral', stage: 'engagement',  assignedAgent: agents[5]._id, products: [pro._id],                   value: 79999,  score: 78, lastContact: oneWeekAgo },
-    { name: 'Nitin Agarwal',     phone: '9100000015', email: 'nitin@agarwalelec.com',source: 'digital_website',  stage: 'prospect',  assignedAgent: agents[5]._id, products: [scanner._id],              value: 14999,  score: 50, lastContact: threeDaysAgo },
-  ];
+    { name: 'K. Subramaniam', phone: '9100000001', email: 'k.subramaniam@icf.gov.in', company: 'ICF Chennai',
+      customer: custByName['ICF Chennai']._id, track: 'inside_sales', refId: 'IS-2026-0047',
+      source: 'inside_sales_outbound', stage: 'suspect', owner: byEmail['rajan.v@iinvsys.com'], value: 0 },
+    { name: 'Dilip Nair', phone: '9100000002', email: 'dilip.n@bhel.in', company: 'BHEL Trichy',
+      customer: custByName['BHEL Trichy']._id, track: 'inside_sales', refId: 'IS-2026-0051',
+      source: 'inbound_enquiry', stage: 'prospect', owner: byEmail['rajan.v@iinvsys.com'], value: 7000000 },
+    { name: 'Meera S', phone: '9100000003', email: 'meera.s@ashokleyland.com', company: 'Ashok Leyland',
+      customer: custByName['Ashok Leyland']._id, track: 'inside_sales', refId: 'IS-2026-0058',
+      source: 'inside_sales_outbound', stage: 'engagement', owner: byEmail['priya.k@iinvsys.com'], value: 10000000 },
 
-  const adminId = userMap['admin@iinvsys.com'];
-  const leads = await Lead.insertMany(leadsData.map(l => ({ ...l, createdBy: adminId })));
-  console.log(`   Created ${leads.length} leads`);
+    { name: 'Rajesh Kumar', phone: '9100000004', email: 'rajesh.k@dmrc.org', company: 'DMRC Delhi',
+      customer: custByName['DMRC Delhi']._id, track: 'sales', refId: 'SA-2026-041',
+      source: 'referral', stage: 'negotiation', owner: byEmail['exec.a@iinvsys.com'],
+      products: [products[0]._id], value: 48000000, lastContact: daysAgo(1) },
+    { name: 'S. Deshpande', phone: '9100000005', email: 's.deshpande@rvnl.in', company: 'RVNL Mumbai',
+      customer: custByName['RVNL Mumbai']._id, track: 'sales', refId: 'SA-2026-036',
+      source: 'referral', stage: 'negotiation', owner: byEmail['exec.a@iinvsys.com'],
+      products: [products[3]._id], value: 7800000, lastContact: daysAgo(3) },
+    { name: 'Lt. Col. V. Sharma', phone: '9100000006', email: 'v.sharma@bel.co.in', company: 'BEL Defence',
+      customer: custByName['BEL Defence']._id, track: 'sales', refId: 'SA-2026-038',
+      source: 'referral', stage: 'engagement', owner: byEmail['exec.c@iinvsys.com'],
+      products: [products[1]._id], value: 21000000, lastContact: daysAgo(2) },
+    { name: 'K. Narayana', phone: '9100000007', email: 'k.narayana@bel.co.in', company: 'BEL Sensors',
+      customer: custByName['BEL Sensors']._id, track: 'sales', refId: 'SA-2026-029',
+      source: 'exhibition_event', stage: 'prospect', owner: byEmail['exec.d@iinvsys.com'],
+      products: [products[2]._id], value: 11400000, lastContact: daysAgo(5) },
+    { name: 'A. Kumar', phone: '9100000008', email: 'a.kumar@dmrc.org', company: 'DMRC Delhi',
+      customer: custByName['DMRC Delhi']._id, track: 'sales', refId: 'SA-2026-012',
+      source: 'referral', stage: 'suspect', owner: byEmail['exec.b@iinvsys.com'], value: 0 },
+  ];
+  const leads = await Lead.insertMany(leadsData.map((l) => ({ ...l, createdBy: adminId })));
+  console.log(`   Created ${leads.length} leads (${leadsData.filter((l) => l.track === 'inside_sales').length} inside sales, ${leadsData.filter((l) => l.track === 'sales').length} sales)`);
+
+  /* A couple of timelines, so the Customer 360 screen is demonstrable. */
+  const icf = custByName['ICF Chennai']._id;
+  const dmrc = custByName['DMRC Delhi']._id;
+  const activities = await Activity.insertMany([
+    { customer: icf, deal: leads[0]._id, type: 'email', occurredAt: daysAgo(27), by: byEmail['rajan.v@iinvsys.com'],
+      summary: 'Cold outreach via LinkedIn connection. Introduced iinvsys Railways IoT capabilities.',
+      contact: { name: 'K. Subramaniam', designation: 'Sr. Manager – Procurement' } },
+    { customer: icf, deal: leads[0]._id, type: 'call', occurredAt: daysAgo(22), durationMinutes: 18,
+      outcome: 'connected_positive', by: byEmail['rajan.v@iinvsys.com'],
+      summary: 'ICF evaluating IoT for condition monitoring on LHB coaches. Budget discussion deferred — needs DGM approval.',
+      bantUpdate: 'need', contact: { name: 'K. Subramaniam', designation: 'Sr. Manager – Procurement' } },
+    { customer: icf, deal: leads[0]._id, type: 'email', occurredAt: daysAgo(17), by: byEmail['rajan.v@iinvsys.com'],
+      summary: 'Sent iinvsys IoT for Railways brochure + ConnectSei platform overview. Awaiting acknowledgement.' },
+    { customer: dmrc, deal: leads[3]._id, type: 'visit', occurredAt: daysAgo(12), by: byEmail['exec.a@iinvsys.com'],
+      summary: 'Live demo of ConnectSei rolling stock monitor at DMRC HQ. 8 stakeholders present. Proposal requested.',
+      contact: { name: 'Rajesh Kumar', designation: 'DGM Rolling Stock' } },
+    { customer: dmrc, deal: leads[3]._id, type: 'call', occurredAt: daysAgo(1), durationMinutes: 18,
+      outcome: 'connected_positive', by: byEmail['exec.a@iinvsys.com'],
+      summary: 'DGM confirmed attendance at the FAT. Requested revised proposal with payment milestones.' },
+  ]);
+  await Lead.updateOne({ _id: leads[0]._id }, { $set: { lastActivityAt: daysAgo(17) } });
+  await Lead.updateOne({ _id: leads[3]._id }, { $set: { lastActivityAt: daysAgo(1) } });
+  console.log(`   Created ${activities.length} activities`);
+
+  const tasks = await Task.insertMany([
+    { owner: byEmail['rajan.v@iinvsys.com'], customer: icf, deal: leads[0]._id,
+      title: 'Follow-up call — K. Subramaniam, ICF Chennai', type: 'call',
+      dueAt: daysAgo(2), source: 'activity_next_action', createdBy: adminId },
+    { owner: byEmail['exec.a@iinvsys.com'], customer: dmrc, deal: leads[3]._id,
+      title: 'Send revised proposal with payment milestones', type: 'proposal',
+      dueAt: new Date(now.getTime() + 86400000), source: 'activity_next_action', createdBy: adminId },
+  ]);
+  console.log(`   Created ${tasks.length} tasks`);
+
+  await CoachingNote.create({
+    about: byEmail['rajan.v@iinvsys.com'], author: byEmail['director@iinvsys.com'],
+    body: 'Response time consistently above 2h. Discovery questions too surface-level. '
+        + 'Suggested shadow call with Priya K. No follow-through on the ICF Chennai lead in 5 days.',
+  });
 
   console.log('\n✅  Seed complete!\n');
-  console.log('Demo credentials:');
-  console.log('  superadmin  →  admin@iinvsys.com   / Admin@123');
-  console.log('  manager     →  sneha@iinvsys.com   / Manager@123');
-  console.log('  agent       →  rahul@iinvsys.com   / Agent@123');
-  console.log('  readonly    →  readonly@iinvsys.com / Read@1234\n');
+  console.log('Demo credentials — every role in ERP Bible V3:');
+  for (const u of USERS_SEED) console.log(`  ${u.role.padEnd(20)} →  ${u.email.padEnd(28)} / ${u.password}`);
+  console.log('');
   await mongoose.disconnect();
 }
 
-seed().catch(err => { console.error(err); process.exit(1); });
+if (require.main === module) {
+  seed().catch((err) => { console.error(err); process.exit(1); });
+}
+
+module.exports = { seed, USERS_SEED, CUSTOMERS_SEED, PRODUCTS_SEED };

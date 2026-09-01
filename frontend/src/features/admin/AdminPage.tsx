@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
-import { usePipeline } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 import { Modal } from '../../components/Modal';
 
 type FieldType = 'text' | 'number' | 'date' | 'email' | 'select';
@@ -94,10 +94,10 @@ const ENTITIES: EntitySpec[] = [
 const ROLE_RANK: Record<string, number> = { superadmin: 3, manager: 2, agent: 1 };
 
 export function AdminPage() {
-  const { data: meta } = usePipeline();
+  const { data: me } = useMe();
   const [active, setActive] = useState(ENTITIES[0].key);
   const spec = ENTITIES.find((e) => e.key === active)!;
-  const role = meta?.me.role ?? '';
+  const role = me?.role ?? '';
   const canWrite = (ROLE_RANK[role] ?? 0) >= ROLE_RANK[spec.writeRole];
 
   return (

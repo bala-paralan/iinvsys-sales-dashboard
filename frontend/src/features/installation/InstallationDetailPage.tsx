@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiUpload, ApiError } from '../../api/client';
 import type { GateRequirementFailure } from '../../api/client';
 import { usePipeline, can } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 import { EnumSelect } from '../../components/EnumSelect';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
 
@@ -52,6 +53,7 @@ export function InstallationDetailPage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const { data: meta } = usePipeline();
+  const { data: me } = useMe();
   const [gateOpen, setGateOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [gateMissing, setGateMissing] = useState<GateRequirementFailure[] | null>(null);
@@ -214,7 +216,7 @@ export function InstallationDetailPage() {
               three since B3; this page only ever displayed them, so the stage
               was a dead end. Site readiness records who AT THE CUSTOMER
               confirmed it — the controller stamps confirmedAt itself. */}
-          {d.stage === 'planning' && can(meta, 'install.assign') && (
+          {d.stage === 'planning' && can(me, 'install.assign') && (
             <section className="card" style={{ padding: 16 }}>
               <div className="form-label">Plan the job</div>
               <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
@@ -255,12 +257,12 @@ export function InstallationDetailPage() {
               {cl.items.map((item) => (
                 <label key={item.key} style={{
                   display: 'flex', gap: 10, alignItems: 'center', padding: '5px 0',
-                  fontSize: 14, cursor: can(meta, 'install.execute') ? 'pointer' : 'default',
+                  fontSize: 14, cursor: can(me, 'install.execute') ? 'pointer' : 'default',
                   color: item.done ? 'var(--text-3)' : 'var(--text-1)',
                 }}>
                   <input
                     type="checkbox" checked={item.done}
-                    disabled={!can(meta, 'install.execute') || tick.isPending}
+                    disabled={!can(me, 'install.execute') || tick.isPending}
                     onChange={(e) => tick.mutate({
                       stageKey: cl.stageKey, itemKey: item.key, done: e.target.checked,
                     })}
@@ -272,7 +274,7 @@ export function InstallationDetailPage() {
                 ? <div style={{ color: 'var(--emerald)', fontSize: 12, marginTop: 6 }}>
                     ✓ signed by {cl.signedByName}
                   </div>
-                : can(meta, 'install.execute') && (
+                : can(me, 'install.execute') && (
                   <button className="neo-btn" style={{ marginTop: 8, padding: '4px 10px', fontSize: 12 }}
                     onClick={() => {
                       const name = window.prompt('Technician name signing this checklist:');
@@ -300,13 +302,13 @@ export function InstallationDetailPage() {
                 }}>
                   [{s.closedAt ? 'closed' : s.severity}]
                 </span>{' '}{s.description}
-                {!s.closedAt && can(meta, 'install.execute') && (
+                {!s.closedAt && can(me, 'install.execute') && (
                   <button className="neo-btn" style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11 }}
                     onClick={() => closeSnag.mutate(s._id)}>close</button>
                 )}
               </div>
             ))}
-            {can(meta, 'install.execute') && (
+            {can(me, 'install.execute') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 150 }}>
                   <EnumSelect enumName="snagSeverities" value={snagSeverity} onChange={setSnagSeverity}
@@ -335,7 +337,7 @@ export function InstallationDetailPage() {
                 {d.commissioning.customerSignatory ? ` (${d.commissioning.customerSignatory})` : ''}
               </span>
             </div>
-            {can(meta, 'install.execute') && (
+            {can(me, 'install.execute') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <button className="neo-btn"
                   onClick={() => commission.mutate({ passed: true, technicianSigned: true })}>
@@ -363,7 +365,7 @@ export function InstallationDetailPage() {
               {d.postSupport.checkInDoneAt ? ` · done ${when(d.postSupport.checkInDoneAt)}` : ''}
             </div>
 
-            {can(meta, 'install.handover') && !d.handover.handedOverAt && (
+            {can(me, 'install.handover') && !d.handover.handedOverAt && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <input className="form-input" style={{ maxWidth: 300 }}
                   placeholder="trained attendees, comma separated"
@@ -373,7 +375,7 @@ export function InstallationDetailPage() {
               </div>
             )}
 
-            {can(meta, 'support.manage') && (
+            {can(me, 'support.manage') && (
               <>
                 {!d.postSupport.checkInDoneAt && d.handover.handedOverAt && (
                   <button className="neo-btn" style={{ marginTop: 10 }} onClick={() => checkIn.mutate()}>
@@ -418,7 +420,7 @@ export function InstallationDetailPage() {
               </div>
             )}
 
-            {can(meta, 'feedback.log') && !d.feedback.receivedAt && (
+            {can(me, 'feedback.log') && !d.feedback.receivedAt && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <input className="form-input" type="number" step="0.5" min="0" max="5"
                   style={{ maxWidth: 100 }} placeholder="CSAT"
@@ -430,7 +432,7 @@ export function InstallationDetailPage() {
               </div>
             )}
 
-            {needsPlan && can(meta, 'feedback.corrective_action') && (
+            {needsPlan && can(me, 'feedback.corrective_action') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <input className="form-input" style={{ maxWidth: 380 }}
                   placeholder="corrective action plan (required before closure)"
@@ -441,7 +443,7 @@ export function InstallationDetailPage() {
               </div>
             )}
 
-            {can(meta, 'feedback.log') && d.status !== 'closed' && (
+            {can(me, 'feedback.log') && d.status !== 'closed' && (
               <button className="neo-btn gold" style={{ marginTop: 12 }}
                 disabled={close.isPending} onClick={() => close.mutate()}>
                 Close job
@@ -458,7 +460,7 @@ export function InstallationDetailPage() {
                 <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>{a.docType}</span> · {a.filename}
               </div>
             ))}
-            {can(meta, 'install.upload') && (
+            {can(me, 'install.upload') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <div style={{ minWidth: 200 }}>
                   <EnumSelect enumName="docTypes" value={docType} onChange={setDocType} />
@@ -473,7 +475,7 @@ export function InstallationDetailPage() {
         </div>
 
         <aside style={{ flex: '0 1 260px' }}>
-          {can(meta, 'install.advance') && d.status !== 'closed' && (
+          {can(me, 'install.advance') && d.status !== 'closed' && (
             <button className="neo-btn gold" style={{ width: '100%' }} onClick={() => setGateOpen(true)}>
               Advance stage →
             </button>

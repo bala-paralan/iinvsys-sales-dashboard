@@ -74,7 +74,7 @@ async function salesInactivity(now = new Date()) {
       { lastContact: { $lt: cutoff } },
       { lastContact: null, stageEnteredAt: { $lt: cutoff } },
     ],
-  }).select('name company stage lastContact stageEnteredAt ownerUser assignedAgent').lean();
+  }).select('name company stage lastContact stageEnteredAt owner').lean();
 
   if (!stale.length) return { flagged: 0, notified: 0, suppressed: 0 };
 
@@ -115,7 +115,7 @@ async function weeklyNote(now = new Date()) {
   const stale = await Lead.find({
     ...OPEN,
     reviewIssues: 'stale_notes',
-  }).select('name company stage ownerUser assignedAgent').lean();
+  }).select('name company stage owner').lean();
 
   if (!stale.length) return { flagged: 0, notified: 0, suppressed: 0 };
 
@@ -126,7 +126,7 @@ async function weeklyNote(now = new Date()) {
   let suppressed = 0;
 
   for (const lead of stale) {
-    const targets = lead.ownerUser ? [{ _id: lead.ownerUser }] : managers;
+    const targets = lead.owner ? [{ _id: lead.owner }] : managers;
 
     const result = await notifyOnce(targets, {
       event: 'lead.notes_stale',
@@ -157,7 +157,7 @@ async function runNightly(now = new Date()) {
   /* H-3 repair pass: a won lead with no Work Order means Handoff 1 failed at
      transition time (it is deliberately non-fatal there). Close the gap here
      rather than letting it persist silently. */
-  const { ensureWorkOrderExists, ensureInstallationJobExists } = require('../../services/handoffService');
+  const { ensureWorkOrderExists, ensureInstallationJobExists } = require('../../services/processHandoffService');
   const handoffs = await ensureWorkOrderExists();
   const handoffs2 = await ensureInstallationJobExists();
   return { hygiene, inactivity, notes, handoffs, handoffs2 };

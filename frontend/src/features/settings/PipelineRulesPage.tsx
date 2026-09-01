@@ -13,7 +13,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
-import { usePipeline } from '../../meta/usePipeline';
+import { can } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 
 interface RuleRow {
   key: string;
@@ -192,8 +193,10 @@ export function PipelineRulesPage({ canEdit }: { canEdit: boolean }) {
 
 /** The Settings page proper — rules plus the read-only environment facts. */
 export function SettingsPage() {
-  const { data: meta } = usePipeline();
-  const canEdit = meta?.me.role === 'superadmin';
+  const { data: me } = useMe();
+  /* Reading the rules and changing them are different rights: doc 04 gives
+     settings.read to the Director and settings.write to superadmin alone. */
+  const canEdit = can(me, 'settings.write');
 
   return (
     <>

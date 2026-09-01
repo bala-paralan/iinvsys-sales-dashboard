@@ -9,7 +9,7 @@ const jwt         = require('jsonwebtoken');
 const app         = require('../src/app');
 const db          = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
-const Agent       = require('../src/models/Agent');
+const Agent       = require('./helpers/owner');
 const Lead        = require('../src/models/Lead');
 const EmailConfig = require('../src/models/EmailConfig');
 
@@ -69,13 +69,23 @@ describe('ANALYTICS — Overview endpoint', () => {
   });
 
   it('TC-AN003 returns 200 for manager', async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/analytics/overview').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
 
-  it('TC-AN004 returns 403 for agent', async () => {
-    const uid = await insertUser({ role: 'agent' });
+  /* This used to assert 403 for an agent — but only because `scopeToAgent` refused an
+     account with no linked Agent profile, which is a failure mode that no longer exists:
+     User IS the profile. What matters now is that an executive gets their OWN numbers and
+     a role with no dashboard is refused. */
+  it('TC-AN004 gives an executive their own overview', async () => {
+    const uid = await insertUser({ role: 'sales_executive' });
+    const r = await request(app).get('/api/analytics/overview').set('Authorization', `Bearer ${tok(uid)}`);
+    expect(r.status).toBe(200);
+  });
+
+  it('TC-AN004b refuses a role with no dashboard', async () => {
+    const uid = await insertUser({ role: 'referrer' });
     const r = await request(app).get('/api/analytics/overview').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(403);
   });
@@ -107,15 +117,15 @@ describe('ANALYTICS — Overview endpoint', () => {
 
   it.skip('TC-AN009 totalLeads increases after adding a lead', async () => {
     const agent = await seedAgent(adminId);
-    await Lead.create({ name: 'Test', phone: '9000000001', source: 'inbound_enquiry', assignedAgent: agent._id, createdBy: adminId });
+    await Lead.create({ name: 'Test', phone: '9000000001', source: 'inbound_enquiry', owner: agent._id, createdBy: adminId });
     const r = await request(app).get('/api/analytics/overview').set('Authorization', `Bearer ${adminToken}`);
     expect(r.body.data.totalLeads).toBe(1);
   });
 
   it.skip('TC-AN010 wonLeads counts only won stage leads', async () => {
     const agent = await seedAgent(adminId);
-    await Lead.create({ name: 'Won', phone: '9000000001', source: 'inbound_enquiry', stage: 'commercial_order', assignedAgent: agent._id, createdBy: adminId });
-    await Lead.create({ name: 'New', phone: '9000000002', source: 'inbound_enquiry', stage: 'suspect', assignedAgent: agent._id, createdBy: adminId });
+    await Lead.create({ name: 'Won', phone: '9000000001', source: 'inbound_enquiry', stage: 'commercial_order', owner: agent._id, createdBy: adminId });
+    await Lead.create({ name: 'New', phone: '9000000002', source: 'inbound_enquiry', stage: 'suspect', owner: agent._id, createdBy: adminId });
     const r = await request(app).get('/api/analytics/overview').set('Authorization', `Bearer ${adminToken}`);
     expect(r.body.data.wonLeads).toBe(1);
   });
@@ -157,15 +167,15 @@ describe('ANALYTICS — Trends endpoint', () => {
   });
 
   it('TC-AN016 returns 200 for manager', async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/analytics/trends').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
 
-  it('TC-AN017 returns 403 for agent', async () => {
-    const uid = await insertUser({ role: 'agent' });
+  it('TC-AN017 gives an executive their own trends', async () => {
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/analytics/trends').set('Authorization', `Bearer ${tok(uid)}`);
-    expect(r.status).toBe(403);
+    expect(r.status).toBe(200);
   });
 
   it('TC-AN018 returns success:true', async () => {
@@ -213,7 +223,7 @@ describe('ANALYTICS — Expo Stats endpoint', () => {
   });
 
   it('TC-AN024 returns 403 for agent role', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/analytics/expos').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(403);
   });
@@ -235,7 +245,7 @@ describe('REPORTS — Config management', () => {
   });
 
   it('TC-RP002 GET /api/reports/config returns 403 for manager', async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/reports/config').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(403);
   });
@@ -337,7 +347,7 @@ describe('REPORTS — Send report', () => {
   });
 
   it('TC-RP016 returns 403 for agent', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).post('/api/reports/send').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(403);
   });
@@ -380,7 +390,7 @@ describe('REPORTS — Send report', () => {
 
   it('TC-RP022 manager can trigger send', async () => {
     await EmailConfig.create({ recipients: ['r@test.com'], periodicity: 'daily' });
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).post('/api/reports/send').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   }, 30000);
@@ -397,13 +407,13 @@ describe('REPORTS — Preview endpoint', () => {
   });
 
   it('TC-RP023 returns 200 for manager', async () => {
-    const uid = await insertUser({ role: 'manager' });
+    const uid = await insertUser({ role: 'sales_director' });
     const r = await request(app).get('/api/reports/preview').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(200);
   });
 
   it('TC-RP024 returns 403 for agent', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/reports/preview').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(403);
   });

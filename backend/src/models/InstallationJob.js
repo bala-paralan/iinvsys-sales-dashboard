@@ -2,7 +2,7 @@
 /**
  * InstallationJob — Process 3 (Installation & Customer Service).
  *
- * Created ONLY by handoffService.createInstallationJobForWorkOrder(), itself
+ * Created ONLY by processHandoffService.createInstallationJobForWorkOrder(), itself
  * reachable only through the DA-gated `deliver` endpoint. As with Handoff 1,
  * reachability IS the enforcement: an Installation Job existing is evidence
  * that a signed Delivery Acknowledgement and photo are on file upstream. (H-2)

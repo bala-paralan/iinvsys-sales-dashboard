@@ -68,10 +68,10 @@ beforeAll(connect);
 afterAll(async () => { await clearCollections(); await disconnect(); });
 beforeEach(async () => {
   await clearCollections();
-  managerToken = tok(await insertUser({ role: 'manager', name: 'Sneha' }));
-  techToken = tok(await insertUser({ role: 'technician', name: 'Tara' }));
+  managerToken = tok(await insertUser({ role: 'sales_director', name: 'Sneha' }));
+  techToken = tok(await insertUser({ role: 'field_engineer', name: 'Tara' }));
   referrerToken = tok(await insertUser({ role: 'referrer', name: 'Ravi' }));
-  agentToken = tok(await insertUser({ role: 'agent', name: 'Anil' }));
+  agentToken = tok(await insertUser({ role: 'sales_executive', name: 'Anil' }));
 });
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -599,9 +599,10 @@ describe('GET /api/kpis', () => {
   it('requires kpi.read', async () => {
     expect((await get('/sales', managerToken)).status).toBe(200);
     expect((await get('/sales', agentToken)).status).toBe(200);
-    /* A technician and a referrer have no dashboard — doc 04 grants neither
-       kpi.read, and neither should see company-wide conversion rates. */
-    expect((await get('/sales', techToken)).status).toBe(403);
+    /* Every V3 role has a dashboard of its own — doc 3 PD-ENG-01 and doc 4 IC-FE-01 both
+       specify one — so `kpi.read` is near-universal now and what each role SEES is
+       narrowed by scope instead. `referrer` is the external account, and holds nothing. */
+    expect((await get('/sales', techToken)).status).toBe(200);
     expect((await get('/summary', referrerToken)).status).toBe(403);
   });
 

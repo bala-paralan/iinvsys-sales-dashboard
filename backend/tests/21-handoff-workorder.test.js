@@ -17,7 +17,7 @@ const Lead      = require('../src/models/Lead');
 const WorkOrder = require('../src/models/WorkOrder');
 const Notification = require('../src/models/Notification');
 const AuditLog  = require('../src/models/AuditLog');
-const handoff   = require('../src/services/handoffService');
+const handoff   = require('../src/services/processHandoffService');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
 
@@ -49,7 +49,9 @@ afterAll(disconnect);
 beforeEach(async () => {
   await clearCollections();
   adminToken = tok(await insertUser({ role: 'superadmin', name: 'Root' }));
-  managerId = await insertUser({ role: 'manager', name: 'Sneha' });
+  /* Handoff 1 notifies holders of `workorder.accept` — doc 3 PD-HD-01 makes that the
+     Production Head. v2's `manager` held it; the Sales Director holds only read. */
+  managerId = await insertUser({ role: 'production_head', name: 'Prod Head' });
 });
 
 describe('winning the deal creates the Work Order', () => {

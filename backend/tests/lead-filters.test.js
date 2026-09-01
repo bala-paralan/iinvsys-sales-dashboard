@@ -13,7 +13,7 @@ const jwt     = require('jsonwebtoken');
 const app     = require('../src/app');
 const db      = require('./helpers/db');
 const User    = require('../src/models/User');
-const Agent   = require('../src/models/Agent');
+const Agent   = require('./helpers/owner');
 const Lead    = require('../src/models/Lead');
 const Expo    = require('../src/models/Expo');
 
@@ -29,14 +29,31 @@ afterAll(async () => { await db.disconnect(); });
 /* ─── helpers ─────────────────────────────────────────────────── */
 
 async function insertUser(attrs) {
-  const result = await User.collection.insertOne({
-    name: attrs.name || 'User', email: attrs.email || 'u@t.com',
-    password: '$2b$01$placeholder',
-    role: attrs.role || 'agent', agentId: attrs.agentId || null,
-    expoId: null, expiresAt: null, isTemporary: false, isActive: true,
-    lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
-  });
-  return result.insertedId;
+  /* One person, one record: the agent profile and the login are the same User now. */
+  if (attrs.email) {
+    const existing = await User.collection.findOne({ email: attrs.email });
+    if (existing) return existing._id;
+  }
+  /* Adopt-then-insert is check-then-act: if a previous test timed out and its setup is
+     still running, both calls miss the findOne and both insert. Catch the unique-index
+     violation and return the winner, so a stalled run produces ONE timeout rather than a
+     cascade of dup-key failures that hides what actually went wrong. */
+  try {
+    const result = await User.collection.insertOne({
+      name: attrs.name || 'User', email: attrs.email || 'u@t.com',
+      password: '$2b$01$placeholder',
+      role: attrs.role || 'sales_executive', agentId: attrs.agentId || null,
+      expoId: null, expiresAt: null, isTemporary: false, isActive: true,
+      lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
+    });
+    return result.insertedId;
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const winner = await User.collection.findOne({ email: attrs.email });
+      if (winner) return winner._id;
+    }
+    throw err;
+  }
 }
 
 function makeToken(userId) {
@@ -44,19 +61,23 @@ function makeToken(userId) {
 }
 
 async function setupBase() {
-  const mgrId = await insertUser({ name: 'Mgr', email: 'mgr@t.com', role: 'manager' });
+  const mgrId = await insertUser({ name: 'Mgr', email: 'mgr@t.com', role: 'sales_director' });
 
+  /* Doc 2's shape: the executives REPORT TO the manager. A manager is 'team'-scoped
+     now, so a fixture that leaves the reporting line unset gives them an empty subtree
+     and every "manager sees all" assertion fails for a reason that has nothing to do
+     with what it is testing. */
   const agent1 = await Agent.create({
-    name: 'Agent1', initials: 'A1', email: 'agt1@t.com',
+    name: 'Agent1', initials: 'A1', email: 'agt1@t.com', reportsTo: mgrId, chain: [mgrId],
     phone: '9001111111', territory: 'Delhi', designation: 'Sales Agent', createdBy: mgrId,
   });
-  const agt1Id = await insertUser({ name: 'Agent1', email: 'agt1@t.com', role: 'agent', agentId: agent1._id });
+  const agt1Id = await insertUser({ name: 'Agent1', email: 'agt1@t.com', role: 'sales_executive', agentId: agent1._id });
 
   const agent2 = await Agent.create({
-    name: 'Agent2', initials: 'A2', email: 'agt2@t.com',
+    name: 'Agent2', initials: 'A2', email: 'agt2@t.com', reportsTo: mgrId, chain: [mgrId],
     phone: '9002222222', territory: 'Mumbai', designation: 'Sales Agent', createdBy: mgrId,
   });
-  await insertUser({ name: 'Agent2', email: 'agt2@t.com', role: 'agent', agentId: agent2._id });
+  await insertUser({ name: 'Agent2', email: 'agt2@t.com', role: 'sales_executive', agentId: agent2._id });
 
   return {
     mgrId,   mgrToken:  makeToken(mgrId),
@@ -72,11 +93,11 @@ describe('GET /api/leads - filter by stage', () => {
     const { agent1, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Won Lead',  phone: '9100', source: 'inbound_enquiry', assignedAgent: agent1._id, stage: 'commercial_order' });
+      .send({ name: 'Won Lead',  phone: '9100', source: 'inbound_enquiry', owner: agent1._id, stage: 'commercial_order' });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'New Lead',  phone: '9101', source: 'inbound_enquiry', assignedAgent: agent1._id, stage: 'suspect' });
+      .send({ name: 'New Lead',  phone: '9101', source: 'inbound_enquiry', owner: agent1._id, stage: 'suspect' });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Lost Lead', phone: '9102', source: 'inbound_enquiry', assignedAgent: agent1._id, stage: 'order_lost' });
+      .send({ name: 'Lost Lead', phone: '9102', source: 'inbound_enquiry', owner: agent1._id, stage: 'order_lost' });
 
     const res = await request(app).get('/api/leads?stage=commercial_order').set('Authorization', `Bearer ${mgrToken}`);
 
@@ -89,7 +110,7 @@ describe('GET /api/leads - filter by stage', () => {
     const { agent1, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'New Lead', phone: '9103', source: 'inbound_enquiry', assignedAgent: agent1._id, stage: 'suspect' });
+      .send({ name: 'New Lead', phone: '9103', source: 'inbound_enquiry', owner: agent1._id, stage: 'suspect' });
 
     const res = await request(app).get('/api/leads?stage=negotiation').set('Authorization', `Bearer ${mgrToken}`);
 
@@ -106,11 +127,11 @@ describe('GET /api/leads - filter by source', () => {
     const { agent1, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Direct',   phone: '9110', source: 'inbound_enquiry',   assignedAgent: agent1._id });
+      .send({ name: 'Direct',   phone: '9110', source: 'inbound_enquiry',   owner: agent1._id });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Referral', phone: '9111', source: 'referral', assignedAgent: agent1._id });
+      .send({ name: 'Referral', phone: '9111', source: 'referral', owner: agent1._id });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Digital',  phone: '9112', source: 'digital_website',  assignedAgent: agent1._id });
+      .send({ name: 'Digital',  phone: '9112', source: 'digital_website',  owner: agent1._id });
 
     const res = await request(app).get('/api/leads?source=referral').set('Authorization', `Bearer ${mgrToken}`);
 
@@ -120,19 +141,19 @@ describe('GET /api/leads - filter by source', () => {
   });
 });
 
-/* ─── Filter: by assignedAgent ────────────────────────────────── */
+/* ─── Filter: by owner ────────────────────────────────── */
 
-describe('GET /api/leads - filter by assignedAgent', () => {
+describe('GET /api/leads - filter by owner', () => {
   it('manager can filter by specific agent', async () => {
     const { agent1, agent2, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'A1 Lead', phone: '9120', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'A1 Lead', phone: '9120', source: 'inbound_enquiry', owner: agent1._id });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'A2 Lead', phone: '9121', source: 'inbound_enquiry', assignedAgent: agent2._id });
+      .send({ name: 'A2 Lead', phone: '9121', source: 'inbound_enquiry', owner: agent2._id });
 
     const res = await request(app)
-      .get(`/api/leads?assignedAgent=${agent1._id}`)
+      .get(`/api/leads?owner=${agent1._id}`)
       .set('Authorization', `Bearer ${mgrToken}`);
 
     expect(res.status).toBe(200);
@@ -154,9 +175,9 @@ describe('GET /api/leads - filter by expo', () => {
     });
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Expo Lead',   phone: '9130', source: 'exhibition_event', assignedAgent: agent1._id, expo: expo._id });
+      .send({ name: 'Expo Lead',   phone: '9130', source: 'exhibition_event', owner: agent1._id, expo: expo._id });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Direct Lead', phone: '9131', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'Direct Lead', phone: '9131', source: 'inbound_enquiry', owner: agent1._id });
 
     const res = await request(app)
       .get(`/api/leads?expo=${expo._id}`)
@@ -176,11 +197,11 @@ describe('GET /api/leads - overdue filter', () => {
 
     await Lead.create({
       name: 'No Contact', phone: '9140', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'suspect', lastContact: null, createdBy: mgrId,
+      owner: agent1._id, stage: 'suspect', lastContact: null, createdBy: mgrId,
     });
     await Lead.create({
       name: 'Won Lead', phone: '9141', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'commercial_order', createdBy: mgrId,
+      owner: agent1._id, stage: 'commercial_order', createdBy: mgrId,
     });
 
     const res = await request(app).get('/api/leads?overdue=true').set('Authorization', `Bearer ${mgrToken}`);
@@ -194,7 +215,7 @@ describe('GET /api/leads - overdue filter', () => {
 
     await Lead.create({
       name: 'Fresh Contact', phone: '9142', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'prospect',
+      owner: agent1._id, stage: 'prospect',
       lastContact: new Date(Date.now() - 86400000), createdBy: mgrId,
     });
 
@@ -214,7 +235,7 @@ describe('GET /api/leads - pagination', () => {
 
     for (let i = 1; i <= 10; i++) {
       await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-        .send({ name: `Lead${i}`, phone: `91${String(i).padStart(2, '0')}0`, source: 'inbound_enquiry', assignedAgent: agent1._id });
+        .send({ name: `Lead${i}`, phone: `91${String(i).padStart(2, '0')}0`, source: 'inbound_enquiry', owner: agent1._id });
     }
 
     const res = await request(app).get('/api/leads?page=2&limit=3').set('Authorization', `Bearer ${mgrToken}`);
@@ -230,7 +251,7 @@ describe('GET /api/leads - pagination', () => {
     const { agent1, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'One Lead', phone: '9200', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'One Lead', phone: '9200', source: 'inbound_enquiry', owner: agent1._id });
 
     const res = await request(app).get('/api/leads?page=99&limit=10').set('Authorization', `Bearer ${mgrToken}`);
 
@@ -243,7 +264,7 @@ describe('GET /api/leads - pagination', () => {
     const { agent1, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'PagLead', phone: '9210', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'PagLead', phone: '9210', source: 'inbound_enquiry', owner: agent1._id });
 
     const res = await request(app).get('/api/leads?page=1&limit=10').set('Authorization', `Bearer ${mgrToken}`);
 
@@ -266,25 +287,25 @@ describe('GET /api/leads/:id', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns lead with populated assignedAgent', async () => {
+  it('returns lead with populated owner', async () => {
     const { agent1, mgrToken } = await setupBase();
 
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Full Lead', phone: '9220', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'Full Lead', phone: '9220', source: 'inbound_enquiry', owner: agent1._id });
     const id = create.body.data._id;
 
     const res = await request(app).get(`/api/leads/${id}`).set('Authorization', `Bearer ${mgrToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data.name).toBe('Full Lead');
-    expect(res.body.data.assignedAgent).toHaveProperty('name');
+    expect(res.body.data.owner).toHaveProperty('name');
   });
 
   it('agent cannot view lead assigned to another agent', async () => {
     const { agent2, mgrToken, agt1Token } = await setupBase();
 
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Other Lead', phone: '9221', source: 'inbound_enquiry', assignedAgent: agent2._id });
+      .send({ name: 'Other Lead', phone: '9221', source: 'inbound_enquiry', owner: agent2._id });
     const id = create.body.data._id;
 
     const res = await request(app).get(`/api/leads/${id}`).set('Authorization', `Bearer ${agt1Token}`);
@@ -300,7 +321,7 @@ describe('DELETE /api/leads/:id', () => {
     const { agent1, mgrToken } = await setupBase();
 
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Delete Me', phone: '9230', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'Delete Me', phone: '9230', source: 'inbound_enquiry', owner: agent1._id });
     const id = create.body.data._id;
 
     const res = await request(app).delete(`/api/leads/${id}`).set('Authorization', `Bearer ${mgrToken}`);
@@ -329,7 +350,7 @@ describe('Lead model virtuals', () => {
 
     const lead = await Lead.create({
       name: 'Overdue Lead', phone: '9240', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'suspect', lastContact: null, createdBy: mgrId,
+      owner: agent1._id, stage: 'suspect', lastContact: null, createdBy: mgrId,
     });
 
     expect(lead.isOverdue).toBe(true);
@@ -340,7 +361,7 @@ describe('Lead model virtuals', () => {
 
     const lead = await Lead.create({
       name: 'Won Overdue', phone: '9241', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'commercial_order', lastContact: null, createdBy: mgrId,
+      owner: agent1._id, stage: 'commercial_order', lastContact: null, createdBy: mgrId,
     });
 
     expect(lead.isOverdue).toBe(false);
@@ -351,7 +372,7 @@ describe('Lead model virtuals', () => {
 
     const lead = await Lead.create({
       name: 'Recent Lead', phone: '9242', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'prospect',
+      owner: agent1._id, stage: 'prospect',
       lastContact: new Date(Date.now() - 3 * 86400000), createdBy: mgrId,
     });
 
@@ -363,27 +384,25 @@ describe('Lead model virtuals', () => {
 
     const lead = await Lead.create({
       name: 'Stale Lead', phone: '9243', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'prospect',
+      owner: agent1._id, stage: 'prospect',
       lastContact: new Date(Date.now() - 10 * 86400000), createdBy: mgrId,
     });
 
     expect(lead.isOverdue).toBe(true);
   });
 
-  it('followUpCount virtual counts follow-ups correctly', async () => {
-    const { mgrId, agent1 } = await setupBase();
-
+  it('isOverdue reads lastActivityAt when lastContact is unset', async () => {
+    /* Activities live in their own collection now — the lead carries only the
+       denormalised anchor, because config/pipeline.js is a pure function over one
+       document and cannot query a second collection. */
     const lead = await Lead.create({
-      name: 'FU Count', phone: '9244', source: 'inbound_enquiry',
-      assignedAgent: agent1._id, stage: 'suspect',
-      followUps: [
-        { agent: agent1._id, channel: 'call',  timestamp: new Date() },
-        { agent: agent1._id, channel: 'email', timestamp: new Date() },
-      ],
-      createdBy: mgrId,
+      name: 'Anchor', phone: '9000000099', source: 'referral',
+      lastActivityAt: new Date(Date.now() - 10 * 86400000),
     });
+    expect(lead.isOverdue).toBe(true);
 
-    expect(lead.followUpCount).toBe(2);
+    lead.lastActivityAt = new Date();
+    expect(lead.isOverdue).toBe(false);
   });
 });
 
@@ -396,7 +415,7 @@ describe('POST /api/leads - validation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'No Phone', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'No Phone', source: 'inbound_enquiry', owner: agent1._id });
 
     expect(res.status).toBe(422);
   });
@@ -407,7 +426,7 @@ describe('POST /api/leads - validation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${mgrToken}`)
-      .send({ phone: '9300', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ phone: '9300', source: 'inbound_enquiry', owner: agent1._id });
 
     expect(res.status).toBe(422);
   });
@@ -418,7 +437,7 @@ describe('POST /api/leads - validation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Bad Source', phone: '9301', source: 'invalid_source', assignedAgent: agent1._id });
+      .send({ name: 'Bad Source', phone: '9301', source: 'invalid_source', owner: agent1._id });
 
     expect(res.status).toBe(422);
   });
@@ -429,7 +448,7 @@ describe('POST /api/leads - validation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Default Stage', phone: '9302', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'Default Stage', phone: '9302', source: 'inbound_enquiry', owner: agent1._id });
 
     expect(res.status).toBe(201);
     expect(res.body.data.stage).toBe('suspect');
@@ -441,7 +460,7 @@ describe('POST /api/leads - validation', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Default Score', phone: '9303', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'Default Score', phone: '9303', source: 'inbound_enquiry', owner: agent1._id });
 
     expect(res.status).toBe(201);
     expect(res.body.data.score).toBe(50);
@@ -477,12 +496,12 @@ describe('POST /api/leads/bulk - edge cases', () => {
     const { agent1, mgrToken } = await setupBase();
 
     await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Existing', phone: '9310', source: 'inbound_enquiry', assignedAgent: agent1._id });
+      .send({ name: 'Existing', phone: '9310', source: 'inbound_enquiry', owner: agent1._id });
 
     const res = await request(app)
       .post('/api/leads/bulk')
       .set('Authorization', `Bearer ${mgrToken}`)
-      .send({ leads: [{ name: 'Dup', phone: '9310', source: 'inbound_enquiry', assignedAgent: agent1._id }] });
+      .send({ leads: [{ name: 'Dup', phone: '9310', source: 'inbound_enquiry', owner: agent1._id }] });
 
     expect(res.status).toBe(200);
     expect(res.body.data.imported).toBe(0);
@@ -498,7 +517,7 @@ describe('POST /api/leads/bulk - edge cases', () => {
     const res = await request(app)
       .post('/api/leads/bulk')
       .set('Authorization', `Bearer ${agt1Token}`)
-      .send({ leads: [{ name: 'X', phone: '9320', source: 'inbound_enquiry', assignedAgent: agent1._id }] });
+      .send({ leads: [{ name: 'X', phone: '9320', source: 'inbound_enquiry', owner: agent1._id }] });
 
     expect(res.status).toBe(403);
   });
@@ -506,54 +525,6 @@ describe('POST /api/leads/bulk - edge cases', () => {
 
 /* ─── Follow-up: validation and channels ─────────────────────── */
 
-describe('POST /api/leads/:id/followups - channel validation', () => {
-  it('all valid channels are accepted', async () => {
-    const { agent1, mgrToken, agt1Token } = await setupBase();
-
-    const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'FU Lead', phone: '9330', source: 'inbound_enquiry', assignedAgent: agent1._id });
-    const id = create.body.data._id;
-
-    for (const channel of ['call', 'whatsapp', 'email', 'visit', 'other']) {
-      const res = await request(app)
-        .post(`/api/leads/${id}/followups`)
-        .set('Authorization', `Bearer ${agt1Token}`)
-        .send({ channel, note: `Test ${channel}`, outcome: 'Noted' });
-      expect(res.status).toBe(201);
-    }
-  }, 60000);
-
-  it('rejects invalid channel value', async () => {
-    const { agent1, mgrToken, agt1Token } = await setupBase();
-
-    const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Bad Channel', phone: '9331', source: 'inbound_enquiry', assignedAgent: agent1._id });
-    const id = create.body.data._id;
-
-    const res = await request(app)
-      .post(`/api/leads/${id}/followups`)
-      .set('Authorization', `Bearer ${agt1Token}`)
-      .send({ channel: 'fax', note: 'Test' });
-
-    expect(res.status).toBe(422);
-  });
-
-  it('follow-up updates lastContact timestamp', async () => {
-    const { agent1, mgrToken, agt1Token } = await setupBase();
-
-    const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${mgrToken}`)
-      .send({ name: 'Contact Lead', phone: '9332', source: 'inbound_enquiry', assignedAgent: agent1._id });
-    const id = create.body.data._id;
-
-    await request(app)
-      .post(`/api/leads/${id}/followups`)
-      .set('Authorization', `Bearer ${agt1Token}`)
-      .send({ channel: 'call', note: 'Called', outcome: 'Interested' });
-
-    const lead = await Lead.findById(id);
-    expect(lead.lastContact).toBeTruthy();
-  });
-});
 
 /* ─── Health check endpoint ───────────────────────────────────── */
 

@@ -5,6 +5,7 @@ const VoiceMemo = require('../models/VoiceMemo');
 const Lead      = require('../models/Lead');
 const Telemetry = require('../models/Telemetry');
 const { ok, created, notFound, badRequest } = require('../utils/response');
+const { scopeAllows } = require('../services/scopeService');
 
 /* ── Rule-based extraction ─────────────────────────────────────────── */
 
@@ -94,7 +95,10 @@ async function createVoiceMemo(req, res, next) {
     if (!lead) return notFound(res, 'Lead not found');
 
     /* Agents can only memo their own leads */
-    if (req.user.role === 'agent' && String(lead.assignedAgent) !== String(req.user._id)) {
+    /* Was `role === 'agent'`, a role that no longer exists — so the test never fired and
+       every authenticated caller could reach any lead's memos. Row-level visibility is
+       the scope resolver's answer, not a role name's. */
+    if (!scopeAllows(req.scope, lead.owner)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
@@ -163,7 +167,10 @@ async function listVoiceMemos(req, res, next) {
     if (!lead) return notFound(res, 'Lead not found');
 
     /* Agents can only read memos on their own leads */
-    if (req.user.role === 'agent' && String(lead.assignedAgent) !== String(req.user._id)) {
+    /* Was `role === 'agent'`, a role that no longer exists — so the test never fired and
+       every authenticated caller could reach any lead's memos. Row-level visibility is
+       the scope resolver's answer, not a role name's. */
+    if (!scopeAllows(req.scope, lead.owner)) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     /* Referrers can only read memos on leads they created in their own expo */

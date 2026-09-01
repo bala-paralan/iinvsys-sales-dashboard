@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const ExpoProductSchema = new mongoose.Schema({
   product:    { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  presenters: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Agent' }],
+  presenters: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 }, { _id: false });
 
 const ExpoSchema = new mongoose.Schema({
@@ -12,7 +12,7 @@ const ExpoSchema = new mongoose.Schema({
   endDate:     { type: Date, required: true },
   venue:       { type: String, required: true, trim: true },
   city:        { type: String, required: true, trim: true },
-  agents:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'Agent' }],
+  agents:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   products:    [ExpoProductSchema],
   status:      { type: String, enum: ['upcoming','live','past'], default: 'upcoming' },
   targetLeads: { type: Number, default: 0 },

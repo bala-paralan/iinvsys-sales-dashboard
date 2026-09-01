@@ -2,10 +2,11 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/analyticsController');
 const { authenticate }            = require('../middleware/auth');
-const { requireMinRole, scopeToAgent } = require('../middleware/rbac');
+const { requirePermission } = require('../middleware/rbac');
+const { attachScope } = require('../middleware/scope');
 
-router.get('/overview', authenticate, requireMinRole('agent'), scopeToAgent, ctrl.overview);
-router.get('/trends',   authenticate, requireMinRole('agent'), scopeToAgent, ctrl.trends);
-router.get('/expos',    authenticate, requireMinRole('manager'), ctrl.expoStats);
+router.get('/overview', authenticate, requirePermission('kpi.read'), attachScope, ctrl.overview);
+router.get('/trends',   authenticate, requirePermission('kpi.read'), attachScope, ctrl.trends);
+router.get('/expos',    authenticate, requirePermission('kpi.read_company'), ctrl.expoStats);
 
 module.exports = router;

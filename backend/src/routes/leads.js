@@ -4,23 +4,31 @@ const { body } = require('express-validator');
 const ctrl     = require('../controllers/leadController');
 const vmCtrl   = require('../controllers/voiceMemoController');
 const { authenticate }    = require('../middleware/auth');
-const { requireMinRole, requirePermission, scopeToAgent, allowReferrer } = require('../middleware/rbac');
+const { requirePermission, allowReferrer } = require('../middleware/rbac');
+const { attachScope } = require('../middleware/scope');
 const Lead     = require('../models/Lead');
 const { LEAD_SOURCE_KEYS } = require('../config/pipeline');
 
-const auth = [authenticate, requireMinRole('agent'), scopeToAgent];
+const auth = [authenticate, requirePermission('lead.read'), attachScope];
 
 /* Referrer-aware auth: referrers get allowReferrer (expo-scoped), others get normal agent auth */
-const referrerAuth = [authenticate, (req, res, next) => {
-  if (req.user.role === 'referrer') return allowReferrer(req, res, next);
-  requireMinRole('agent')(req, res, () => scopeToAgent(req, res, next));
-}];
+const referrerAuth = [authenticate, guard(
+  (req, res, next) => {
+    if (req.user.role === 'referrer') return allowReferrer(req, res, next);
+    return requirePermission('lead.read')(req, res, () => attachScope(req, res, next));
+  },
+)];
+
+/* Marks a hand-rolled composite as a real authorisation guard, so the boot-time
+   assertRoutesGuarded() check in src/app.js can see it. Anything not marked reads as
+   unguarded and refuses to start — the safe direction to fail. */
+function guard(fn) { fn.isGuard = true; return fn; }
 
 const createValidation = [
   body('name').trim().notEmpty(),
   body('phone').trim().notEmpty(),
   body('source').isIn(LEAD_SOURCE_KEYS),
-  body('assignedAgent').isMongoId().optional(),
+  body('owner').isMongoId().optional(),
   body('city').optional().trim(),
   body('state').optional().trim(),
   body('natureOfBusiness').optional().isIn(Lead.NATURE_OF_BUSINESS),
@@ -32,7 +40,7 @@ const updateValidation = [
   body('name').optional().trim().notEmpty(),
   body('phone').optional().trim().notEmpty(),
   body('source').optional().isIn(LEAD_SOURCE_KEYS),
-  body('assignedAgent').optional().isMongoId(),
+  body('owner').optional().isMongoId(),
   body('city').optional().trim(),
   body('state').optional().trim(),
   body('natureOfBusiness').optional().isIn(Lead.NATURE_OF_BUSINESS),
@@ -43,10 +51,9 @@ const updateValidation = [
 router.post('/bulk', ...referrerAuth, ctrl.bulkImport);
 
 /* B1c — the manager review worklist. Static, so it must precede /:id.
-   First route in the codebase to use requirePermission() rather than the
-   ladder; scopeToAgent still narrows an agent to their own book. */
+   attachScope narrows an executive to their own book and a manager to their team's. */
 router.get('/hygiene',
-  authenticate, requirePermission('lead.read'), scopeToAgent, ctrl.hygieneQueue);
+  authenticate, requirePermission('lead.read'), attachScope, ctrl.hygieneQueue);
 
 /* PRD 3–5 static routes — must be declared before /:id patterns */
 router.post('/check-duplicate', ...referrerAuth, ctrl.checkDuplicate);
@@ -59,14 +66,14 @@ router.post('/',  ...referrerAuth, createValidation, ctrl.createLead);
 
 router.get('/:id',    ...referrerAuth, ctrl.getLead);
 router.put('/:id',    ...referrerAuth, updateValidation, ctrl.updateLead); // referrers edit own leads only
-router.delete('/:id', authenticate, requireMinRole('manager'), scopeToAgent, ctrl.deleteLead);
+router.delete('/:id', authenticate, requirePermission('lead.delete'), attachScope, ctrl.deleteLead);
 
 /* B1c — stage transitions. The ONLY sanctioned way to change a lead's stage.
    See docs/requirements/03-stage-gates.md. */
 router.get('/:id/gate',
-  authenticate, requirePermission('lead.read'), scopeToAgent, ctrl.previewLeadGate);
+  authenticate, requirePermission('lead.read'), attachScope, ctrl.previewLeadGate);
 router.post('/:id/advance',
-  authenticate, requirePermission('lead.advance'), scopeToAgent, ctrl.advanceLead);
+  authenticate, requirePermission('lead.advance'), attachScope, ctrl.advanceLead);
 
 /* PRD 4 — merge */
 router.post('/:id/merge',          ...auth,         ctrl.mergeLead);
@@ -74,12 +81,8 @@ router.post('/:id/merge',          ...auth,         ctrl.mergeLead);
 router.post('/:id/enrich',         ...referrerAuth, ctrl.triggerEnrich);
 router.delete('/:id/enrich/:field',...auth,         ctrl.rollbackEnrichField);
 
-/* POST /api/leads/:id/followups */
-router.post('/:id/followups',
-  ...auth,
-  body('channel').isIn(['call', 'whatsapp', 'email', 'visit', 'other']),
-  ctrl.addFollowUp
-);
+/* Follow-ups are gone: interactions are logged per CUSTOMER, not per lead, at
+   POST /api/activities. See models/Activity.js and doc 2 SA-EX-04 note 1. */
 
 /* S-8 — document vault. `lead.write` rather than a new `lead.upload` verb:
    doc 04 defines no upload permission for leads, and inventing one silently

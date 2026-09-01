@@ -17,7 +17,11 @@ const mongoose = require('mongoose');
 const { generatePassword } = require('./initAdmin');
 
 const User    = require('../models/User');
-const Agent   = require('../models/Agent');
+const Customer = require('../models/Customer');
+const Activity = require('../models/Activity');
+const Task     = require('../models/Task');
+const Approval = require('../models/Approval');
+const CoachingNote = require('../models/CoachingNote');
 const Product = require('../models/Product');
 const Expo    = require('../models/Expo');
 const Lead    = require('../models/Lead');
@@ -29,7 +33,11 @@ async function seedProduction() {
 
   await Promise.all([
     User.deleteMany({}),
-    Agent.deleteMany({}),
+    Customer.deleteMany({}),
+    Activity.deleteMany({}),
+    Task.deleteMany({}),
+    Approval.deleteMany({}),
+    CoachingNote.deleteMany({}),
     Product.deleteMany({}),
     Expo.deleteMany({}),
     Lead.deleteMany({}),

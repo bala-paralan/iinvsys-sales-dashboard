@@ -11,7 +11,7 @@ const request  = require('supertest');
 const app      = require('../src/app');
 const AuditLog = require('../src/models/AuditLog');
 const Lead     = require('../src/models/Lead');
-const Agent    = require('../src/models/Agent');
+const Agent    = require('./helpers/owner');
 const Expo     = require('../src/models/Expo');
 const User     = require('../src/models/User');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
@@ -35,7 +35,7 @@ const auth = (r) => r.set('Authorization', `Bearer ${adminToken}`);
 describe('sign-in is recorded', () => {
   it('a successful sign-in is attributed to the account', async () => {
     await User.create({
-      name: 'Priya', email: 'priya@iinvsys.test', password: 'TestPass@123', role: 'manager',
+      name: 'Priya', email: 'priya@iinvsys.test', password: 'TestPass@123', role: 'sales_director',
     });
 
     const res = await request(app).post('/api/auth/login')
@@ -44,12 +44,12 @@ describe('sign-in is recorded', () => {
 
     const e = await AuditLog.findOne({ action: 'auth.login' }).lean();
     expect(e).not.toBeNull();
-    expect(e.actor.role).toBe('manager');
+    expect(e.actor.role).toBe('sales_director');
   });
 
   it('a failed sign-in is recorded WITHOUT attributing the claimed identity', async () => {
     await User.create({
-      name: 'Priya', email: 'priya@iinvsys.test', password: 'TestPass@123', role: 'manager',
+      name: 'Priya', email: 'priya@iinvsys.test', password: 'TestPass@123', role: 'sales_director',
     });
 
     await request(app).post('/api/auth/login')
@@ -111,13 +111,13 @@ describe('destructive operations leave a snapshot', () => {
       name: 'Priya Nair', initials: 'PN', email: 'priya@iinvsys.test',
       phone: '9876543210', territory: 'West',
     });
-    await mkLead({ assignedAgent: agent._id });
-    await mkLead({ phone: '9876500000', assignedAgent: agent._id });
+    await mkLead({ owner: agent._id });
+    await mkLead({ phone: '9876500000', owner: agent._id });
 
     const res = await auth(request(app).delete(`/api/agents/${agent._id}/hard`));
     expect(res.status).toBe(200);
 
-    const e = await AuditLog.findOne({ action: 'record.delete', entityType: 'agent' }).lean();
+    const e = await AuditLog.findOne({ action: 'record.delete', entityType: 'user' }).lean();
     expect(e).not.toBeNull();
     expect(e.meta.snapshot).toMatchObject({ name: 'Priya Nair', territory: 'West', leadsUnassigned: 2 });
   });

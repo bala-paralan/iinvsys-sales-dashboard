@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iinvsys ERP Bible V3 – Module 1: Inside Sales</title>
+<style>
+:root{--primary:#0A2540;--accent:#00A8E0;--success:#27AE60;--warning:#F39C12;--danger:#E74C3C;--light:#F4F7FB;--border:#D1DCE8;--text:#1A2B3C;--muted:#6B7C93;--dir:#B45309;--dir-bg:#1C0A00;--hd:#0369A1;--hd-bg:#0A1A2E;--ex:#0891B2;--ex-bg:#0A2030;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#EEF2F7;color:var(--text);font-size:14px;}
+.cover{background:linear-gradient(135deg,#0A1828 0%,#0D3B6E 55%,#00A8E0 100%);color:white;padding:80px 60px;min-height:340px;position:relative;overflow:hidden;}
+.cover::after{content:'';position:absolute;right:-80px;top:-80px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.04);}
+.cover-tag{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#7DD3FC;margin-bottom:16px;}
+.cover h1{font-size:38px;font-weight:700;line-height:1.2;margin-bottom:10px;}
+.cover h2{font-size:18px;font-weight:300;color:rgba(255,255,255,.8);margin-bottom:24px;}
+.cover-meta{display:flex;gap:40px;font-size:13px;color:rgba(255,255,255,.7);}
+.cover-meta strong{color:white;display:block;font-size:15px;}
+.page{max-width:1120px;margin:0 auto;padding:48px 32px;}
+/* Role badges */
+.rb{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px;}
+.rb-dir{background:#92400E;color:#FEF3C7;}.rb-hd{background:#1E40AF;color:#DBEAFE;}.rb-ex{background:#065F46;color:#D1FAE5;}
+/* Role section banners */
+.role-banner{border-radius:12px;padding:20px 24px;margin-bottom:40px;display:flex;gap:18px;align-items:flex-start;}
+.rb-dir-banner{background:linear-gradient(90deg,#1C0A00,#3D1A00);}
+.rb-hd-banner{background:linear-gradient(90deg,#0A1A2E,#0A2A50);}
+.rb-ex-banner{background:linear-gradient(90deg,#0A2030,#0A3050);}
+.role-icon{font-size:36px;flex-shrink:0;}
+.role-info h2{font-size:17px;font-weight:700;color:white;margin-bottom:5px;}
+.role-info p{font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;}
+.role-info ul{margin-top:8px;padding-left:16px;font-size:11px;color:rgba(255,255,255,.65);line-height:1.8;}
+/* Screen frames */
+.screen-frame{background:white;border-radius:12px;box-shadow:0 4px 28px rgba(10,37,64,.13);margin-bottom:32px;overflow:hidden;border:1.5px solid var(--border);}
+.slabel{padding:10px 20px;font-size:12px;font-weight:700;letter-spacing:.8px;display:flex;align-items:center;gap:10px;color:white;}
+.sl-dir{background:#1C0A00;}.sl-hd{background:#0A1A2E;}.sl-ex{background:#0A2030;}
+.badge{background:rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:600;}
+.ml{margin-left:auto;}
+.browser{background:#222;padding:10px 16px 0;display:flex;align-items:center;gap:7px;}
+.dot{width:12px;height:12px;border-radius:50%;}
+.dot-r{background:#FF5F57}.dot-y{background:#FEBC2E}.dot-g{background:#28C840}
+.burl{background:#333;border-radius:6px;flex:1;padding:5px 14px;color:#999;font-size:11px;margin-left:10px;font-family:monospace;}
+/* App shell */
+.shell{display:flex;min-height:520px;}
+.sb{width:215px;flex-shrink:0;}
+.sb-dir{background:#1C0A00;}.sb-hd{background:#0A1A2E;}.sb-ex{background:#0A2030;}
+.sb-logo{padding:16px;border-bottom:1px solid rgba(255,255,255,.1);}
+.sb-logo-t{color:white;font-size:14px;font-weight:700;}
+.sb-logo-s{font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.sd-s{color:#FCD34D;}.sh-s{color:#7DD3FC;}.se-s{color:#6EE7B7;}
+.sb-sec{padding:10px 0 4px;}
+.sb-sec-l{padding:0 14px 5px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:8px 14px;color:rgba(255,255,255,.7);font-size:12px;}
+.sb-item.act-d{background:rgba(180,83,9,.25);color:white;border-left:3px solid #FCD34D;}
+.sb-item.act-h{background:rgba(3,105,161,.25);color:white;border-left:3px solid #7DD3FC;}
+.sb-item.act-e{background:rgba(8,145,178,.2);color:white;border-left:3px solid #6EE7B7;}
+.cnt{background:#E74C3C;color:white;border-radius:10px;padding:1px 7px;font-size:9px;margin-left:auto;}
+.cnt-warn{background:#F59E0B;}
+/* Main area */
+.main{flex:1;background:var(--light);display:flex;flex-direction:column;}
+.topbar{background:white;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.topbar-t{font-size:15px;font-weight:700;color:var(--primary);}
+.ta{display:flex;gap:8px;align-items:center;}
+.btn{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;}
+.btn-dir{background:#B45309;color:white;}.btn-hd{background:#0369A1;color:white;}.btn-ex{background:#0891B2;color:white;}
+.btn-o{background:white;color:var(--primary);border:1.5px solid var(--border);}
+.btn-s{background:var(--success);color:white;}.btn-d{background:var(--danger);color:white;}.btn-w{background:var(--warning);color:white;}
+.btn-sm{padding:3px 9px;font-size:10px;}
+.ca{padding:16px;flex:1;overflow:auto;}
+/* Stats */
+.grid{display:grid;gap:12px;margin-bottom:16px;}
+.g5{grid-template-columns:repeat(5,1fr);}.g4{grid-template-columns:repeat(4,1fr);}.g3{grid-template-columns:repeat(3,1fr);}.g2{grid-template-columns:1fr 1fr;}
+.card{background:white;border-radius:8px;padding:14px;border:1px solid var(--border);}
+.card-l{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.card-v{font-size:22px;font-weight:700;color:var(--primary);margin-bottom:3px;}
+.card-d{font-size:10px;color:var(--success);}
+/* Tables */
+.tbl{background:white;border-radius:8px;border:1px solid var(--border);overflow:hidden;}
+.tbl-h{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
+.tbl-t{font-size:12px;font-weight:700;color:var(--primary);}
+table{width:100%;border-collapse:collapse;}
+th{background:var(--light);padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+td{padding:9px 12px;font-size:11px;border-bottom:1px solid #F0F4F8;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+/* Status badges */
+.st{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.st-new{background:#DBEAFE;color:#1D4ED8;}.st-cnt{background:#FEF3C7;color:#B45309;}.st-qual{background:#D1FAE5;color:#065F46;}.st-hot{background:#FEE2E2;color:#991B1B;}.st-cold{background:#E0E7FF;color:#3730A3;}.st-hand{background:#F3E8FF;color:#7C3AED;}.st-lost{background:#F3F4F6;color:#6B7280;}
+/* Form elements */
+.ifield{width:100%;background:var(--light);border:1.5px solid var(--border);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--text);}
+textarea.ifield{height:62px;resize:none;}
+flabel{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fgr{margin-bottom:12px;}
+.fgr.full{grid-column:1/-1;}
+/* Detail rows */
+.dr{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F0F4F8;font-size:11px;}
+.dr-l{color:var(--muted);}.dr-v{font-weight:600;color:var(--primary);}
+/* Activity log */
+.act-item{display:flex;gap:12px;padding:10px;border:1px solid var(--border);border-radius:7px;margin-bottom:8px;background:white;}
+.act-icon{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.ai-call{background:#DBEAFE;}.ai-email{background:#D1FAE5;}.ai-visit{background:#FEF3C7;}.ai-wa{background:#DCFCE7;}
+.act-body{flex:1;}
+.act-title{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:2px;}
+.act-meta{font-size:10px;color:var(--muted);}
+.act-note{font-size:11px;color:var(--text);margin-top:4px;line-height:1.5;}
+/* Progress bar */
+.pb{background:var(--border);border-radius:20px;height:7px;overflow:hidden;flex:1;}
+.pf{height:100%;border-radius:20px;}
+/* Avatars */
+.av{width:28px;height:28px;border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.av-dir{background:#B45309;}.av-hd{background:#0369A1;}.av-ex{background:#0891B2;}.av-g{background:var(--success);}.av-o{background:#D97706;}
+/* Annotations */
+.ann{display:flex;gap:12px;margin-top:14px;margin-bottom:8px;}
+.ann-n{width:26px;height:26px;border-radius:50%;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ann-dir{background:#B45309;}.ann-hd{background:#0369A1;}.ann-ex{background:#0891B2;}
+.ann-b{flex:1;}.ann-t{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:2px;}.ann-d{font-size:11px;color:var(--muted);line-height:1.6;}
+/* Info / warn boxes */
+.info{background:#EFF6FF;border-left:4px solid var(--accent);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#1E3A5F;line-height:1.7;}
+.warn{background:#FFFBEB;border-left:4px solid var(--warning);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#78350F;line-height:1.7;}
+.divider{border:none;border-top:2px solid var(--border);margin:48px 0;}
+.section{margin-bottom:48px;}
+.stag{font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:5px;}
+.stag-dir{color:#B45309;}.stag-hd{color:#0369A1;}.stag-ex{color:#0891B2;}
+.stitle{font-size:21px;font-weight:700;color:var(--primary);margin-bottom:8px;padding-bottom:8px;display:inline-block;}
+.stitle-dir{border-bottom:3px solid #B45309;}.stitle-hd{border-bottom:3px solid #0369A1;}.stitle-ex{border-bottom:3px solid #0891B2;}
+.sdesc{color:var(--muted);margin-top:10px;margin-bottom:22px;max-width:800px;line-height:1.7;font-size:13px;}
+.toc{background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;}
+.toc h3{color:var(--primary);font-size:14px;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid var(--accent);display:inline-block;}
+.toc-list{list-style:none;}
+.toc-list li{padding:4px 0;font-size:12px;border-bottom:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;}
+.toc-list li:last-child{border:none;}
+.toc-list span{color:var(--muted);font-size:10px;}
+.pf-foot{text-align:center;padding:28px;color:var(--muted);font-size:11px;border-top:2px solid var(--border);margin-top:56px;}
+.chip{padding:2px 9px;border-radius:20px;font-size:9px;font-weight:600;display:inline-block;}
+.chip-r{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;}
+.chip-d{background:#DBEAFE;color:#1D4ED8;border:1px solid #BFDBFE;}
+.chip-g{background:#D1FAE5;color:#065F46;border:1px solid #A7F3D0;}
+.chip-y{background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;}
+.chip-p{background:#EDE9FE;color:#5B21B6;border:1px solid #DDD6FE;}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-tag">iinvsys ERP Bible V3 · Document 1 of 4 · Inside Sales Module</div>
+  <h1>Inside Sales – Complete Role Specification</h1>
+  <h2>Sales Director · IS Head · IS Executive · All screens, all flows, no shared views</h2>
+  <div class="cover-meta">
+    <div><strong>Module</strong>IS-MODULE-01</div>
+    <div><strong>Version</strong>3.0 Final</div>
+    <div><strong>Roles</strong>Director · IS Head · IS Executive</div>
+    <div><strong>Total Screens</strong>15</div>
+    <div><strong>Feeds Into</strong>Sales SPENCO Module</div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- HIERARCHY OVERVIEW -->
+<div style="background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;">
+  <div style="font-size:14px;font-weight:700;color:var(--primary);margin-bottom:16px;border-bottom:2px solid var(--accent);padding-bottom:7px;display:inline-block;">Inside Sales Org Chart & Data Access</div>
+  <div style="display:flex;gap:0;flex-direction:column;">
+    <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#FEF3C7;border-radius:8px;margin-bottom:6px;border:1px solid #FDE68A;">
+      <div class="av av-dir" style="width:36px;height:36px;font-size:14px;">SD</div>
+      <div><div style="font-size:13px;font-weight:700;color:#92400E;">Sales Director</div><div style="font-size:11px;color:#B45309;margin-top:2px;">Sees EVERYTHING: all IS Execs, all IS Heads, all leads, all activity logs per customer. Can create leads & assign anywhere. Full analytics.</div></div>
+      <div class="rb rb-dir" style="margin-left:auto;flex-shrink:0;">DIRECTOR</div>
+    </div>
+    <div style="padding-left:40px;border-left:2px solid var(--border);margin:0 20px 6px;padding-top:4px;padding-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:#DBEAFE;border-radius:8px;margin-bottom:6px;border:1px solid #BFDBFE;">
+        <div class="av av-hd" style="width:36px;height:36px;font-size:14px;">IH</div>
+        <div><div style="font-size:13px;font-weight:700;color:#1E40AF;">IS Head</div><div style="font-size:11px;color:#1D4ED8;margin-top:2px;">Sees all IS Execs under them. Assigns/reassigns leads. Views per-exec activity logs. Approves handoffs to Sales. Cannot see Sales pipeline.</div></div>
+        <div class="rb rb-hd" style="margin-left:auto;flex-shrink:0;">IS HEAD</div>
+      </div>
+      <div style="padding-left:40px;border-left:2px solid var(--border);margin:0 20px;padding-top:4px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#D1FAE5;border-radius:8px;border:1px solid #A7F3D0;min-width:220px;">
+            <div class="av av-g" style="font-size:9px;">EX1</div>
+            <div><div style="font-size:12px;font-weight:700;color:#065F46;">IS Executive</div><div style="font-size:10px;color:#047857;">Sees ONLY their own leads. Logs activities per customer. Runs BANT. Requests handoffs.</div></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#D1FAE5;border-radius:8px;border:1px solid #A7F3D0;min-width:220px;">
+            <div class="av av-g" style="font-size:9px;">EX2</div>
+            <div><div style="font-size:12px;font-weight:700;color:#065F46;">IS Executive</div><div style="font-size:10px;color:#047857;">Sees ONLY their own leads. Logs activities per customer. Runs BANT. Requests handoffs.</div></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#D1FAE5;border-radius:8px;border:1px solid #A7F3D0;min-width:220px;">
+            <div class="av av-g" style="font-size:9px;">EX3</div>
+            <div><div style="font-size:12px;font-weight:700;color:#065F46;">IS Executive</div><div style="font-size:10px;color:#047857;">Sees ONLY their own leads. Logs activities per customer. Runs BANT. Requests handoffs.</div></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:10px;padding:10px 14px;background:#D1FAE5;border-radius:8px;border:1px solid #A7F3D0;min-width:220px;">
+            <div class="av av-g" style="font-size:9px;">EX4</div>
+            <div><div style="font-size:12px;font-weight:700;color:#065F46;">IS Executive</div><div style="font-size:10px;color:#047857;">Sees ONLY their own leads. Logs activities per customer. Runs BANT. Requests handoffs.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul class="toc-list">
+    <li><span class="rb rb-dir" style="font-size:9px;padding:2px 8px;">DIRECTOR</span>&nbsp;IS-DIR-01 · IS Team Command Dashboard — all execs, all leads, all KPIs <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;padding:2px 8px;">DIRECTOR</span>&nbsp;IS-DIR-02 · IS Exec Drill-Down — select any exec, full activity history <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;padding:2px 8px;">DIRECTOR</span>&nbsp;IS-DIR-03 · Director Lead Capture & Assignment <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;padding:2px 8px;">DIRECTOR</span>&nbsp;IS-DIR-04 · Customer 360 View (IS-level) — full interaction history <span>DIRECTOR</span></li>
+    <li><span class="rb rb-dir" style="font-size:9px;padding:2px 8px;">DIRECTOR</span>&nbsp;IS-DIR-05 · IS Analytics & Source Reports <span>DIRECTOR</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;padding:2px 8px;">IS HEAD</span>&nbsp;IS-HD-01 · IS Head Dashboard — my team, my leads, KPIs <span>IS HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;padding:2px 8px;">IS HEAD</span>&nbsp;IS-HD-02 · Lead Assignment & Routing Screen <span>IS HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;padding:2px 8px;">IS HEAD</span>&nbsp;IS-HD-03 · Exec Performance & Activity Log View <span>IS HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;padding:2px 8px;">IS HEAD</span>&nbsp;IS-HD-04 · Sales Handoff Approval Queue <span>IS HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;padding:2px 8px;">IS HEAD</span>&nbsp;IS-HD-05 · IS Team Reports <span>IS HEAD</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;padding:2px 8px;background:#065F46;">IS EXEC</span>&nbsp;IS-EX-01 · My Dashboard — my leads, my tasks, my targets <span>IS EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;padding:2px 8px;background:#065F46;">IS EXEC</span>&nbsp;IS-EX-02 · My Lead List <span>IS EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;padding:2px 8px;background:#065F46;">IS EXEC</span>&nbsp;IS-EX-03 · Lead Detail & Customer Activity Log <span>IS EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;padding:2px 8px;background:#065F46;">IS EXEC</span>&nbsp;IS-EX-04 · Log Activity (Call / Visit / Email / WhatsApp) <span>IS EXEC</span></li>
+    <li><span class="rb rb-ex" style="font-size:9px;padding:2px 8px;background:#065F46;">IS EXEC</span>&nbsp;IS-EX-05 · BANT Qualification + Request Handoff to Sales <span>IS EXEC</span></li>
+  </ul>
+</div>
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║   SALES DIRECTOR SCREENS                ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+
+<div class="role-banner rb-dir-banner">
+  <div class="role-icon">👑</div>
+  <div class="role-info">
+    <h2>Sales Director — Inside Sales View</h2>
+    <p>The Sales Director has complete visibility into the entire Inside Sales function. They can create leads themselves from CXO meetings, trade shows, ministry contacts, or strategic accounts, and assign directly to any IS Executive or even bypass IS and put the lead straight into the Sales pipeline as a hot prospect. They see every exec's activity log, every customer interaction, and full team analytics.</p>
+    <ul>
+      <li>Creates and assigns leads to any team member</li>
+      <li>Views all IS Exec's leads and per-customer activity logs</li>
+      <li>Sees team-level and company-level KPIs</li>
+      <li>Can approve or override handoffs to Sales</li>
+    </ul>
+  </div>
+  <div class="rb rb-dir" style="flex-shrink:0;align-self:flex-start;">DIRECTOR</div>
+</div>
+
+<!-- IS-DIR-01 -->
+<div class="section">
+  <div class="stag stag-dir">Screen IS-DIR-01 · Sales Director</div>
+  <div class="stitle stitle-dir">IS Team Command Dashboard</div>
+  <p class="sdesc">The Sales Director's morning view of the entire Inside Sales function. All 4 IS Executives shown side by side — leads assigned, contacted, qualified, lost — with colour-coded performance indicators. Unassigned leads highlighted for immediate action. Quick-access to create a new lead or drill into any exec.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-dir">IS-DIR-01 · Director — IS Team Command Dashboard <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 SALES DIRECTOR</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/director/inside-sales/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-dir">
+        <div class="sb-logo"><div class="sb-logo-t">iinvsys</div><div class="sb-logo-s sd-s">Director Portal</div></div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">Inside Sales</div>
+          <div class="sb-item act-d"><span>📊</span>IS Command Center</div>
+          <div class="sb-item"><span>🗂</span>All IS Leads <span class="cnt">84</span></div>
+          <div class="sb-item"><span>➕</span>Create & Assign Lead</div>
+          <div class="sb-item"><span>👥</span>IS Exec Performance</div>
+          <div class="sb-item"><span>📈</span>IS Analytics</div>
+        </div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">Sales</div>
+          <div class="sb-item"><span>💰</span>Sales Pipeline</div>
+          <div class="sb-item"><span>✅</span>Approvals <span class="cnt">3</span></div>
+          <div class="sb-item"><span>📊</span>Sales Reports</div>
+        </div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">Operations</div>
+          <div class="sb-item"><span>🏭</span>Production View</div>
+          <div class="sb-item"><span>🔧</span>Installation View</div>
+          <div class="sb-item"><span>🎧</span>CS Overview</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-dir">SD</div><div><div style="font-size:11px;color:white;font-weight:600;">Sales Director</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Full Access</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar">
+          <div class="topbar-t">IS Team Dashboard — Aug 2026</div>
+          <div class="ta">
+            <select class="ifield" style="width:auto;padding:4px 10px;font-size:11px;"><option>Aug 2026</option><option>Q2 FY27</option></select>
+            <button class="btn btn-dir">➕ Create Lead & Assign</button>
+            <button class="btn btn-o btn-sm">⬇ Export</button>
+          </div>
+        </div>
+        <div class="ca">
+          <!-- Team KPIs -->
+          <div class="grid g5">
+            <div class="card"><div class="card-l">Total Active Leads</div><div class="card-v">84</div><div class="card-d">↑ 12 vs last month</div></div>
+            <div class="card"><div class="card-l">Qualified → Sales</div><div class="card-v" style="color:var(--success);">31</div><div class="card-d">37% qual. rate</div></div>
+            <div class="card"><div class="card-l">Unassigned</div><div class="card-v" style="color:var(--danger);">7</div><div class="card-d card-d" style="color:var(--danger);">Action needed</div></div>
+            <div class="card"><div class="card-l">Avg. Response Time</div><div class="card-v">1.8h</div><div class="card-d">Target: &lt;2h ✓</div></div>
+            <div class="card"><div class="card-l">Handoffs Pending</div><div class="card-v" style="color:var(--warning);">5</div><div class="card-d">Awaiting IS Head</div></div>
+          </div>
+
+          <!-- Per-exec performance table — DIRECTOR ONLY -->
+          <div class="tbl">
+            <div class="tbl-h">
+              <div class="tbl-t">👥 IS Executive Performance — Aug 2026 <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:8px;">Click any exec row to drill into their leads and activity</span></div>
+              <button class="btn btn-dir btn-sm">➕ Create Lead & Assign</button>
+            </div>
+            <table>
+              <tr><th>IS Executive</th><th>Assigned</th><th>Contacted</th><th>Qualified</th><th>Lost</th><th>Qual. Rate</th><th>Avg Response</th><th>vs Target</th><th>Last Activity</th><th>Action</th></tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-g" style="font-size:9px;">PK</div><div><div style="font-weight:700;">Priya Krishnan</div><div style="font-size:10px;color:var(--muted);">Sr. IS Executive</div></div></div></td>
+                <td>22</td><td>21</td><td style="color:var(--success);font-weight:700;">11</td><td>2</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:91%;background:var(--success);"></div></div><span style="font-size:10px;font-weight:700;color:var(--success);">91%</span></div></td>
+                <td>1.2h</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:92%;background:var(--success);"></div></div><span style="font-size:10px;">92%</span></div></td>
+                <td style="font-size:10px;">Today 9:15 AM</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-o" style="font-size:9px;">RV</div><div><div style="font-weight:700;">Rajan V.</div><div style="font-size:10px;color:var(--muted);">IS Executive</div></div></div></td>
+                <td>18</td><td>15</td><td style="color:var(--warning);font-weight:700;">6</td><td>4</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:60%;background:var(--warning);"></div></div><span style="font-size:10px;font-weight:700;color:var(--warning);">60%</span></div></td>
+                <td style="color:var(--danger);">2.8h ⚠</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:60%;background:var(--warning);"></div></div><span style="font-size:10px;color:var(--warning);">60%</span></div></td>
+                <td style="font-size:10px;color:var(--warning);">Yesterday 4 PM ⚠</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av av-hd" style="font-size:9px;">SM</div><div><div style="font-weight:700;">Suha M.</div><div style="font-size:10px;color:var(--muted);">IS Executive</div></div></div></td>
+                <td>20</td><td>20</td><td style="color:var(--success);font-weight:700;">10</td><td>2</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:83%;background:var(--success);"></div></div><span style="font-size:10px;font-weight:700;color:var(--success);">83%</span></div></td>
+                <td>1.5h</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:83%;background:var(--success);"></div></div><span style="font-size:10px;">83%</span></div></td>
+                <td style="font-size:10px;">Today 11:30 AM</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;"><div class="av" style="background:#7C3AED;font-size:9px;">AK</div><div><div style="font-weight:700;">Arun K.</div><div style="font-size:10px;color:var(--muted);">IS Executive (New)</div></div></div></td>
+                <td>12</td><td>9</td><td style="color:var(--muted);font-weight:700;">4</td><td>1</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:44%;background:var(--muted);"></div></div><span style="font-size:10px;color:var(--muted);">44%</span></div></td>
+                <td>2.1h</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:44%;background:var(--muted);"></div></div><span style="font-size:10px;color:var(--muted);">44%</span></div></td>
+                <td style="font-size:10px;">Today 8:00 AM</td>
+                <td><button class="btn btn-dir btn-sm">Drill Down →</button></td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="warn" style="margin-top:12px;">⚠ <strong>7 leads unassigned</strong> — waiting &gt;4 hours. Rajan V. has not logged any activity in 20+ hours. <button class="btn btn-w btn-sm" style="margin-left:10px;">Assign Unassigned Leads →</button> <button class="btn btn-o btn-sm" style="margin-left:6px;">View Rajan's Activity</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="ann-n ann-dir">1</div><div class="ann-b"><div class="ann-t">Last Activity Column</div><div class="ann-d">Director sees when each exec last logged an activity. If an exec goes 24h without any log, the cell turns orange. 48h turns red. This replaces the need for the Director to ask "what did you do today?" — the system answers.</div></div></div>
+  <div class="ann"><div class="ann-n ann-dir">2</div><div class="ann-b"><div class="ann-t">One-click Lead Creation</div><div class="ann-d">The "➕ Create Lead & Assign" button at the top and in the table header both open the Director Lead Capture form (IS-DIR-03). Director can pre-fill the exec name and submit — that exec gets an instant notification.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- IS-DIR-02 -->
+<div class="section">
+  <div class="stag stag-dir">Screen IS-DIR-02 · Sales Director</div>
+  <div class="stitle stitle-dir">IS Exec Drill-Down — Full Activity View</div>
+  <p class="sdesc">When the Director clicks any exec row, this screen opens. Shows all leads assigned to that exec with complete per-customer activity logs. The Director can see every call, email, visit, and WhatsApp sent by that exec for any lead. Private coaching notes can be added (never visible to the exec).</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-dir">IS-DIR-02 · Director Drill-Down — Rajan V. <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 SALES DIRECTOR</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/director/inside-sales/exec/rajan-v</div></div>
+    <div class="shell" style="min-height:500px;">
+      <div class="sb sb-dir"><div class="sb-logo"><div class="sb-logo-t">iinvsys</div></div><div class="sb-sec"><div class="sb-item act-d"><span>📊</span>IS Command Center</div><div class="sb-item"><span>👥</span>IS Exec Performance</div></div></div>
+      <div class="main">
+        <div class="topbar">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="font-size:11px;color:var(--muted);">← IS Dashboard /</div>
+            <div style="background:white;border:1px solid var(--border);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
+              <div class="av av-o" style="font-size:9px;">RV</div>
+              <div><div style="font-size:12px;font-weight:700;">Rajan V.</div><div style="font-size:10px;color:var(--muted);">IS Executive · 18 Leads</div></div>
+              <select class="ifield" style="width:auto;padding:3px 8px;font-size:10px;margin-left:8px;"><option>Switch Exec ▼</option><option>Priya K.</option><option>Suha M.</option><option>Arun K.</option></select>
+            </div>
+          </div>
+          <div class="ta">
+            <button class="btn btn-o btn-sm">📝 Add Coaching Note</button>
+            <button class="btn btn-dir btn-sm">🔁 Reassign Selected</button>
+            <button class="btn btn-dir btn-sm">➕ Add Lead to Rajan</button>
+          </div>
+        </div>
+        <div class="ca">
+          <!-- Rajan's KPIs -->
+          <div class="grid g4" style="margin-bottom:14px;">
+            <div class="card"><div class="card-l">Assigned Leads</div><div class="card-v">18</div><div class="card-d">Aug 2026</div></div>
+            <div class="card"><div class="card-l">Qualified</div><div class="card-v" style="color:var(--warning);">6</div><div class="card-d" style="color:var(--warning);">33% — Below target</div></div>
+            <div class="card"><div class="card-l">Avg Response</div><div class="card-v" style="color:var(--danger);">2.8h</div><div class="card-d" style="color:var(--danger);">Target: &lt;2h ⚠</div></div>
+            <div class="card"><div class="card-l">Activities Logged</div><div class="card-v">24</div><div class="card-d">Calls: 12, Emails: 9, Visits: 3</div></div>
+          </div>
+          <!-- Private coaching note -->
+          <div style="background:#FFFBEB;border:1.5px solid #FCD34D;border-radius:8px;padding:12px 16px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:#92400E;margin-bottom:6px;">📝 Director Coaching Note — Rajan V. <span style="font-size:10px;font-weight:400;opacity:.7;">(Private — not visible to Rajan or IS Head)</span></div>
+            <div style="font-size:11px;color:var(--text);line-height:1.6;">Response time consistently above 2h. Call script needs work — discovery questions too surface-level. Suggested shadow call with Priya K. on 22 Aug. No follow-through on ICF Chennai lead in 5 days.</div>
+            <div style="margin-top:8px;"><button class="btn btn-o btn-sm">Edit Note</button></div>
+          </div>
+          <!-- Lead list with activity summary -->
+          <div class="tbl">
+            <div class="tbl-h"><div class="tbl-t">Rajan's Lead List — Director View (18 leads)</div><div style="display:flex;gap:6px;"><button class="btn btn-dir btn-sm">➕ Add Lead to Rajan</button><button class="btn btn-o btn-sm">🔁 Bulk Reassign</button></div></div>
+            <table>
+              <tr><th>Lead / Company</th><th>Domain</th><th>Status</th><th>Last Activity</th><th>Activity Count</th><th>BANT</th><th>Days in Queue</th><th>Director Action</th></tr>
+              <tr>
+                <td><div style="font-weight:700;">K. Subramaniam</div><div style="font-size:10px;color:var(--muted);">ICF Chennai</div></td>
+                <td><span class="chip chip-d">Railways</span></td><td><span class="st st-new">New</span></td>
+                <td style="color:var(--danger);font-size:10px;">No contact — 5 days ⚠</td>
+                <td style="color:var(--danger);font-weight:700;">0 activities</td>
+                <td style="color:var(--muted);font-size:10px;">Not started</td>
+                <td style="color:var(--danger);font-weight:700;">5</td>
+                <td><button class="btn btn-d btn-sm">Reassign</button></td>
+              </tr>
+              <tr>
+                <td><div style="font-weight:700;">Dilip Nair</div><div style="font-size:10px;color:var(--muted);">BHEL Trichy</div></td>
+                <td><span class="chip chip-d">Railways</span></td><td><span class="st st-cnt">Contacted</span></td>
+                <td style="font-size:10px;">Yesterday · Email</td>
+                <td style="font-weight:700;color:var(--success);">3 activities</td>
+                <td style="font-size:10px;color:var(--warning);">Budget: ✓ Rest: ✗</td>
+                <td>3</td>
+                <td><button class="btn btn-o btn-sm">View Detail</button></td>
+              </tr>
+              <tr>
+                <td><div style="font-weight:700;">Meera S.</div><div style="font-size:10px;color:var(--muted);">Ashok Leyland</div></td>
+                <td><span class="chip chip-r">Automotive</span></td><td><span class="st st-qual">Qualified</span></td>
+                <td style="font-size:10px;">18 Aug · Call</td>
+                <td style="font-weight:700;color:var(--success);">6 activities</td>
+                <td style="font-size:10px;color:var(--success);">All 4 ✓</td>
+                <td>8</td>
+                <td><button class="btn btn-o btn-sm">View Detail</button></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="ann-n ann-dir">1</div><div class="ann-b"><div class="ann-t">Activity Count Column</div><div class="ann-d">Director can immediately see which leads have had zero activities. K. Subramaniam at ICF Chennai — 5 days, 0 activities — is an instant red flag. The Director can reassign with one click or open the lead to see the full context before deciding.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- IS-DIR-03 -->
+<div class="section">
+  <div class="stag stag-dir">Screen IS-DIR-03 · Sales Director</div>
+  <div class="stitle stitle-dir">Director Lead Capture & Assignment</div>
+  <p class="sdesc">The Sales Director captures leads from board-level meetings, trade shows, ministry contacts, or strategic referrals. This is the most important new screen in V3. The Director fills all details and chooses: (a) assign to IS Executive for nurturing, (b) assign directly to a Sales Executive bypassing IS, or (c) mark as a Director-managed lead and keep it themselves temporarily.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-dir">IS-DIR-03 · Director — Create Lead & Assign <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 SALES DIRECTOR</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/director/leads/new</div></div>
+    <div class="shell" style="min-height:540px;">
+      <div class="sb sb-dir"><div class="sb-logo"><div class="sb-logo-t">iinvsys</div></div><div class="sb-sec"><div class="sb-item act-d"><span>➕</span>Create Lead & Assign</div></div></div>
+      <div class="main">
+        <div class="topbar"><div class="topbar-t">New Lead — Director Origination</div><div class="ta"><button class="btn btn-o btn-sm">Cancel</button><button class="btn btn-dir">💾 Save & Assign Lead</button></div></div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+            <div style="background:white;border-radius:8px;border:1px solid var(--border);padding:18px;">
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:14px;border-bottom:2px solid #B45309;padding-bottom:6px;display:inline-block;">Lead Information</div>
+              <div class="fg">
+                <div class="fgr"><flabel>First Name *</flabel><input class="ifield" placeholder="e.g. Rajesh"></div>
+                <div class="fgr"><flabel>Last Name *</flabel><input class="ifield" placeholder="e.g. Kumar"></div>
+                <div class="fgr"><flabel>Company / Organisation *</flabel><input class="ifield" placeholder="e.g. DMRC Delhi"></div>
+                <div class="fgr"><flabel>Designation *</flabel><input class="ifield" placeholder="e.g. General Manager – Projects"></div>
+                <div class="fgr"><flabel>Email</flabel><input class="ifield" type="email" placeholder="email@company.com"></div>
+                <div class="fgr"><flabel>Mobile *</flabel><input class="ifield" placeholder="+91 XXXXX XXXXX"></div>
+                <div class="fgr"><flabel>Domain *</flabel>
+                  <select class="ifield"><option>Railways</option><option>Defence</option><option>Space / Satellite</option><option>IoT / IIoT</option><option>Automotive</option><option>Other</option></select>
+                </div>
+                <div class="fgr"><flabel>Lead Source *</flabel>
+                  <select class="ifield"><option>Director Origination — Board Meeting</option><option>Director Origination — Trade Show / Expo</option><option>Director Origination — Ministry Contact</option><option>Director Origination — Strategic Referral</option><option>Director Origination — CXO Relationship</option><option>Inbound Email</option><option>Website Form</option><option>LinkedIn</option><option>Referral (Other)</option></select>
+                </div>
+                <div class="fgr full"><flabel>Context / Intelligence</flabel><textarea class="ifield" style="height:80px;" placeholder="Key context from the meeting / call. What problem are they trying to solve? Any budget signals? Timeline? Who else is involved in the decision?"></textarea></div>
+                <div class="fgr"><flabel>Estimated Opportunity Size</flabel><input class="ifield" placeholder="e.g. ₹2–5 Cr (estimate)"></div>
+                <div class="fgr"><flabel>Priority</flabel><select class="ifield"><option>🔥 Hot — Needs immediate contact</option><option>⚡ High — Contact within 24h</option><option>Normal — Assign to IS queue</option></select></div>
+              </div>
+            </div>
+            <!-- Assignment Panel — KEY DIRECTOR-ONLY FEATURE -->
+            <div>
+              <div style="background:white;border-radius:8px;border:2px solid #B45309;padding:16px;margin-bottom:12px;">
+                <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:12px;">🎯 Assignment — Where does this lead go?</div>
+                <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;">
+                  <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;background:#FFFBEB;border-radius:6px;border:1px solid #FCD34D;cursor:pointer;">
+                    <input type="radio" name="assign" style="margin-top:2px;">
+                    <div><div style="font-weight:700;color:#92400E;">Assign to IS Executive</div><div style="font-size:10px;color:#B45309;margin-top:2px;">IS Exec nurtures, qualifies via BANT, then requests handoff to Sales</div></div>
+                  </label>
+                  <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;background:#EFF6FF;border-radius:6px;border:1px solid #BFDBFE;cursor:pointer;">
+                    <input type="radio" name="assign" checked style="margin-top:2px;">
+                    <div><div style="font-weight:700;color:#1E40AF;">Bypass IS → Assign to Sales Executive</div><div style="font-size:10px;color:#1D4ED8;margin-top:2px;">Hot lead goes straight to Sales as Prospect in SPENCO. IS qualification skipped.</div></div>
+                  </label>
+                  <label style="display:flex;align-items:flex-start;gap:8px;padding:10px;background:#F0FDF4;border-radius:6px;border:1px solid #A7F3D0;cursor:pointer;">
+                    <input type="radio" name="assign" style="margin-top:2px;">
+                    <div><div style="font-weight:700;color:#065F46;">Director Managed — Hold for now</div><div style="font-size:10px;color:#047857;margin-top:2px;">Lead stays in Director's queue. Director handles initial outreach personally.</div></div>
+                  </label>
+                </div>
+                <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+                  <flabel>Assign To *</flabel>
+                  <select class="ifield" style="margin-bottom:10px;"><option>— Select Team Member —</option><optgroup label="Sales Executives (Bypass IS)"><option>Vikram Nair — Sales Exec (Railways)</option><option>Anjali S. — Sales Exec (Automotive)</option><option>Karthik R. — Sales Exec (Defence)</option></optgroup><optgroup label="IS Executives"><option>Priya Krishnan — IS Exec</option><option>Rajan V. — IS Exec</option><option>Suha M. — IS Exec</option><option>Arun K. — IS Exec</option></optgroup></select>
+                  <flabel>Target First Contact Date *</flabel>
+                  <input class="ifield" type="date">
+                </div>
+              </div>
+              <div style="background:#EFF6FF;border-radius:8px;border:1px solid #BFDBFE;padding:12px;font-size:11px;color:#1E3A5F;line-height:1.7;">
+                <strong>What happens after Save:</strong><br>
+                ✓ Lead ID (IS-2026-XXXX) generated<br>
+                ✓ Assigned person gets instant notification<br>
+                ✓ If "Bypass IS" → Deal auto-created in SPENCO at Prospect stage<br>
+                ✓ Activity log started on the customer record<br>
+                ✓ Director notified when first contact is made
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="ann-n ann-dir">1</div><div class="ann-b"><div class="ann-t">Bypass IS — Critical Feature</div><div class="ann-d">When the Sales Director meets a CXO at a Railways board meeting, that lead does not need IS nurturing — it's already warm. The "Bypass IS → Assign to Sales Executive" option creates the lead AND opens a Prospect-stage deal in SPENCO simultaneously. The Sales Exec gets everything pre-filled.</div></div></div>
+  <div class="ann"><div class="ann-n ann-dir">2</div><div class="ann-b"><div class="ann-t">Director Managed Hold</div><div class="ann-d">Sometimes the Director wants to make the first call personally before handing off. "Director Managed" keeps the lead in a special Director queue — it doesn't disappear into an exec's list. Once the Director logs initial contact, they can reassign with context already recorded.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- IS-DIR-04 Customer 360 -->
+<div class="section">
+  <div class="stag stag-dir">Screen IS-DIR-04 · Sales Director</div>
+  <div class="stitle stitle-dir">Customer 360 View (IS Level)</div>
+  <p class="sdesc">The most powerful view for the Sales Director. Any company/customer searched here shows the COMPLETE interaction history — every call, email, visit, and WhatsApp logged by ANY IS Executive or Sales Executive against this company, across all time. The Director sees the full picture before any important meeting.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-dir">IS-DIR-04 · Director — Customer 360 View: ICF Chennai <span class="badge">DIRECTOR ONLY</span><span class="rb rb-dir ml" style="font-size:10px;">👑 SALES DIRECTOR</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/director/customer/ICF-Chennai</div></div>
+    <div class="shell" style="min-height:500px;">
+      <div class="sb sb-dir"><div class="sb-logo"><div class="sb-logo-t">iinvsys</div></div><div class="sb-sec"><div class="sb-item act-d"><span>🏢</span>Customer 360</div></div></div>
+      <div class="main">
+        <div class="topbar">
+          <div style="display:flex;align-items:center;gap:10px;"><div style="font-size:11px;color:var(--muted);">Search Customer:</div><input class="ifield" style="width:240px;" value="ICF Chennai" placeholder="Company name…"></div>
+          <div class="ta"><button class="btn btn-dir btn-sm">➕ Log Activity on this Customer</button><button class="btn btn-dir btn-sm">➕ Create Lead for this Company</button></div>
+        </div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;">
+            <!-- Company card -->
+            <div>
+              <div class="card" style="margin-bottom:12px;">
+                <div style="font-size:16px;font-weight:700;color:var(--primary);margin-bottom:2px;">ICF Chennai</div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">Integral Coach Factory — Indian Railways PSU</div>
+                <div class="dr"><span class="dr-l">Domain</span><span class="dr-v"><span class="chip chip-d">Railways</span></span></div>
+                <div class="dr"><span class="dr-l">City</span><span class="dr-v">Chennai</span></div>
+                <div class="dr"><span class="dr-l">Active Leads</span><span class="dr-v" style="color:var(--danger);">1 (stale)</span></div>
+                <div class="dr"><span class="dr-l">Active Deals</span><span class="dr-v">0</span></div>
+                <div class="dr"><span class="dr-l">Total Interactions</span><span class="dr-v">4</span></div>
+                <div class="dr"><span class="dr-l">Last Contact</span><span class="dr-v" style="color:var(--danger);">15 Aug 2026 ⚠</span></div>
+              </div>
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;">Contacts at ICF</div>
+                <div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--border);">K. Subramaniam · Sr. Manager – Procurement</div>
+                <div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--border);">V. Krishnaswamy · DGM – Rolling Stock</div>
+                <div style="font-size:11px;padding:6px 0;">R. Balachandran · GM (Technical)</div>
+                <button class="btn btn-o btn-sm" style="margin-top:10px;width:100%;">+ Add Contact</button>
+              </div>
+            </div>
+            <!-- Activity timeline — ALL team members' activities shown -->
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">Complete Interaction Timeline — All Team Members</div>
+              <div class="act-item" style="border-left:3px solid #0369A1;">
+                <div class="act-icon ai-email">📧</div>
+                <div class="act-body">
+                  <div class="act-title">Email: Product capability overview sent</div>
+                  <div class="act-meta">Rajan V. (IS Executive) · 15 Aug 2026 · 10:30 AM · Lead: IS-2026-0047</div>
+                  <div class="act-note">Sent iinvsys IoT for Railways brochure + ConnectSei platform overview to K. Subramaniam. Awaiting acknowledgement.</div>
+                </div>
+              </div>
+              <div class="act-item" style="border-left:3px solid #B45309;">
+                <div class="act-icon ai-call">📞</div>
+                <div class="act-body">
+                  <div class="act-title">Call: Initial discovery — 18 minutes</div>
+                  <div class="act-meta">Rajan V. (IS Executive) · 10 Aug 2026 · 3:00 PM · Lead: IS-2026-0047</div>
+                  <div class="act-note">Connected with K. Subramaniam. ICF evaluating IoT for condition monitoring on LHB coaches. Budget discussion deferred — need DGM approval. Next step: send capability deck.</div>
+                </div>
+              </div>
+              <div class="act-item" style="border-left:3px solid #065F46;">
+                <div class="act-icon ai-email">📧</div>
+                <div class="act-body">
+                  <div class="act-title">Email: Initial outreach sent</div>
+                  <div class="act-meta">Rajan V. (IS Executive) · 5 Aug 2026 · 9:00 AM · Lead: IS-2026-0047</div>
+                  <div class="act-note">Cold outreach via LinkedIn connection. Introduced iinvsys Railways IoT capabilities.</div>
+                </div>
+              </div>
+              <div class="act-item" style="border-left:3px solid #D97706;opacity:.7;">
+                <div class="act-icon ai-email">📧</div>
+                <div class="act-body">
+                  <div class="act-title">Email: From Priya K. — earlier engagement (2025)</div>
+                  <div class="act-meta">Priya Krishnan (IS Executive) · 10 Nov 2025 · Lead: IS-2025-0112 (Closed)</div>
+                  <div class="act-note">Previous engagement in 2025 — Priya handled. ICF showed interest but no budget. Lead closed. Re-opened Aug 2026 by Rajan.</div>
+                </div>
+              </div>
+              <div class="warn">⚠ Last interaction was 6 days ago (15 Aug). Rajan has not followed up. Consider direct outreach or reassigning this lead.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║   IS HEAD SCREENS                       ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+
+<div class="role-banner rb-hd-banner">
+  <div class="role-icon">🏢</div>
+  <div class="role-info">
+    <h2>IS Head — Inside Sales Manager</h2>
+    <p>The IS Head manages all IS Executives directly. They assign and reassign leads, review each exec's activity logs per customer, approve handoffs to the Sales team, and track team performance. They CANNOT see Sales pipeline data, revenue figures, or other Sales Executives' deals.</p>
+    <ul>
+      <li>Assigns and reassigns leads among their IS Executives</li>
+      <li>Views per-customer activity logs for each exec</li>
+      <li>Approves or rejects Sales handoff requests</li>
+      <li>Sets daily/weekly targets per exec</li>
+    </ul>
+  </div>
+  <div class="rb rb-hd" style="flex-shrink:0;align-self:flex-start;">IS HEAD</div>
+</div>
+
+<!-- IS-HD-01 -->
+<div class="section">
+  <div class="stag stag-hd">Screen IS-HD-01 · IS Head</div>
+  <div class="stitle stitle-hd">IS Head Dashboard</div>
+  <p class="sdesc">The IS Head sees their team — all IS Executives, their lead counts, activity stats, and today's priority actions. They do NOT see revenue, Sales pipeline, or data from other departments.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-hd">IS-HD-01 · IS Head Dashboard <span class="badge">IS HEAD ONLY</span><span class="rb rb-hd ml" style="font-size:10px;">🏢 IS HEAD</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/is-head/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-hd">
+        <div class="sb-logo"><div class="sb-logo-t">iinvsys</div><div class="sb-logo-s sh-s">Inside Sales — Head</div></div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">My Team</div>
+          <div class="sb-item act-h"><span>📊</span>Team Dashboard</div>
+          <div class="sb-item"><span>🗂</span>All Team Leads <span class="cnt">72</span></div>
+          <div class="sb-item"><span>📌</span>Lead Assignment</div>
+          <div class="sb-item"><span>👥</span>Exec Activity View</div>
+          <div class="sb-item"><span>⏫</span>Handoff Queue <span class="cnt cnt-warn">5</span></div>
+        </div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">Reports</div>
+          <div class="sb-item"><span>📊</span>Team Reports</div>
+          <div class="sb-item"><span>🎯</span>Targets & Quotas</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-hd">IH</div><div><div style="font-size:11px;color:white;font-weight:600;">IS Head</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Team Manager</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar"><div class="topbar-t">IS Team Dashboard</div><div class="ta"><button class="btn btn-hd">+ Capture Lead</button></div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="card-l">Team Active Leads</div><div class="card-v">72</div><div class="card-d">↑ 8 vs last week</div></div>
+            <div class="card"><div class="card-l">Qualified This Month</div><div class="card-v" style="color:var(--success);">31</div><div class="card-d">38% qual. rate</div></div>
+            <div class="card"><div class="card-l">Unassigned</div><div class="card-v" style="color:var(--danger);">7</div><div class="card-d">Needs action</div></div>
+            <div class="card"><div class="card-l">Handoffs Pending</div><div class="card-v" style="color:var(--warning);">5</div><div class="card-d">Awaiting IS Head approval</div></div>
+          </div>
+          <div class="tbl">
+            <div class="tbl-h"><div class="tbl-t">Exec Performance — My Team</div><button class="btn btn-hd btn-sm">Set Targets</button></div>
+            <table>
+              <tr><th>IS Executive</th><th>Leads</th><th>Contacted</th><th>Qualified</th><th>Activity Today</th><th>vs Target</th><th>Action</th></tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:7px;"><div class="av av-g" style="font-size:9px;">PK</div><strong>Priya Krishnan</strong></div></td>
+                <td>22</td><td>21</td><td style="color:var(--success);font-weight:700;">11</td>
+                <td><span style="color:var(--success);">✓ 4 activities</span></td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:92%;background:var(--success);"></div></div><span style="font-size:10px;">92%</span></div></td>
+                <td><button class="btn btn-hd btn-sm">View Activity →</button></td>
+              </tr>
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:7px;"><div class="av av-o" style="font-size:9px;">RV</div><strong>Rajan V.</strong></div></td>
+                <td>18</td><td>15</td><td style="color:var(--warning);font-weight:700;">6</td>
+                <td><span style="color:var(--danger);">⚠ 0 activities today</span></td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:60px;"><div class="pf" style="width:60%;background:var(--warning);"></div></div><span style="font-size:10px;color:var(--warning);">60%</span></div></td>
+                <td><button class="btn btn-hd btn-sm">View Activity →</button></td>
+              </tr>
+            </table>
+          </div>
+          <div class="warn">⚠ Rajan V. has logged <strong>0 activities today</strong>. Last log was yesterday at 4:15 PM. Consider checking in before EOD.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- IS-HD-04 Handoff Queue -->
+<div class="section">
+  <div class="stag stag-hd">Screen IS-HD-04 · IS Head</div>
+  <div class="stitle stitle-hd">Sales Handoff Approval Queue</div>
+  <p class="sdesc">When an IS Executive qualifies a lead and requests handoff to Sales, it lands here. The IS Head reviews the BANT details, activity history, and decides: approve to Sales, send back for more qualification, or escalate to Director.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-hd">IS-HD-04 · Handoff Approval Queue (5 pending) <span class="badge">IS HEAD ONLY</span><span class="rb rb-hd ml" style="font-size:10px;">🏢 IS HEAD</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/is-head/handoff-queue</div></div>
+    <div class="shell" style="min-height:420px;">
+      <div class="sb sb-hd"><div class="sb-logo"><div class="sb-logo-t">iinvsys</div></div><div class="sb-sec"><div class="sb-item act-h"><span>⏫</span>Handoff Queue</div></div></div>
+      <div class="main">
+        <div class="topbar"><div class="topbar-t">Sales Handoff Queue — 5 Pending Approval</div></div>
+        <div class="ca">
+          <!-- Handoff card -->
+          <div style="background:white;border-radius:8px;border:1.5px solid #A7F3D0;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+              <div><div style="font-size:14px;font-weight:700;color:var(--primary);">Meera S. — Ashok Leyland, Pune</div><div style="font-size:11px;color:var(--muted);">Lead IS-2026-0058 · Handled by Rajan V. · 8 days in IS</div></div>
+              <span class="chip chip-r" style="font-size:10px;padding:3px 10px;">Automotive</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div style="background:var(--light);border-radius:6px;padding:10px;">
+                <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">BANT Qualification</div>
+                <div class="dr"><span class="dr-l">Budget</span><span class="dr-v" style="color:var(--success);">₹80–120L confirmed ✓</span></div>
+                <div class="dr"><span class="dr-l">Authority</span><span class="dr-v" style="color:var(--success);">GM – Manufacturing ✓</span></div>
+                <div class="dr"><span class="dr-l">Need</span><span class="dr-v" style="color:var(--success);">IIoT for factory line ✓</span></div>
+                <div class="dr"><span class="dr-l">Timeline</span><span class="dr-v" style="color:var(--success);">Q1 FY27 (Jan 2027) ✓</span></div>
+              </div>
+              <div style="background:var(--light);border-radius:6px;padding:10px;">
+                <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Activity Summary</div>
+                <div class="dr"><span class="dr-l">Total Interactions</span><span class="dr-v">6</span></div>
+                <div class="dr"><span class="dr-l">Calls</span><span class="dr-v">3 (avg 14 min)</span></div>
+                <div class="dr"><span class="dr-l">Emails</span><span class="dr-v">2</span></div>
+                <div class="dr"><span class="dr-l">Site Visit</span><span class="dr-v" style="color:var(--success);">1 ✓</span></div>
+              </div>
+            </div>
+            <div style="font-size:11px;background:#EFF6FF;border-radius:6px;padding:10px;margin-bottom:12px;line-height:1.6;"><strong>Exec Notes:</strong> Meera S. is the decision point. GM confirmed budget allocation in their FY27 plan. Competitor Bosch mentioned — they haven't done a demo yet. We have a 3-week window before Bosch visits. Recommend fast-tracking to Sales for demo + proposal.</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-s" style="flex:1;">✅ Approve Handoff → Sales</button>
+              <button class="btn btn-w">↩ Return for More Qualification</button>
+              <button class="btn btn-o">⬆ Escalate to Director</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ╔══════════════════════════════════════════╗ -->
+<!-- ║   IS EXECUTIVE SCREENS                  ║ -->
+<!-- ╚══════════════════════════════════════════╝ -->
+
+<div class="role-banner" style="background:linear-gradient(90deg,#022c22,#064e3b);">
+  <div class="role-icon">🧑‍💼</div>
+  <div class="role-info">
+    <h2>IS Executive / SDR — My Work Only</h2>
+    <p>The IS Executive sees only their own assigned leads. They log every customer interaction (calls, emails, visits, WhatsApp) against the customer record — not just the deal. They run BANT qualification and request handoff when a lead is ready for Sales. They CANNOT see other execs' leads, team KPIs, or Sales pipeline data.</p>
+    <ul>
+      <li>Every interaction logged per customer (not just per lead)</li>
+      <li>Tasks auto-generated from activity outcomes</li>
+      <li>BANT progress tracked in real time</li>
+      <li>Personal targets visible — no peer comparison shown</li>
+    </ul>
+  </div>
+  <div style="background:#065F46;color:#D1FAE5;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;flex-shrink:0;align-self:flex-start;">IS EXECUTIVE</div>
+</div>
+
+<!-- IS-EX-01 -->
+<div class="section">
+  <div class="stag stag-ex">Screen IS-EX-01 · IS Executive</div>
+  <div class="stitle stitle-ex">My Dashboard — My Leads, My Tasks, My Targets</div>
+  <p class="sdesc">The IS Executive's personal command center. Shows only their own leads, their tasks due today (auto-created from logged activity outcomes), their personal target progress, and their recent activity log. No team data, no other exec's numbers.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-ex">IS-EX-01 · IS Executive Dashboard — Rajan V. <span class="badge">EXEC ONLY</span><span style="background:#065F46;color:#D1FAE5;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;margin-left:auto;">🧑‍💼 IS EXECUTIVE</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/is-exec/my-dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-ex">
+        <div class="sb-logo"><div class="sb-logo-t">iinvsys</div><div class="sb-logo-s se-s">My Inside Sales</div></div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">My Work</div>
+          <div class="sb-item act-e"><span>📊</span>My Dashboard</div>
+          <div class="sb-item"><span>🗂</span>My Leads <span class="cnt">18</span></div>
+          <div class="sb-item"><span>✅</span>My Tasks <span class="cnt cnt-warn">5</span></div>
+          <div class="sb-item"><span>📞</span>Log Activity</div>
+        </div>
+        <div class="sb-sec">
+          <div class="sb-sec-l">Actions</div>
+          <div class="sb-item"><span>➕</span>Capture Lead</div>
+          <div class="sb-item"><span>⏫</span>Request Handoff</div>
+          <div class="sb-item"><span>📈</span>My Performance</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-o">RV</div><div><div style="font-size:11px;color:white;font-weight:600;">Rajan V.</div><div style="font-size:9px;color:rgba(255,255,255,.5);">IS Executive</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="topbar"><div class="topbar-t">Good morning, Rajan 👋</div><div class="ta"><button class="btn btn-ex">+ Capture Lead</button><button class="btn btn-o btn-sm">📞 Log Activity</button></div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="card-l">My Active Leads</div><div class="card-v">18</div><div class="card-d">3 need immediate follow-up</div></div>
+            <div class="card"><div class="card-l">Qualified This Month</div><div class="card-v" style="color:var(--warning);">6 / 10</div><div class="card-d" style="color:var(--warning);">60% of target</div></div>
+            <div class="card"><div class="card-l">Tasks Due Today</div><div class="card-v" style="color:var(--danger);">5</div><div class="card-d">2 overdue</div></div>
+            <div class="card"><div class="card-l">Activities Logged Today</div><div class="card-v" style="color:var(--danger);">0</div><div class="card-d" style="color:var(--danger);">⚠ Log before EOD</div></div>
+          </div>
+          <!-- Target bar -->
+          <div class="card" style="margin-bottom:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">📈 My Monthly Target — Aug 2026</div>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;">
+              <div style="flex:1;"><div style="font-size:10px;color:var(--muted);margin-bottom:5px;">Qualified Leads: 6 of 10</div><div class="pb" style="height:11px;"><div class="pf" style="width:60%;background:var(--warning);"></div></div></div>
+              <div style="font-size:22px;font-weight:700;color:var(--warning);">60%</div>
+            </div>
+            <div style="font-size:10px;color:var(--muted);">11 working days left in August. Need 4 more qualifications to hit target.</div>
+          </div>
+          <!-- Today's tasks -->
+          <div style="background:white;border-radius:8px;border:1px solid var(--border);padding:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">✅ Today's Tasks</div>
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--danger);border-radius:6px;margin-bottom:8px;background:#FEF2F2;">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid var(--danger);flex-shrink:0;margin-top:1px;"></div>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:700;">📞 Follow-up call — K. Subramaniam, ICF Chennai</div><div style="font-size:10px;color:var(--danger);">Overdue · Was due 2 days ago · Lead: IS-2026-0047</div></div>
+              <button class="btn btn-ex btn-sm">Log Call</button>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid var(--warning);border-radius:6px;margin-bottom:8px;background:#FFFBEB;">
+              <div style="width:18px;height:18px;border-radius:4px;border:2px solid var(--warning);flex-shrink:0;margin-top:1px;"></div>
+              <div style="flex:1;"><div style="font-size:12px;font-weight:700;">📧 Send BANT findings — Dilip Nair, BHEL</div><div style="font-size:10px;color:var(--warning);">Due today 3 PM</div></div>
+              <button class="btn btn-o btn-sm">Log Email</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- IS-EX-03 Lead Detail + Customer Activity Log -->
+<div class="section">
+  <div class="stag stag-ex">Screen IS-EX-03 · IS Executive</div>
+  <div class="stitle stitle-ex">Lead Detail & Customer Activity Log</div>
+  <p class="sdesc">The core working screen for the IS Executive. Every interaction with this customer is logged here — calls, emails, visits, WhatsApp — building a complete per-customer activity history. The exec can see BANT status, next steps, and log new activities in one place. This activity log is visible to IS Head and Director but NOT to other IS Executives.</p>
+
+  <div class="screen-frame">
+    <div class="slabel sl-ex">IS-EX-03 · Lead Detail — Dilip Nair, BHEL Trichy <span class="badge">EXEC VIEW</span><span style="background:#065F46;color:#D1FAE5;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;margin-left:auto;">🧑‍💼 IS EXECUTIVE</span></div>
+    <div class="browser"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div><div class="burl">app.iinvsys.com/is-exec/leads/IS-2026-0051</div></div>
+    <div class="shell" style="min-height:560px;">
+      <div class="sb sb-ex"><div class="sb-logo"><div class="sb-logo-t">iinvsys</div></div><div class="sb-sec"><div class="sb-item act-e"><span>🗂</span>My Leads</div></div></div>
+      <div class="main">
+        <div class="topbar">
+          <div style="font-size:11px;color:var(--muted);">← My Leads / <strong>IS-2026-0051 · Dilip Nair · BHEL Trichy</strong></div>
+          <div class="ta"><span class="st st-cnt">Contacted</span><button class="btn btn-o btn-sm">Update Status ▼</button><button class="btn btn-ex">⏫ Request Handoff to Sales</button></div>
+        </div>
+        <div style="display:flex;flex:1;overflow:hidden;">
+          <div style="flex:1;padding:14px;overflow-y:auto;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Lead Info</div>
+                <div class="dr"><span class="dr-l">Lead ID</span><span class="dr-v" style="color:#0891B2;font-family:monospace;">IS-2026-0051</span></div>
+                <div class="dr"><span class="dr-l">Contact</span><span class="dr-v">Dilip Nair</span></div>
+                <div class="dr"><span class="dr-l">Company</span><span class="dr-v">BHEL Trichy</span></div>
+                <div class="dr"><span class="dr-l">Designation</span><span class="dr-v">Sr. Manager – Projects</span></div>
+                <div class="dr"><span class="dr-l">Mobile</span><span class="dr-v">+91 99400 XXXXX</span></div>
+                <div class="dr"><span class="dr-l">Email</span><span class="dr-v">dilip.n@bhel.in</span></div>
+                <div class="dr"><span class="dr-l">Domain</span><span class="dr-v"><span class="chip chip-d">Railways</span></span></div>
+                <div class="dr"><span class="dr-l">Source</span><span class="dr-v">Inbound Email</span></div>
+              </div>
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">BANT Status</div>
+                <div class="dr"><span class="dr-l">Budget</span><span class="dr-v" style="color:var(--success);">₹60–80L confirmed ✓</span></div>
+                <div class="dr"><span class="dr-l">Authority</span><span class="dr-v" style="color:var(--warning);">Manager level — need DGM ⚠</span></div>
+                <div class="dr"><span class="dr-l">Need</span><span class="dr-v" style="color:var(--success);">IoT sensors for turbine monitoring ✓</span></div>
+                <div class="dr"><span class="dr-l">Timeline</span><span class="dr-v" style="color:var(--muted);">Not confirmed yet</span></div>
+                <div style="margin-top:10px;padding:8px;background:#FFFBEB;border-radius:6px;font-size:10px;color:#92400E;">⚠ Need to confirm Authority (DGM level) and Timeline before requesting handoff.</div>
+              </div>
+            </div>
+            <!-- Log Activity -->
+            <div class="card">
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">📋 Log New Activity</div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                <button class="btn btn-ex btn-sm">📞 Call</button>
+                <button class="btn btn-o btn-sm">📧 Email</button>
+                <button class="btn btn-o btn-sm">🤝 Visit</button>
+                <button class="btn btn-o btn-sm">💬 WhatsApp</button>
+                <button class="btn btn-o btn-sm">📅 Meeting</button>
+                <button class="btn btn-o btn-sm">📝 Note</button>
+              </div>
+              <div style="background:#EFF6FF;border-radius:6px;border:1px solid #BFDBFE;padding:12px;">
+                <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-bottom:8px;">Log Call</div>
+                <div class="fg">
+                  <div class="fgr"><flabel>Duration</flabel><input class="ifield" placeholder="e.g. 18 min"></div>
+                  <div class="fgr"><flabel>Outcome</flabel><select class="ifield"><option>Connected – positive conversation</option><option>Connected – not interested</option><option>Not reachable / voicemail</option></select></div>
+                  <div class="fgr full"><flabel>Summary *</flabel><textarea class="ifield" placeholder="What was discussed? Key takeaways? BANT info gathered? Next step committed?"></textarea></div>
+                  <div class="fgr"><flabel>BANT Update</flabel><select class="ifield"><option>No BANT update</option><option>Budget confirmed</option><option>Authority confirmed</option><option>Need confirmed</option><option>Timeline confirmed</option></select></div>
+                  <div class="fgr"><flabel>Next Task (auto-creates task)</flabel><select class="ifield"><option>Follow-up call in 3 days</option><option>Send email today</option><option>Schedule site visit</option><option>Request DGM meeting</option></select></div>
+                </div>
+                <button class="btn btn-ex">💾 Save Activity Log</button>
+              </div>
+            </div>
+          </div>
+          <!-- Activity Timeline -->
+          <div style="width:280px;background:white;border-left:1px solid var(--border);padding:14px;overflow-y:auto;flex-shrink:0;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;border-bottom:2px solid #0891B2;padding-bottom:6px;display:inline-block;">Activity Timeline — BHEL Trichy</div>
+            <div class="act-item" style="border-left:3px solid #0891B2;">
+              <div class="act-icon ai-email">📧</div>
+              <div class="act-body"><div class="act-title">Email: Capability deck sent</div><div class="act-meta">19 Aug · 11:00 AM</div><div class="act-note">IoT for industrial monitoring brochure + case study shared.</div></div>
+            </div>
+            <div class="act-item" style="border-left:3px solid #065F46;">
+              <div class="act-icon ai-call">📞</div>
+              <div class="act-body"><div class="act-title">Call: Discovery — 22 min</div><div class="act-meta">16 Aug · 3:30 PM</div><div class="act-note">Budget confirmed ₹60-80L. Need = turbine sensor monitoring. DGM not yet involved.</div></div>
+            </div>
+            <div class="act-item" style="border-left:3px solid #D97706;">
+              <div class="act-icon ai-call">📞</div>
+              <div class="act-body"><div class="act-title">Call: Initial intro — 8 min</div><div class="act-meta">12 Aug · 10:00 AM</div><div class="act-note">First contact from inbound email. Dilip confirmed interest, requested more info.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="ann-n ann-ex" style="background:#065F46;">1</div><div class="ann-b"><div class="ann-t">Per-Customer Activity Log — Not Per-Lead</div><div class="ann-d">Activities are logged against the COMPANY (BHEL Trichy) — not just this specific lead. If the exec has 2 leads at BHEL Trichy, both appear in one unified timeline. This is critical: the Director or IS Head can pull up any company and see the complete relationship history regardless of which lead they're looking at.</div></div></div>
+  <div class="ann"><div class="ann-n ann-ex" style="background:#065F46;">2</div><div class="ann-b"><div class="ann-t">Auto-Task Creation</div><div class="ann-d">When the exec selects "Next Task" from the dropdown and saves the activity, the system auto-creates a task with a due date and adds it to their dashboard. No manual task creation needed — every activity automatically seeds the next action.</div></div></div>
+</div>
+
+<div class="pf-foot">
+  iinvsys ERP Bible V3 · Module 1: Inside Sales · Complete Role-Based Specification<br>
+  Sales Director (5 screens) · IS Head (5 screens) · IS Executive (5 screens) · 15 total<br>
+  Key Principle: Every customer interaction logged per customer — visible to Director &amp; IS Head, private to other IS Executives<br>
+  "Democratizing Technology, Driving Innovation"
+</div>
+</body>
+</html>

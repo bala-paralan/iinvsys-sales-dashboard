@@ -69,6 +69,24 @@ const INDUSTRY_SEGMENTS = [
   { key: 'other',            label: 'Other' },
 ];
 
+/*
+ * Business domains — the axis the V3 org chart is organised along: one Sales Manager
+ * per domain, each with two Executives. Deliberately SEPARATE from INDUSTRY_SEGMENTS,
+ * which classifies the customer's industry for hygiene and reporting. A customer can be
+ * `electronics` by segment and belong to the `defence` sales domain; collapsing the two
+ * would force one to lie. `domain` is a routing and labelling attribute — never a
+ * security boundary (see ROLE_SCOPE in config/permissions.js).
+ */
+const DOMAINS = [
+  { key: 'railways',        label: 'Railways' },
+  { key: 'defence',         label: 'Defence' },
+  { key: 'space_satellite', label: 'Space / Satellite' },
+  { key: 'iot_iiot',        label: 'IoT / IIoT' },
+  { key: 'automotive',      label: 'Automotive' },
+  { key: 'ai_ml',           label: 'AI / ML' },
+  { key: 'none',            label: '\u2014' },
+];
+
 const ZONES = [
   { key: 'north', label: 'North' },
   { key: 'south', label: 'South' },
@@ -198,7 +216,7 @@ const SALES_STAGES = [
   {
     key: 'suspect', order: 1, shortCode: 'S1', label: 'Suspect', color: 'var(--gold)',
     borderClass: 'gold-border', probability: 5, maxDays: 14, terminal: false,
-    ownerRole: 'agent',
+    ownerRole: 'sales_executive',
     definition: 'Contact identified. No conversation yet.',
     advancesOn: 'First call or email made.',
     entryRequires: [],
@@ -206,7 +224,7 @@ const SALES_STAGES = [
   {
     key: 'prospect', order: 2, shortCode: 'S2', label: 'Prospect', color: 'var(--azure)',
     borderClass: 'blue-border', probability: 15, maxDays: 21, terminal: false,
-    ownerRole: 'agent',
+    ownerRole: 'sales_executive',
     definition: 'Conversation had. Need confirmed. Budget exists or will exist.',
     advancesOn: 'Discovery call completed. Pain confirmed.',
     entryRequires: [
@@ -224,7 +242,7 @@ const SALES_STAGES = [
   {
     key: 'engagement', order: 3, shortCode: 'S3', label: 'Engagement', color: 'var(--violet)',
     borderClass: 'violet-border', probability: 45, maxDays: 21, terminal: false,
-    ownerRole: 'agent',
+    ownerRole: 'sales_executive',
     definition: 'Product shown or site visited. Formal quote/proposal sent.',
     advancesOn: 'Demo completed. Customer engaged. Proposal sent with a date.',
     entryRequires: [
@@ -243,7 +261,7 @@ const SALES_STAGES = [
   {
     key: 'negotiation', order: 4, shortCode: 'S4', label: 'Negotiation', color: 'var(--amber)',
     borderClass: 'amber-border', probability: 70, maxDays: 21, terminal: false,
-    ownerRole: 'manager',
+    ownerRole: 'sales_manager',
     definition: 'Active price/term discussion.',
     advancesOn: 'Any pricing conversation started.',
     entryRequires: [
@@ -256,7 +274,7 @@ const SALES_STAGES = [
   {
     key: 'commercial_order', order: 5, shortCode: 'S5', label: 'Commercial Order', color: 'var(--emerald)',
     borderClass: 'green-border', probability: 100, maxDays: null, terminal: true, won: true,
-    ownerRole: 'manager',
+    ownerRole: 'sales_manager',
     definition: 'PO received and verified. Work Order created.',
     advancesOn: 'PO number logged. Subscription form signed.',
     entryRequires: [
@@ -274,7 +292,7 @@ const SALES_STAGES = [
     /* A lost deal may be re-engaged — the Lead model has always carried isReEngage.
        A won deal may NOT be reopened: a Delivery Work Order exists downstream. */
     reopenable: true,
-    ownerRole: 'agent',
+    ownerRole: 'sales_executive',
     definition: 'Customer will not proceed.',
     advancesOn: 'Decision communicated by the customer.',
     reachableFromAny: true,
@@ -300,13 +318,13 @@ const LOST_STAGE            = 'order_lost';
 const DELIVERY_STAGES = [
   {
     key: 'order_review', order: 1, shortCode: 'D1', label: 'Order Review & Planning',
-    color: 'var(--gold)', borderClass: 'gold-border', ownerRole: 'delivery_manager',
+    color: 'var(--gold)', borderClass: 'gold-border', ownerRole: 'production_head',
     definition: 'Verify the Work Order against the PO, confirm stock, set the target delivery date.',
     entryRequires: [],
   },
   {
     key: 'procurement', order: 2, shortCode: 'D2', label: 'Procurement & Stock',
-    color: 'var(--azure)', borderClass: 'blue-border', ownerRole: 'warehouse',
+    color: 'var(--azure)', borderClass: 'blue-border', ownerRole: 'production_head',
     definition: 'Allocate stock or raise a supplier PO. Incoming quality inspection.',
     entryRequires: [
       { field: 'acceptedAt',              test: 'anyDate',    message: 'The Work Order must be accepted by the Delivery Manager' },
@@ -317,7 +335,7 @@ const DELIVERY_STAGES = [
   },
   {
     key: 'preparation_packing', order: 3, shortCode: 'D3', label: 'Preparation & Packing',
-    color: 'var(--violet)', borderClass: 'violet-border', ownerRole: 'warehouse',
+    color: 'var(--violet)', borderClass: 'violet-border', ownerRole: 'production_engineer',
     definition: 'Pick, inspect, pack and label. Generate dispatch documents.',
     entryRequires: [
       { field: 'stockConfirmedAt', test: 'anyDate', message: 'All items must be available, quality-checked and tagged to this Work Order' },
@@ -325,7 +343,7 @@ const DELIVERY_STAGES = [
   },
   {
     key: 'scheduling_dispatch', order: 4, shortCode: 'D4', label: 'Scheduling & Dispatch',
-    color: 'var(--amber)', borderClass: 'amber-border', ownerRole: 'logistics',
+    color: 'var(--amber)', borderClass: 'amber-border', ownerRole: 'production_head',
     definition: 'Confirm the delivery window, assign transport, dispatch.',
     entryRequires: [
       { field: 'attachments',     test: 'hasDoc:packing_list',  message: 'Packing list must be attached' },
@@ -336,7 +354,7 @@ const DELIVERY_STAGES = [
   },
   {
     key: 'delivery_handover', order: 5, shortCode: 'D5', label: 'Delivery & Handover',
-    color: 'var(--emerald)', borderClass: 'green-border', ownerRole: 'logistics',
+    color: 'var(--emerald)', borderClass: 'green-border', ownerRole: 'production_head',
     definition: 'Transport, verify against the delivery note, obtain the signed DA.',
     entryRequires: [
       { field: 'dispatchedAt',            test: 'anyDate',  message: 'The shipment must be physically dispatched' },
@@ -368,7 +386,7 @@ const DELAY_NOTICE_MIN_HOURS = 48;
 const INSTALL_STAGES = [
   {
     key: 'planning', order: 1, shortCode: 'I1', label: 'Installation Planning',
-    color: 'var(--gold)', borderClass: 'gold-border', ownerRole: 'installation_manager',
+    color: 'var(--gold)', borderClass: 'gold-border', ownerRole: 'install_head',
     definition: 'Confirm site readiness, assign a technician, schedule the date.',
     entryRequires: [],
     checklistTemplate: [
@@ -382,7 +400,7 @@ const INSTALL_STAGES = [
   },
   {
     key: 'on_site', order: 2, shortCode: 'I2', label: 'On-Site Installation',
-    color: 'var(--azure)', borderClass: 'blue-border', ownerRole: 'technician',
+    color: 'var(--azure)', borderClass: 'blue-border', ownerRole: 'field_engineer',
     definition: 'Unbox, assemble, position, wire and configure per the installation SOP.',
     entryRequires: [
       { field: 'siteReady.confirmedAt', test: 'anyDate',              message: 'The customer must confirm site readiness: power, space, access, civil work' },
@@ -402,7 +420,7 @@ const INSTALL_STAGES = [
   },
   {
     key: 'commissioning', order: 3, shortCode: 'I3', label: 'Commissioning & Testing',
-    color: 'var(--violet)', borderClass: 'violet-border', ownerRole: 'technician',
+    color: 'var(--violet)', borderClass: 'violet-border', ownerRole: 'field_engineer',
     definition: 'Full functional test protocol. Verify all features against the scope of supply.',
     entryRequires: [
       { field: 'checklists', test: 'checklistDone:on_site',   message: 'The Installation Checklist must be fully completed' },
@@ -418,7 +436,7 @@ const INSTALL_STAGES = [
   },
   {
     key: 'handover_training', order: 4, shortCode: 'I4', label: 'Handover & Training',
-    color: 'var(--amber)', borderClass: 'amber-border', ownerRole: 'installation_manager',
+    color: 'var(--amber)', borderClass: 'amber-border', ownerRole: 'install_head',
     definition: 'End-user training, documentation handover, signed Handover Certificate.',
     entryRequires: [
       { field: 'commissioning.passed',                  test: 'isTrue',  message: 'The product must pass the full functional test protocol' },
@@ -437,7 +455,7 @@ const INSTALL_STAGES = [
   },
   {
     key: 'post_support', order: 5, shortCode: 'I5', label: 'Post-Installation Support',
-    color: 'var(--azure)', borderClass: 'blue-border', ownerRole: 'cs_executive',
+    color: 'var(--azure)', borderClass: 'blue-border', ownerRole: 'cs_agent',
     definition: 'Proactive check-in within 7 days. Log, track and close all issues.',
     entryRequires: [
       { field: 'attachments',               test: 'hasDoc:handover_certificate', message: 'A signed Handover Certificate must be uploaded' },
@@ -448,7 +466,7 @@ const INSTALL_STAGES = [
   },
   {
     key: 'feedback', order: 6, shortCode: 'I6', label: 'Customer Feedback',
-    color: 'var(--emerald)', borderClass: 'green-border', ownerRole: 'cs_executive',
+    color: 'var(--emerald)', borderClass: 'green-border', ownerRole: 'cs_manager',
     definition: 'Dispatch the feedback form, chase it, log CSAT, close the record.',
     entryRequires: [
       { field: 'postSupport.checkInDoneAt', test: 'anyDate',        message: 'The 7-day proactive check-in must be completed' },
@@ -1130,12 +1148,12 @@ function hygieneIssues(lead, now, rules) {
 
   /* C-5 — weekly note at Engagement and above */
   if (def && def.order >= NOTE_REQUIRED_FROM_STAGE_ORDER) {
-    const followUps = getPath(lead, 'followUps') || [];
-    const latest = followUps.reduce((max, f) => {
-      const t = toDate(f && f.timestamp);
-      return t && (!max || t > max) ? t : max;
-    }, null);
-    const anchor = latest || toDate(getPath(lead, 'stageEnteredAt')) || toDate(getPath(lead, 'createdAt'));
+    /* `lastActivityAt` is stamped on the lead by activityService when an activity is
+       logged against it. This module is a pure function over ONE document and may not
+       query the Activity collection, which is exactly why that field is denormalised. */
+    const anchor = toDate(getPath(lead, 'lastActivityAt'))
+      || toDate(getPath(lead, 'stageEnteredAt'))
+      || toDate(getPath(lead, 'createdAt'));
     if (anchor && daysBetween(anchor, ref) > r.weeklyNoteDays) {
       push('stale_notes', `No note recorded in ${Math.floor(daysBetween(anchor, ref))} days — ${def.label} deals need one per week`);
     }
@@ -1161,11 +1179,19 @@ const hash36 = (s) =>
  * qualification message and the old gate checklist.
  */
 function pipelineVersion(rules) {
+  /* The taxonomy is part of the payload, so it must be part of the hash.
+     usePipeline.ts caches this response with `staleTime: Infinity` keyed on `version`;
+     when the hash omitted `ownerRole`, renaming a role changed what the endpoint sent
+     and changed nothing about what already-signed-in clients believed — indefinitely. */
+  const ownerRoles = [...SALES_STAGES, ...DELIVERY_STAGES, ...INSTALL_STAGES]
+    .map((s) => `${s.key}:${s.ownerRole || ''}`).join(',');
   return hash36([
     SALES_STAGE_KEYS.join(','),
     DELIVERY_STAGE_KEYS.join(','),
     INSTALL_STAGE_KEYS.join(','),
     keysOf(LEAD_SOURCES).join(','),
+    keysOf(DOMAINS).join(','),
+    ownerRoles,
     JSON.stringify(R(rules)),
   ].join('|'));
 }
@@ -1193,7 +1219,7 @@ function serialize(rules) {
     installation: { stages: INSTALL_STAGES.map(publicStage),  statuses: INSTALL_STATUSES, handedOverRequires: HANDED_OVER_REQUIRES, closedRequires: CLOSED_REQUIRES },
     enums: {
       leadSources: LEAD_SOURCES, companyTypes: COMPANY_TYPES, industrySegments: INDUSTRY_SEGMENTS,
-      zones: ZONES, competitors: COMPETITORS, lostReasons: LOST_REASONS, lostTo: LOST_TO,
+      zones: ZONES, domains: DOMAINS, competitors: COMPETITORS, lostReasons: LOST_REASONS, lostTo: LOST_TO,
       subscriptionStates: SUBSCRIPTION_STATES, amcStates: AMC_STATES,
       disqualifyReasons: DISQUALIFY_REASONS, needTypes: NEED_TYPES,
       docTypes: DOC_TYPES, delayReasonCodes: DELAY_REASON_CODES, snagSeverities: SNAG_SEVERITIES,
@@ -1234,7 +1260,7 @@ module.exports = {
   DELIVERED_REQUIRES, HANDED_OVER_REQUIRES, CLOSED_REQUIRES,
 
   /* enums (objects) */
-  LEAD_SOURCES, COMPANY_TYPES, INDUSTRY_SEGMENTS, ZONES, COMPETITORS,
+  LEAD_SOURCES, COMPANY_TYPES, INDUSTRY_SEGMENTS, ZONES, DOMAINS, COMPETITORS,
   LOST_REASONS, LOST_TO, SUBSCRIPTION_STATES, AMC_STATES,
   DISQUALIFY_REASONS, NEED_TYPES, DOC_TYPES, DELAY_REASON_CODES,
   SNAG_SEVERITIES, BLOCKING_SNAG_SEVERITIES, SPENCO_DIMENSIONS,
@@ -1245,6 +1271,7 @@ module.exports = {
   COMPANY_TYPE_KEYS:     keysOf(COMPANY_TYPES),
   INDUSTRY_SEGMENT_KEYS: keysOf(INDUSTRY_SEGMENTS),
   ZONE_KEYS:             keysOf(ZONES),
+  DOMAIN_KEYS:           keysOf(DOMAINS),
   COMPETITOR_KEYS:       keysOf(COMPETITORS),
   LOST_REASON_KEYS:      keysOf(LOST_REASONS),
   LOST_TO_KEYS:          keysOf(LOST_TO),

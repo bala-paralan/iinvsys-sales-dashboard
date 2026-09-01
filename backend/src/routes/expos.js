@@ -3,7 +3,7 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const ctrl = require('../controllers/expoController');
 const { authenticate }   = require('../middleware/auth');
-const { requireMinRole, allowReferrerOr } = require('../middleware/rbac');
+const { requirePermission, allowReferrerOr } = require('../middleware/rbac');
 
 const expoValidation = [
   body('name').trim().notEmpty(),
@@ -25,18 +25,18 @@ const expoUpdateValidation = [
 /* Referrers need the expo they are attached to in order to render their capture
    view. allowReferrerOr scopes the response to that single expo — they never
    see the full list. Every other reader must be an internal viewer or above. */
-router.get('/',    authenticate, allowReferrerOr('readonly'), ctrl.listExpos);
-router.post('/',   authenticate, requireMinRole('manager'),  expoValidation, ctrl.createExpo);
+router.get('/',    authenticate, allowReferrerOr('expo.manage', 'catalog.read'), ctrl.listExpos);
+router.post('/',   authenticate, requirePermission('expo.manage'),  expoValidation, ctrl.createExpo);
 
-router.get('/:id',    authenticate, allowReferrerOr('readonly'), ctrl.getExpo);
-router.put('/:id',    authenticate, requireMinRole('manager'),  expoUpdateValidation, ctrl.updateExpo);
-router.put('/:id/products', authenticate, requireMinRole('manager'), ctrl.updateExpoProducts);
-router.delete('/:id', authenticate, requireMinRole('manager'), ctrl.deleteExpo);
+router.get('/:id',    authenticate, allowReferrerOr('expo.manage', 'catalog.read'), ctrl.getExpo);
+router.put('/:id',    authenticate, requirePermission('expo.manage'),  expoUpdateValidation, ctrl.updateExpo);
+router.put('/:id/products', authenticate, requirePermission('expo.manage'), ctrl.updateExpoProducts);
+router.delete('/:id', authenticate, requirePermission('expo.manage'), ctrl.deleteExpo);
 
 /* Referrer sub-resource */
-router.get   ('/:id/referrers',      authenticate, requireMinRole('manager'), ctrl.listReferrers);
-router.post  ('/:id/referrers',      authenticate, requireMinRole('manager'), ctrl.createReferrer);
-router.post  ('/:id/referrers/:uid/reinvite', authenticate, requireMinRole('manager'), ctrl.reinviteReferrer);
-router.delete('/:id/referrers/:uid', authenticate, requireMinRole('manager'), ctrl.deleteReferrer);
+router.get   ('/:id/referrers',      authenticate, requirePermission('expo.manage'), ctrl.listReferrers);
+router.post  ('/:id/referrers',      authenticate, requirePermission('expo.manage'), ctrl.createReferrer);
+router.post  ('/:id/referrers/:uid/reinvite', authenticate, requirePermission('expo.manage'), ctrl.reinviteReferrer);
+router.delete('/:id/referrers/:uid', authenticate, requirePermission('expo.manage'), ctrl.deleteReferrer);
 
 module.exports = router;

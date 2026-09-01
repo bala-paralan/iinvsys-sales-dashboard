@@ -20,6 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api, apiUpload } from '../../api/client';
 import { usePipeline, can } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 import { EnumSelect } from '../../components/EnumSelect';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
 import { SpencoPanel } from './SpencoPanel';
@@ -102,6 +103,7 @@ export function LeadDetailPage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const { data: meta } = usePipeline();
+  const { data: me } = useMe();
   const [gateOpen, setGateOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [docType, setDocType] = useState('');
@@ -474,7 +476,7 @@ export function LeadDetailPage() {
           </div>
         ))}
 
-        {can(meta, 'lead.write') && (
+        {can(me, 'lead.write') && (
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ minWidth: 200 }}>
               <EnumSelect enumName="docTypes" value={docType} onChange={setDocType} />
@@ -505,7 +507,7 @@ export function LeadDetailPage() {
           entityPath={`/leads/${d._id}`}
           entityName={d.name}
           stages={meta?.sales.stages ?? []}
-          allowOverride={!!meta?.me.permissions.includes('lead.gate_override')}
+          allowOverride={!!can(me, 'lead.gate_override')}
           invalidateKeys={[['leads'], ['hygiene'], ['lead', id]]}
           onClose={() => setGateOpen(false)}
           onAdvanced={() => setGateOpen(false)}

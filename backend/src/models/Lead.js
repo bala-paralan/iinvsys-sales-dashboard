@@ -16,15 +16,6 @@ const {
    flags the record for review and blocks the next STAGE instead. */
 const opt = (keys) => ['', ...keys];
 
-const FollowUpSchema = new mongoose.Schema({
-  agent:          { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', required: true },
-  channel:        { type: String, enum: ['call','whatsapp','email','visit','other'], required: true },
-  note:           { type: String, trim: true, default: '' },
-  outcome:        { type: String, trim: true, default: '' },
-  nextActionDate: { type: Date },
-  timestamp:      { type: Date, default: Date.now },
-}, { _id: true });
-
 /* PRD 1 — per-field OCR provenance.
    Each field captured by scan stores its band (high/med/low), the original
    OCR value, and whether the rep edited it before save. */
@@ -93,15 +84,35 @@ const LeadSchema = new mongoose.Schema({
   source:        { type: String, enum: pipeline.LEAD_SOURCE_KEYS, required: true },
   expo:          { type: mongoose.Schema.Types.ObjectId, ref: 'Expo', default: null },
   stage:         { type: String, enum: pipeline.SALES_STAGE_KEYS, default: 'suspect' },
-  assignedAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'Agent', default: null },
+  /* ERP Bible V3 runs two tracks over one collection. Doc 1 numbers Inside Sales
+     records IS-2026-XXXX and doc 2 numbers deals SA-2026-XXX; IS-DIR-03's "Bypass IS"
+     creates BOTH. A qualified IS record never flips in place — it mints a linked
+     track:'sales' document — so Customer 360 can show the whole history. A separate
+     `Deal` model was rejected because Lead.stage IS the SPENCO stage that stageService,
+     processHandoffService, kpiService and excelReport all read. */
+  track:         { type: String, enum: ['inside_sales', 'sales'], default: 'sales' },
+  refId:         { type: String, trim: true, default: '' },
+  originLead:    { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', default: null },
+  /* The account this record belongs to. `company` above is retained as raw provenance
+     — what the rep actually typed — while `customer` is the queried column. */
+  customer:      { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
+  /* The User accountable for this record — the "stage owner" of the framework, and
+     what stageHistory.by records. v2 split this across `assignedAgent` (an Agent) and
+     an unpopulated `ownerUser`; the org-chart resolver in services/scopeService.js
+     returns User ids and cannot filter a column of Agent ids, so there is now one. */
+  owner:         { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   products:      [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
   value:         { type: Number, default: 0, min: 0 },
   score:         { type: Number, default: 50, min: 0, max: 100 },
   notes:         { type: String, trim: true, default: '' },
   lostReason:    { type: String, enum: opt(pipeline.LOST_REASON_KEYS), default: '' },
   isReEngage:    { type: Boolean, default: false },
-  followUps:     [FollowUpSchema],
   lastContact:   { type: Date, default: null },
+  /* When an Activity was last logged against this deal. Denormalised deliberately:
+     config/pipeline.js is a pure function over one lead document — it may not query a
+     second collection — and the C-5 "one note per week" hygiene rule needs this anchor.
+     Stamped by services/activityService.js in the same operation as the activity. */
+  lastActivityAt: { type: Date, default: null },
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   ocrCapture:    { type: OcrCaptureSchema, default: null },
   dupeOverride:  { type: DupeOverrideSchema, default: null },
@@ -129,11 +140,6 @@ const LeadSchema = new mongoose.Schema({
      fields, and enrichment may suggest a segment but never writes one. */
   industrySegment: { type: String, enum: opt(INDUSTRY_SEGMENT_KEYS), default: '' },
   zone:            { type: String, enum: opt(ZONE_KEYS), default: '' },
-
-  /* Ownership. `assignedAgent` is an Agent; `ownerUser` is the User account
-     accountable for the stage, which is what the framework means by
-     "stage owner" and what stageHistory.by records. */
-  ownerUser:       { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 
   /* Opportunity */
   opportunityName:  { type: String, trim: true, default: '' },
@@ -164,7 +170,7 @@ const LeadSchema = new mongoose.Schema({
   stageHistory:  { type: [StageHistorySchema], default: [] },
   attachments:   { type: [AttachmentSchema], default: [] },
 
-  /* Handoff 1 back-pointer. Written only by handoffService; its presence is
+  /* Handoff 1 back-pointer. Written only by processHandoffService; its presence is
      the idempotency check that keeps a retried commercial_order transition
      from minting a second Work Order (H-3). */
   workOrder:     { type: mongoose.Schema.Types.ObjectId, ref: 'WorkOrder', default: null },
@@ -175,7 +181,11 @@ const LeadSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 /* Indexes for common query patterns */
-LeadSchema.index({ assignedAgent: 1, stage: 1 });
+LeadSchema.index({ owner: 1, stage: 1 });
+LeadSchema.index({ customer: 1, track: 1, stage: 1 });
+LeadSchema.index({ track: 1, stage: 1 });
+LeadSchema.index({ refId: 1 });
+LeadSchema.index({ lastActivityAt: 1 });
 LeadSchema.index({ source: 1 });
 LeadSchema.index({ expo: 1 });
 LeadSchema.index({ stage: 1 });
@@ -193,7 +203,6 @@ LeadSchema.index({ name: 'text', phone: 'text', email: 'text' });
 /* B1 query patterns: the hygiene queue, the review sweeps, and the conversion
    KPIs — every Sales rate in 05-kpi-definitions.md is a stageHistory query. */
 LeadSchema.index({ needsReview: 1 });
-LeadSchema.index({ ownerUser: 1, stage: 1 });
 LeadSchema.index({ nextFollowUpDate: 1 });
 LeadSchema.index({ expectedCloseDate: 1 });
 LeadSchema.index({ stageEnteredAt: 1 });
@@ -274,16 +283,12 @@ LeadSchema.pre('validate', function deriveFields(next) {
   next();
 });
 
-/* Virtual: followUp count */
-LeadSchema.virtual('followUpCount').get(function() {
-  return this.followUps.length;
-});
-
 /* Virtual: overdue (no contact in >7 days and not closed) */
 LeadSchema.virtual('isOverdue').get(function() {
   if (pipeline.TERMINAL_SALES_STAGES.includes(this.stage)) return false;
-  if (!this.lastContact) return this.followUps.length === 0;
-  const days = (Date.now() - new Date(this.lastContact)) / 86400000;
+  const last = this.lastContact || this.lastActivityAt;
+  if (!last) return true;
+  const days = (Date.now() - new Date(last)) / 86400000;
   return days > 7;
 });
 

@@ -11,9 +11,11 @@ afterAll(async () => { await db.disconnect(); });
 /* ─── helpers ────────────────────────────────────────────────────── */
 
 async function loginAs(role = 'superadmin') {
-  const emailMap = { superadmin: 'admin@test.com', manager: 'manager@test.com', agent: 'agent@test.com', readonly: 'ro@test.com' };
-  const email = emailMap[role];
-  await User.create({ name: role, email, password: 'Pass@1234', role, isActive: true });
+  /* Derived from the role: the table this replaced was keyed by the v2 role names. */
+  const email = `${role}@test.com`;
+  if (!await User.findOne({ email })) {
+    await User.create({ name: role, email, password: 'Pass@1234', role, isActive: true });
+  }
   const res = await request(app).post('/api/auth/login').send({ email, password: 'Pass@1234' });
   return res.body.data.token;
 }
@@ -29,7 +31,7 @@ const sampleProduct = {
 
 describe('GET /api/products', () => {
   it('returns empty list initially', async () => {
-    const token = await loginAs('readonly');
+    const token = await loginAs('sales_executive');
     const res   = await request(app).get('/api/products').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual([]);
@@ -53,7 +55,7 @@ describe('POST /api/products', () => {
   });
 
   it('manager cannot create a product', async () => {
-    const token = await loginAs('manager');
+    const token = await loginAs('sales_director');
     const res   = await request(app)
       .post('/api/products')
       .set('Authorization', `Bearer ${token}`)
@@ -112,7 +114,7 @@ describe('DELETE /api/products/:id', () => {
     const create = await request(app).post('/api/products').set('Authorization', `Bearer ${adminToken}`).send(sampleProduct);
     const id = create.body.data._id;
 
-    const agentToken = await loginAs('agent');
+    const agentToken = await loginAs('sales_executive');
     const res = await request(app).delete(`/api/products/${id}`).set('Authorization', `Bearer ${agentToken}`);
     expect(res.status).toBe(403);
   });

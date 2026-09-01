@@ -22,6 +22,11 @@ async function authenticate(req, res, next) {
     }
 
     req.user = user;
+    /* utils/response.js redacts every payload against the caller, and ok()/created()/
+       paginated() are handed a response, not a request — res.locals is the only place
+       they can read the caller from. Set both, always, in the same statement, so the
+       two can never disagree. */
+    res.locals.user = user;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') return unauthorized(res, 'Token expired');

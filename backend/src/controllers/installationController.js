@@ -17,15 +17,20 @@ const { notifyByPermission } = require('../services/notificationService');
 const { addBusinessDays } = require('../utils/businessDays');
 const { ok, created, notFound, badRequest, unprocessable, gateFailed, paginated } = require('../utils/response');
 const { parsePaging } = require('../utils/pagination');
+const { scopeFilter, scopeAllows } = require('../services/scopeService');
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: fileStore.MAX_BYTES },
 });
 
-/** Technicians see only their own jobs; other install roles see the queue. */
+/**
+ * Field Engineers see only their own jobs; the Install Head and CS Manager see the queue.
+ * Which is which comes from ROLE_SCOPE in config/permissions.js, not from a role test
+ * here — that is what stopped this being the third of four independent scoping rules.
+ */
 function technicianScope(req) {
-  return req.user.role === 'technician' ? { technician: req.user._id } : {};
+  return scopeFilter(req.scope, 'technician');
 }
 
 /* ── GET /api/installations ──────────────────────────────────────────── */
@@ -49,8 +54,8 @@ async function getJob(req, res, next) {
   try {
     const job = await InstallationJob.findById(req.params.id).lean();
     if (!job) return notFound(res, 'Installation Job not found');
-    /* Technician scoping: 404 rather than 403, so ids cannot be probed. */
-    if (req.user.role === 'technician' && String(job.technician) !== String(req.user._id)) {
+    /* Scoping answers 404 rather than 403, so ids cannot be probed. */
+    if (!scopeAllows(req.scope, job.technician)) {
       return notFound(res, 'Installation Job not found');
     }
     return ok(res, job);

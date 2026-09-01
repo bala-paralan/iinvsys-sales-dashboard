@@ -4,7 +4,7 @@ const jwt     = require('jsonwebtoken');
 const app     = require('../src/app');
 const db      = require('./helpers/db');
 const User    = require('../src/models/User');
-const Agent   = require('../src/models/Agent');
+const Agent   = require('./helpers/owner');
 const Lead    = require('../src/models/Lead');
 const Expo    = require('../src/models/Expo');
 
@@ -15,10 +15,16 @@ afterAll(async () => { await db.disconnect(); });
 /* ─── helpers ─────────────────────────────────────────────────── */
 
 async function insertUser(attrs) {
+  /* One person, one record: `Agent` is retired, so a suite that creates a profile and a
+     login with the same email is describing the same User twice. */
+  if (attrs.email) {
+    const existing = await User.collection.findOne({ email: attrs.email });
+    if (existing) return existing._id;
+  }
   const result = await User.collection.insertOne({
     name: attrs.name || 'User', email: attrs.email || 'u@t.com',
     password: '$2b$01$placeholder',
-    role: attrs.role || 'agent', agentId: attrs.agentId || null,
+    role: attrs.role || 'sales_executive', agentId: attrs.agentId || null,
     expoId: null, expiresAt: null, isTemporary: false, isActive: true,
     lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
   });
@@ -40,7 +46,7 @@ async function createAgentWithUser(mgrId, suffix = '1') {
     phone: `900000000${suffix}`, territory: 'Delhi', designation: 'Sales Agent',
     target: 1000000, createdBy: mgrId,
   });
-  const uid = await insertUser({ name: `Agent${suffix}`, email: `agent${suffix}@t.com`, role: 'agent', agentId: agent._id });
+  const uid = await insertUser({ name: `Agent${suffix}`, email: `agent${suffix}@t.com`, role: 'sales_executive', agentId: agent._id });
   return { agent, token: makeToken(uid) };
 }
 
@@ -93,10 +99,10 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'commercial_order',       value: 50000, phone: '9001' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'order_lost',      value: 20000, phone: '9002' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'suspect',       value: 10000, phone: '9003' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'prospect', value: 8000,  phone: '9004' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'commercial_order',       value: 50000, phone: '9001' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'order_lost',      value: 20000, phone: '9002' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'suspect',       value: 10000, phone: '9003' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'prospect', value: 8000,  phone: '9004' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -116,9 +122,9 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'engagement',    value: 30000, phone: '9011' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'negotiation', value: 40000, phone: '9012' }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'suspect',         value: 10000, phone: '9013' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'engagement',    value: 30000, phone: '9011' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'negotiation', value: 40000, phone: '9012' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'suspect',         value: 10000, phone: '9013' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -132,8 +138,8 @@ describe('GET /api/analytics/overview', () => {
     const { agent: a1, token: agt1Token } = await createAgentWithUser(admin._id, '1');
     const { agent: a2 }                   = await createAgentWithUser(admin._id, '2');
 
-    await createLead({ assignedAgent: a1._id, stage: 'commercial_order', value: 50000, phone: '9021' }, admin._id);
-    await createLead({ assignedAgent: a2._id, stage: 'commercial_order', value: 70000, phone: '9022' }, admin._id);
+    await createLead({ owner: a1._id, stage: 'commercial_order', value: 50000, phone: '9021' }, admin._id);
+    await createLead({ owner: a2._id, stage: 'commercial_order', value: 70000, phone: '9022' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -148,9 +154,9 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'commercial_order',  phone: '9031', value: 1000 }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'commercial_order',  phone: '9032', value: 2000 }, admin._id);
-    await createLead({ assignedAgent: agent._id, stage: 'order_lost', phone: '9033', value: 0    }, admin._id);
+    await createLead({ owner: agent._id, stage: 'commercial_order',  phone: '9031', value: 1000 }, admin._id);
+    await createLead({ owner: agent._id, stage: 'commercial_order',  phone: '9032', value: 2000 }, admin._id);
+    await createLead({ owner: agent._id, stage: 'order_lost', phone: '9033', value: 0    }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -166,7 +172,7 @@ describe('GET /api/analytics/overview', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, stage: 'commercial_order', phone: '9041' }, admin._id);
+    await createLead({ owner: agent._id, stage: 'commercial_order', phone: '9041' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/overview')
@@ -182,7 +188,7 @@ describe('GET /api/analytics/overview', () => {
     const { agent } = await createAgentWithUser(admin._id, '1');
 
     for (let i = 1; i <= 8; i++) {
-      await createLead({ assignedAgent: agent._id, phone: `90${i}0`, name: `Lead${i}` }, admin._id);
+      await createLead({ owner: agent._id, phone: `90${i}0`, name: `Lead${i}` }, admin._id);
     }
 
     const res = await request(app)
@@ -229,7 +235,7 @@ describe('GET /api/analytics/trends', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, phone: '9051', value: 15000 }, admin._id);
+    await createLead({ owner: agent._id, phone: '9051', value: 15000 }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/trends')
@@ -249,10 +255,10 @@ describe('GET /api/analytics/trends', () => {
     const admin = await createAdmin();
     const { agent } = await createAgentWithUser(admin._id, '1');
 
-    await createLead({ assignedAgent: agent._id, phone: '9061', score: 10 }, admin._id); // 0-20
-    await createLead({ assignedAgent: agent._id, phone: '9062', score: 30 }, admin._id); // 21-40
-    await createLead({ assignedAgent: agent._id, phone: '9063', score: 75 }, admin._id); // 61-80
-    await createLead({ assignedAgent: agent._id, phone: '9064', score: 95 }, admin._id); // 81-100
+    await createLead({ owner: agent._id, phone: '9061', score: 10 }, admin._id); // 0-20
+    await createLead({ owner: agent._id, phone: '9062', score: 30 }, admin._id); // 21-40
+    await createLead({ owner: agent._id, phone: '9063', score: 75 }, admin._id); // 61-80
+    await createLead({ owner: agent._id, phone: '9064', score: 95 }, admin._id); // 81-100
 
     const res = await request(app)
       .get('/api/analytics/trends')
@@ -274,8 +280,8 @@ describe('GET /api/analytics/trends', () => {
     const { agent: a1, token: agt1Token } = await createAgentWithUser(admin._id, '1');
     const { agent: a2 }                   = await createAgentWithUser(admin._id, '2');
 
-    await createLead({ assignedAgent: a1._id, phone: '9071', value: 5000 }, admin._id);
-    await createLead({ assignedAgent: a2._id, phone: '9072', value: 9000 }, admin._id);
+    await createLead({ owner: a1._id, phone: '9071', value: 5000 }, admin._id);
+    await createLead({ owner: a2._id, phone: '9072', value: 9000 }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/trends')
@@ -311,9 +317,9 @@ describe('GET /api/analytics/expos', () => {
     const { agent } = await createAgentWithUser(admin._id, '1');
     const expo = await createExpo(admin._id);
 
-    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'commercial_order',  value: 30000, phone: '9081' }, admin._id);
-    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'order_lost', value: 0,     phone: '9082' }, admin._id);
-    await createLead({ assignedAgent: agent._id, expo: expo._id, stage: 'suspect',  value: 0,     phone: '9083' }, admin._id);
+    await createLead({ owner: agent._id, expo: expo._id, stage: 'commercial_order',  value: 30000, phone: '9081' }, admin._id);
+    await createLead({ owner: agent._id, expo: expo._id, stage: 'order_lost', value: 0,     phone: '9082' }, admin._id);
+    await createLead({ owner: agent._id, expo: expo._id, stage: 'suspect',  value: 0,     phone: '9083' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/expos')
@@ -333,7 +339,7 @@ describe('GET /api/analytics/expos', () => {
     const expo = await createExpo(admin._id, { targetLeads: 50 });
 
     for (let i = 0; i < 25; i++) {
-      await createLead({ assignedAgent: agent._id, expo: expo._id, phone: `80${String(i).padStart(2, '0')}` }, admin._id);
+      await createLead({ owner: agent._id, expo: expo._id, phone: `80${String(i).padStart(2, '0')}` }, admin._id);
     }
 
     const res = await request(app)
@@ -357,7 +363,7 @@ describe('GET /api/analytics/expos', () => {
     const { agent } = await createAgentWithUser(admin._id, '1');
     const expo = await createExpo(admin._id, { targetLeads: 0 });
 
-    await createLead({ assignedAgent: agent._id, expo: expo._id, phone: '9091' }, admin._id);
+    await createLead({ owner: agent._id, expo: expo._id, phone: '9091' }, admin._id);
 
     const res = await request(app)
       .get('/api/analytics/expos')

@@ -24,7 +24,9 @@ beforeEach(async () => {
   await clearCollections();
   runtime.resetRules();
   tokens = {};
-  for (const role of ['superadmin', 'manager', 'agent', 'readonly', 'referrer', 'warehouse']) {
+  /* Every role: `it.each(ALL_ROLES)` below covers all of them, and a role with no
+     token here answers 401 for a reason that has nothing to do with what is tested. */
+  for (const role of ALL_ROLES) {
     tokens[role] = tok(await insertUser({ role }));
   }
 });
@@ -38,21 +40,20 @@ describe('GET /api/meta/pipeline — access', () => {
     expect((await request(app).get('/api/meta/pipeline')).status).toBe(401);
   });
 
-  it.each(ALL_ROLES.filter((r) => !['sales_director', 'finance', 'delivery_manager',
-    'logistics', 'installation_manager', 'technician', 'cs_executive'].includes(r)))(
+  it.each(ALL_ROLES)(
     'is readable by %s — every role needs stage labels to render anything', async (role) => {
       expect((await get('/api/meta/pipeline', role)).status).toBe(200);
     });
 
   it('is readable by a referrer and by an operational role', async () => {
     expect((await get('/api/meta/pipeline', 'referrer')).status).toBe(200);
-    expect((await get('/api/meta/pipeline', 'warehouse')).status).toBe(200);
+    expect((await get('/api/meta/pipeline', 'production_engineer')).status).toBe(200);
   });
 });
 
 describe('GET /api/meta/pipeline — payload shape', () => {
   let body;
-  beforeEach(async () => { body = (await get('/api/meta/pipeline', 'manager')).body.data; });
+  beforeEach(async () => { body = (await get('/api/meta/pipeline', 'sales_director')).body.data; });
 
   it('carries a version matching the active rules', () => {
     expect(body.version).toBe(pipeline.pipelineVersion(pipeline.getActiveRules()));
@@ -122,22 +123,31 @@ describe('GET /api/meta/pipeline — payload shape', () => {
 });
 
 describe('GET /api/meta/pipeline — reflects the caller and the active rules', () => {
-  it('reports the caller’s own role and permissions', async () => {
-    const body = (await get('/api/meta/pipeline', 'warehouse')).body.data;
-    expect(body.me.role).toBe('warehouse');
-    expect(body.me.permissions).toEqual(permissionsFor('warehouse'));
+  /* `me` moved OUT of this payload into GET /api/meta/me. It is cached with
+     `staleTime: Infinity` keyed on `version`, so while the per-user block rode inside it,
+     changing someone's role changed what the server sent and nothing about what an
+     already-signed-in client believed. */
+  it('no longer carries the per-user block', async () => {
+    const body = (await get('/api/meta/pipeline', 'production_engineer')).body.data;
+    expect(body.me).toBeUndefined();
+  });
+
+  it('reports the caller’s own role and permissions at /api/meta/me', async () => {
+    const body = (await get('/api/meta/me', 'production_engineer')).body.data;
+    expect(body.role).toBe('production_engineer');
+    expect(body.permissions).toEqual(permissionsFor('production_engineer'));
   });
 
   it('gives a referrer an empty permission set', async () => {
-    const body = (await get('/api/meta/pipeline', 'referrer')).body.data;
-    expect(body.me.permissions).toEqual([]);
+    const body = (await get('/api/meta/me', 'referrer')).body.data;
+    expect(body.permissions).toEqual([]);
   });
 
   it('a rule change moves the version AND the payload', async () => {
-    const before = (await get('/api/meta/pipeline', 'manager')).body.data;
+    const before = (await get('/api/meta/pipeline', 'sales_director')).body.data;
 
     pipeline.setActiveRules({ spencoMinTotal: 24, competitorRequiredFromStage: 'prospect' });
-    const after = (await get('/api/meta/pipeline', 'manager')).body.data;
+    const after = (await get('/api/meta/pipeline', 'sales_director')).body.data;
 
     expect(after.version).not.toBe(before.version);
     expect(after.spenco.minTotal).toBe(24);
@@ -146,7 +156,7 @@ describe('GET /api/meta/pipeline — reflects the caller and the active rules', 
   });
 
   it('is not cached at all — `private` was not enough', async () => {
-    const res = await get('/api/meta/pipeline', 'manager');
+    const res = await get('/api/meta/pipeline', 'sales_director');
     /* This test previously asserted `private`, which is what the code did and
        what I wrote it to confirm — and both were wrong. `private` only stops
        SHARED caches; the browser's own cache still keys on the URL alone and
@@ -158,13 +168,13 @@ describe('GET /api/meta/pipeline — reflects the caller and the active rules', 
 
 describe('GET /api/meta/permissions', () => {
   it('requires manager or above', async () => {
-    expect((await get('/api/meta/permissions', 'agent')).status).toBe(403);
-    expect((await get('/api/meta/permissions', 'readonly')).status).toBe(403);
+    expect((await get('/api/meta/permissions', 'sales_executive')).status).toBe(403);
+    expect((await get('/api/meta/permissions', 'sales_executive')).status).toBe(403);
     expect((await get('/api/meta/permissions', 'referrer')).status).toBe(403);
   });
 
   it('returns the full matrix to a manager', async () => {
-    const res = await get('/api/meta/permissions', 'manager');
+    const res = await get('/api/meta/permissions', 'sales_director');
     expect(res.status).toBe(200);
     expect(Object.keys(res.body.data.roles).sort()).toEqual([...ALL_ROLES].sort());
   });
@@ -172,7 +182,7 @@ describe('GET /api/meta/permissions', () => {
 
 describe('GET /api/meta/pipeline caching', () => {
   it('is never stored by the HTTP cache — the payload is user-specific', async () => {
-    const token = tok(await insertUser({ role: 'manager', name: 'Sneha' }));
+    const token = tok(await insertUser({ role: 'sales_director', name: 'Sneha' }));
     const res = await request(app).get('/api/meta/pipeline')
       .set('Authorization', `Bearer ${token}`);
 
@@ -187,11 +197,13 @@ describe('GET /api/meta/pipeline caching', () => {
   });
 
   it('reports the CALLER as me, for each role', async () => {
-    const roles = ['superadmin', 'manager', 'agent', 'technician'];
+    const roles = ['superadmin', 'sales_director', 'sales_executive', 'field_engineer'];
     for (const role of roles) {
-      const res = await request(app).get('/api/meta/pipeline')
+      const res = await request(app).get('/api/meta/me')
         .set('Authorization', `Bearer ${tok(await insertUser({ role }))}`);
-      expect(res.body.data.me.role).toBe(role);
+      expect(res.body.data.role).toBe(role);
+      /* And the portal that decides which screens they may mount at all. */
+      expect(res.body.data.portal.landing).toEqual(expect.any(String));
     }
   });
 });

@@ -111,11 +111,25 @@ async function notifyOnce(users, entry, cooldownHours = DEFAULT_COOLDOWN_HOURS) 
 }
 
 /** Unread count for a user — the number on the bell. */
+/**
+ * Notify ONE person.
+ *
+ * The counterpart to notifyByPermission, and the right default for anything addressed to
+ * an individual — an approval waiting on their decision, a lead assigned to them. Fanning
+ * such a thing out by permission would tell all four Sales Managers about a decision only
+ * one of them can take, and the notification centre stops being read.
+ */
+async function notifyUser(userOrId, entry) {
+  if (!userOrId) return [];
+  return notifyUsers([userOrId], entry);
+}
+
 function unreadCount(userId) {
   return Notification.countDocuments({ user: userId, readAt: null });
 }
 
 module.exports = {
+  notifyUser,
   recipientsFor, notifyUsers, notifyByPermission, notifyOnce, unreadCount,
   DEFAULT_COOLDOWN_HOURS,
 };

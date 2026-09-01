@@ -9,7 +9,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
-import { usePipeline, can } from '../../meta/usePipeline';
+import { can } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 import { KpiCard } from '../../components/KpiCard';
 import { COUNTER_LABELS, type KpiSummary, type Period } from './types';
 
@@ -22,10 +23,10 @@ const PROCESSES = [
 type ProcessKey = (typeof PROCESSES)[number]['key'];
 
 export function DashboardPage() {
-  const { data: meta } = usePipeline();
+  const { data: me } = useMe();
   const [period, setPeriod] = useState<Period>('last_month');
 
-  const visible = PROCESSES.filter((p) => can(meta, p.permission));
+  const visible = PROCESSES.filter((p) => can(me, p.permission));
   const [active, setActive] = useState<ProcessKey | 'all'>('all');
 
   const summary = useQuery({
@@ -132,7 +133,7 @@ export function DashboardPage() {
         </section>
       ))}
 
-      {summary.data && can(meta, 'lead.read') && (
+      {summary.data && can(me, 'lead.read') && (
         <section>
           <div className="form-label" style={{ fontSize: 13 }}>Hygiene queues</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

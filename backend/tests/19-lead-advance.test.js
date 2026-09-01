@@ -15,7 +15,7 @@
 const request  = require('supertest');
 const app      = require('../src/app');
 const Lead     = require('../src/models/Lead');
-const Agent    = require('../src/models/Agent');
+const Agent    = require('./helpers/owner');
 const AuditLog = require('../src/models/AuditLog');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
@@ -46,12 +46,15 @@ afterAll(disconnect);
 beforeEach(async () => {
   await clearCollections();
   adminToken   = tok(await insertUser({ role: 'superadmin', name: 'Root' }));
-  managerToken = tok(await insertUser({ role: 'manager', name: 'Sneha' }));
+  managerToken = tok(await insertUser({ role: 'sales_director', name: 'Sneha' }));
   agentProfile = await Agent.create({
     name: 'Rahul', initials: 'RS', email: 'rahul@iinvsys.test',
     phone: '9876500000', territory: 'West',
   });
-  agentToken = tok(await insertUser({ role: 'agent', name: 'Rahul', agentId: agentProfile._id }));
+  /* The SAME record: `Agent` is retired, so the profile and the login are one User.
+     Passing the profile's email makes the fixture adopt it rather than create a second
+     person who owns none of the leads. */
+  agentToken = tok(await insertUser({ role: 'sales_executive', name: 'Rahul', email: 'rahul@iinvsys.test' }));
 });
 
 describe('the four movement rules', () => {
@@ -333,7 +336,7 @@ describe('manager override', () => {
 
   it('an AGENT cannot override — the permission is manager and above', async () => {
     const lead = await Lead.create({
-      name: 'Bare', phone: '9876500006', source: 'cold_call', assignedAgent: agentProfile._id,
+      name: 'Bare', phone: '9876500006', source: 'cold_call', owner: agentProfile._id,
     });
     const res = await advance(lead._id, {
       toStage: 'prospect', force: true, gateOverrideNote: 'let me through',
@@ -457,7 +460,7 @@ describe('GET /api/leads/hygiene — the manager worklist', () => {
   });
 
   it('scopes an agent to their own book', async () => {
-    await Lead.create({ name: 'Mine', phone: '9876500012', source: 'cold_call', assignedAgent: agentProfile._id });
+    await Lead.create({ name: 'Mine', phone: '9876500012', source: 'cold_call', owner: agentProfile._id });
     await Lead.create({ name: 'Someone else', phone: '9876500013', source: 'cold_call' });
 
     const res = await request(app).get('/api/leads/hygiene')
@@ -475,7 +478,7 @@ describe('access control', () => {
   });
 
   it('requires the lead.advance permission', async () => {
-    const warehouse = tok(await insertUser({ role: 'warehouse' }));
+    const warehouse = tok(await insertUser({ role: 'production_engineer' }));
     const lead = await mkLead();
     const res = await advance(lead._id, { toStage: 'prospect' }, warehouse);
     expect(res.status).toBe(403);
@@ -578,7 +581,7 @@ describe('POST /api/leads/:id/upload — the PO gate becomes drivable (S-8)', ()
   });
 
   it('scopes an agent to their own leads', async () => {
-    const mine = await mkLead({ assignedAgent: agentProfile._id });
+    const mine = await mkLead({ owner: agentProfile._id });
     const theirs = await mkLead({ phone: '9876500088' });
 
     expect((await upload(mine._id, 'quote', agentToken)).status).toBe(201);

@@ -42,6 +42,16 @@ const NOTIFICATION_EVENTS = [
   'install.issue_sla_breached',
   'install.csat_low',
   'install.corrective_action_overdue',
+  /* Approvals — doc 1 IS-HD-04, doc 2 SA-MGR-08 / SA-DIR-09, doc 3 PD-HD-07,
+     doc 4 IC-HD-04. Addressed to ONE person (Approval.assignedTo), never broadcast
+     to every holder of a permission. */
+  'approval.requested',
+  'approval.decided',
+  'approval.escalated',
+  /* Org / assignment — doc 1 IS-DIR-03: "Assigned person gets instant notification". */
+  'lead.assigned',
+  /* Activity compliance — doc 2: "If you don't log for 24h, your Manager gets an alert." */
+  'activity.none_logged',
 ];
 
 const NotificationSchema = new mongoose.Schema({
@@ -52,7 +62,7 @@ const NotificationSchema = new mongoose.Schema({
   body:  { type: String, trim: true, default: '' },
 
   /* What this is about, so the client can deep-link to it. */
-  entityType: { type: String, enum: ['lead', 'workorder', 'installation'], default: null },
+  entityType: { type: String, enum: ['lead', 'workorder', 'installation', 'approval', 'customer', 'user'], default: null },
   entityId:   { type: mongoose.Schema.Types.ObjectId, default: null },
 
   /* Exactly one recipient per document. Fanning out at write time rather than

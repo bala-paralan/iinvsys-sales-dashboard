@@ -12,12 +12,14 @@ afterAll(async () => { await db.disconnect(); });
 /* ─── helpers ─────────────────────────────────────────────────── */
 
 async function insertUser(role) {
-  const emailMap = {
-    superadmin: 'admin@test.com', manager: 'mgr@test.com',
-    agent: 'agt@test.com', readonly: 'ro@test.com',
-  };
+  /* Derived from the role rather than a lookup table: the table was keyed by the v2 role
+     names, so every V3 role silently mapped to `undefined` and failed validation. */
+  const email = `${role}@test.com`;
+  const existing = await User.collection.findOne({ email });
+  if (existing) return existing._id;
+
   const result = await User.collection.insertOne({
-    name: role, email: emailMap[role],
+    name: role, email,
     password: '$2b$01$placeholder',
     role, agentId: null, expoId: null, expiresAt: null,
     isTemporary: false, isActive: true,
@@ -65,7 +67,7 @@ describe('GET /api/expos', () => {
   });
 
   it('readonly can list expos', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_executive');
     const res   = await request(app).get('/api/expos').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('data');
@@ -73,7 +75,7 @@ describe('GET /api/expos', () => {
   });
 
   it('returns paginated results', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
 
     for (let i = 1; i <= 5; i++) {
       await request(app)
@@ -92,7 +94,7 @@ describe('GET /api/expos', () => {
   });
 
   it('filters by status', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
 
     await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`)
       .send({ name: 'Future Expo', startDate: futureDate(5), endDate: futureDate(10), venue: 'V', city: 'Delhi', targetLeads: 50 });
@@ -106,7 +108,7 @@ describe('GET /api/expos', () => {
   });
 
   it('filters by city (case-insensitive)', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
 
     await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`)
       .send({ name: 'Mumbai Expo', startDate: futureDate(1), endDate: futureDate(2), venue: 'V1', city: 'Mumbai', targetLeads: 10 });
@@ -127,7 +129,7 @@ describe('GET /api/expos', () => {
 
 describe('POST /api/expos', () => {
   it('manager can create an expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
 
     expect(res.status).toBe(201);
@@ -136,26 +138,26 @@ describe('POST /api/expos', () => {
   });
 
   it('readonly cannot create an expo', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_executive');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     expect(res.status).toBe(403);
   });
 
   it('agent cannot create an expo', async () => {
-    const token = await tokenFor('agent');
+    const token = await tokenFor('sales_executive');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     expect(res.status).toBe(403);
   });
 
   it('rejects expo with missing required fields', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`)
       .send({ name: 'Incomplete Expo' });
     expect(res.status).toBe(422);
   });
 
   it('auto-sets status to upcoming for future expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`)
       .send({ name: 'Future', startDate: futureDate(5), endDate: futureDate(10), venue: 'V', city: 'Delhi', targetLeads: 10 });
 
@@ -164,7 +166,7 @@ describe('POST /api/expos', () => {
   });
 
   it('auto-sets status to past for expired expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`)
       .send({ name: 'Past Expo', startDate: pastDate(10), endDate: pastDate(5), venue: 'V', city: 'Delhi', targetLeads: 10 });
 
@@ -173,7 +175,7 @@ describe('POST /api/expos', () => {
   });
 
   it('auto-sets status to live for currently ongoing expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`)
       .send({ name: 'Live Expo', startDate: pastDate(1), endDate: futureDate(1), venue: 'V', city: 'Delhi', targetLeads: 10 });
 
@@ -186,7 +188,7 @@ describe('POST /api/expos', () => {
 
 describe('GET /api/expos/:id', () => {
   it('returns expo with leadCount', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const id     = create.body.data._id;
 
@@ -198,7 +200,7 @@ describe('GET /api/expos/:id', () => {
   });
 
   it('returns 404 for non-existent expo', async () => {
-    const token = await tokenFor('readonly');
+    const token = await tokenFor('sales_executive');
     const res   = await request(app)
       .get('/api/expos/000000000000000000000001')
       .set('Authorization', `Bearer ${token}`);
@@ -210,7 +212,7 @@ describe('GET /api/expos/:id', () => {
 
 describe('PUT /api/expos/:id', () => {
   it('manager can update an expo', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const id     = create.body.data._id;
 
@@ -222,7 +224,7 @@ describe('PUT /api/expos/:id', () => {
   });
 
   it('returns 404 when updating non-existent expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app)
       .put('/api/expos/000000000000000000000001')
       .set('Authorization', `Bearer ${token}`)
@@ -231,11 +233,11 @@ describe('PUT /api/expos/:id', () => {
   });
 
   it('readonly cannot update an expo', async () => {
-    const mgrToken = await tokenFor('manager');
+    const mgrToken = await tokenFor('sales_director');
     const create   = await request(app).post('/api/expos').set('Authorization', `Bearer ${mgrToken}`).send(sampleExpo());
     const id       = create.body.data._id;
 
-    const roToken = await tokenFor('readonly');
+    const roToken = await tokenFor('sales_executive');
     const res     = await request(app).put(`/api/expos/${id}`).set('Authorization', `Bearer ${roToken}`)
       .send({ ...sampleExpo(), targetLeads: 1 });
     expect(res.status).toBe(403);
@@ -246,7 +248,7 @@ describe('PUT /api/expos/:id', () => {
 
 describe('DELETE /api/expos/:id', () => {
   it('manager can delete an expo', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const id     = create.body.data._id;
 
@@ -258,17 +260,17 @@ describe('DELETE /api/expos/:id', () => {
   });
 
   it('readonly cannot delete an expo', async () => {
-    const mgrToken = await tokenFor('manager');
+    const mgrToken = await tokenFor('sales_director');
     const create   = await request(app).post('/api/expos').set('Authorization', `Bearer ${mgrToken}`).send(sampleExpo());
     const id       = create.body.data._id;
 
-    const roToken = await tokenFor('readonly');
+    const roToken = await tokenFor('sales_executive');
     const res     = await request(app).delete(`/api/expos/${id}`).set('Authorization', `Bearer ${roToken}`);
     expect(res.status).toBe(403);
   });
 
   it('returns 404 when deleting non-existent expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app)
       .delete('/api/expos/000000000000000000000001')
       .set('Authorization', `Bearer ${token}`);
@@ -280,7 +282,7 @@ describe('DELETE /api/expos/:id', () => {
 
 describe('POST /api/expos/:id/referrers', () => {
   it('manager can create a referrer account', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -299,7 +301,7 @@ describe('POST /api/expos/:id/referrers', () => {
   });
 
   it('referrer email contains expo-based slug', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -314,7 +316,7 @@ describe('POST /api/expos/:id/referrers', () => {
   });
 
   it('returns 400 when name is missing', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -327,7 +329,7 @@ describe('POST /api/expos/:id/referrers', () => {
   });
 
   it('needs no password — the referrer chooses their own via the invite', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -340,7 +342,7 @@ describe('POST /api/expos/:id/referrers', () => {
   });
 
   it('returns 404 for non-existent expo', async () => {
-    const token = await tokenFor('manager');
+    const token = await tokenFor('sales_director');
     const res   = await request(app)
       .post('/api/expos/000000000000000000000001/referrers')
       .set('Authorization', `Bearer ${token}`)
@@ -353,7 +355,7 @@ describe('POST /api/expos/:id/referrers', () => {
 
 describe('GET /api/expos/:id/referrers', () => {
   it('returns list of referrers for expo (no password exposed)', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -370,7 +372,7 @@ describe('GET /api/expos/:id/referrers', () => {
   });
 
   it('referrers include leadCount', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -389,7 +391,7 @@ describe('GET /api/expos/:id/referrers', () => {
 
 describe('DELETE /api/expos/:id/referrers/:uid', () => {
   it('manager can delete a referrer', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 
@@ -408,7 +410,7 @@ describe('DELETE /api/expos/:id/referrers/:uid', () => {
   });
 
   it('returns 404 for non-existent referrer', async () => {
-    const token  = await tokenFor('manager');
+    const token  = await tokenFor('sales_director');
     const create = await request(app).post('/api/expos').set('Authorization', `Bearer ${token}`).send(sampleExpo());
     const expoId = create.body.data._id;
 

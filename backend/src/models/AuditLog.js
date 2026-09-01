@@ -41,8 +41,10 @@ const AUDIT_ACTIONS = [
 ];
 
 const AUDIT_ENTITIES = [
-  'lead', 'workorder', 'installation', 'user', 'agent', 'expo',
+  'lead', 'workorder', 'installation', 'user', 'expo',
   'product', 'setting', 'notification',
+  /* ERP Bible V3 */
+  'customer', 'approval',
 ];
 
 const AuditLogSchema = new mongoose.Schema({

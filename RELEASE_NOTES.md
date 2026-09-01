@@ -33,6 +33,118 @@ Lead, Agent & Expo Management Platform → three-process ERP (Sales · Delivery 
 
 ---
 
+## v3.0.0 — ERP Bible V3, Phase 0 (Foundation)
+
+Branch `release/erp-three-process`. Ships **no V3 screens**; ships the substrate all four
+V3 modules stand on. `new_requirement_21Aug/` specifies 72 screens across 11 roles,
+delivered in five phases — this is the first.
+
+### The role taxonomy is replaced
+
+Eleven V3 roles (`sales_director`, `is_head`, `is_executive`, `sales_manager`,
+`sales_executive`, `production_head`, `production_engineer`, `install_head`, `cs_manager`,
+`field_engineer`, `cs_agent`) plus `superadmin` and `referrer`. Greenfield: a legacy role
+value is a validation error, never a silent upgrade. `manager`, `agent`, `readonly`,
+`finance`, `delivery_manager`, `warehouse`, `logistics`, `installation_manager`,
+`technician` and `cs_executive` are gone.
+
+**The `ROLE_LEVEL` ladder is deleted.** V3 names roles that are genuinely incomparable — a
+Production Head is neither above nor below an IS Head — and ranking incomparable roles is
+what produced the documented hole where `requireMinRole('readonly')` admitted every
+authenticated user, referrers included. `requirePermission` is now the only gate, with
+`requireRole` for superadmin-only routes.
+
+The ladder's one real virtue was that a route which forgot its guard still refused
+outsiders by accident. That is replaced by `assertRoutesGuarded()` in `src/app.js`, which
+**refuses to boot** if any authenticated route carries neither guard. Deny-by-default is
+structural now instead of incidental. A permission-coverage lint enforces the other half:
+every declared permission must be wired to something — `deal.approve_deviation`,
+`po.verify` and `workorder.create` had been declared, documented and granted while
+gating nothing since v2.0.0.
+
+### The organisation, and who may see whose rows
+
+`User` gains `reportsTo`, a materialised `chain` and `domain`. `services/orgService.js`
+owns both derived fields — it rewrites the moved subtree on reassignment and refuses a
+cycle. `services/scopeService.js` is the single row-level resolver, replacing the **four**
+independent mechanisms v2 had (`scopeToAgent`, a filter in `workOrderController`, an
+inline `role === 'technician'` test in `installationController`, and a fourth inside
+`excelReport.scopeFor`) — replacing one of them would have left three leaks.
+
+**The KPI endpoints had no scoping at all.** `salesKpis(window)` took only a window, so
+every role holding `kpi.read` received company-wide pipeline value, win rate and revenue —
+the exact thing doc 2 forbids twice (SA-MGR-01, SA-DIR-01). They now take a scope, and
+`kpi.read` / `kpi.read_team` / `kpi.read_company` decide which.
+
+`Agent` is retired: `User` is the only identity model and `Lead.assignedAgent` becomes
+`Lead.owner: ref User`. This also closes **P-1** — Installation Planning requires a
+technician ObjectId and there was no endpoint that could supply one; `GET /api/users` now
+can.
+
+### Engineers are not sent money
+
+Doc 3 states it twice and states it as a backend requirement: financial values must be
+"not sent to the engineer's session at all". `config/fieldVisibility.js` (pure data) plus
+`utils/redact.js`, called from `ok()`/`created()`/`paginated()` — the one place every JSON
+response passes through. Three backstops: query-layer projections, an explicit flag in
+`excelReport` (which streams a buffer and never touches `ok()`), and a crawler test that
+signs in as each finance-blind role, walks every GET route and refuses any body carrying a
+redacted key at any depth.
+
+### The customer, and the interaction log
+
+New `Customer`, `Activity`, `Task`, `Approval` and `CoachingNote` models, with routes and
+tests but no screens.
+
+- **Activities belong to the customer, not the lead** — the rule doc 1 and doc 2 both
+  restate. `Lead.followUps[]` is retired; `POST /api/leads/:id/followups` is gone.
+  `Lead.lastActivityAt` is denormalised so `config/pipeline.js` stays a pure function over
+  one document and the C-5 weekly-note rule keeps working.
+- **"Next Action" auto-creates a dated task**, in the same operation, linked both ways.
+- **Customer 360** aggregates every deal and every rep onto one timeline. Nothing derived
+  is stored.
+- **Dedupe is advisory for a human and exact-match-only for automated callers.** A wrong
+  fuzzy auto-merge under a unique index cannot be picked apart afterwards, and no one is
+  watching when a cron job guesses.
+- **Approvals are addressed to one person.** `notifyByPermission` fans out to every holder
+  of a permission, which would have alerted all four Sales Managers and the whole director
+  tier for a single 7% discount request.
+- **Coaching notes are a separate collection**, not an `Activity` variant: folded in, one
+  forgotten predicate on the Customer 360 timeline shows an executive their own Director's
+  private assessment of them.
+
+### Per-role portals
+
+`config/portals.js` (server-side, pure data) gives each role its own sidebar, landing route
+and screen allowlist — "All screens, all flows, no shared views", on every document header.
+`nav` and `routes` derive from one object, so a role's sidebar and its reachable routes
+cannot drift: v2 hid a link and left the URL working, so the page mounted and rendered a
+403 banner. `frontend/src/App.tsx` is now a generated route tree; the client holds only a
+screen-key → component map.
+
+**`me` has left the cached pipeline payload.** It rode inside `/api/meta/pipeline`, which
+the client caches with `staleTime: Infinity` keyed on a `version` hash that did not cover
+the taxonomy — so changing someone's role changed what the server sent and changed nothing
+about what their open tab believed. It is now `GET /api/meta/me` (`staleTime: 0`), and
+`pipelineVersion()` additionally hashes the role list and every stage's `ownerRole`.
+
+### Seed
+
+The full V3 org chart — 29 users using the documents' own names (Priya Krishnan, Rajan V.,
+Vikram Nair, Exec A–H, Suresh R., Kumar R., Agent Priya …), the seven customers the
+specification's screenshots are drawn from with their named contacts, and a few activities
+so the timeline screens are demonstrable at the phase gate. Reporting lines are written
+through `orgService`, which makes the seed the first test that `chain` maintenance works.
+
+### Tests
+
+New: `07-role-taxonomy`, `10-role-matrix` (exhaustive role × guarded-route product,
+asserted through HTTP), `30-permission-coverage`, `31-financial-redaction`,
+`32-scope-resolver`, `33-customer-activity`, `34-portals`, `35-approval`, `36-boot-guard`.
+`tests/helpers/roles.js` gives every suite named role fixtures that wire `chain` as well as
+`reportsTo` — a fixture setting only `reportsTo` produces an empty subtree and a scoping
+test that passes without testing anything.
+
 ## v2.0.3 — 2026-08-17
 
 A user manual for all three processes, shipped **inside** the application rather than beside it:
@@ -299,7 +411,11 @@ Full register with re-enable conditions: `docs/requirements/06-erp-configuration
 | P-18 | `package.json` versions are stale: root `1.0.0`, `backend` `1.0.0`, `frontend` `0.1.0` — none reflect v2.0.2. Set them and start tagging releases in git. |
 | P-19 | `vercel.json` still routes `/` to the **legacy** app with v2 at `/v2`. The on-premise host has already cut over (`APP_BASE=/`); the Vercel config has not. |
 | P-20 | 18 legacy Jest suites clear collections in `afterEach` only, so each one's first test inherits the previous suite's state — an intermittent failure with no code change. New suites must clear in `beforeEach` **and** `afterAll`. |
+| P-25 | **A full `--runInBand` run intermittently stalls for ~15 minutes inside one arbitrary suite.** Observed twice on different suites (`15-audit-integration` 993 s, then `lead-filters` 864 s); each runs in 12–39 s in isolation, and `redact()` on the largest response measures 27 ms. The stall is the single shared `mongodb-memory-server` under 1,700 tests of sustained write load, not application code. It matters because a 30 s test timeout during a stall used to cascade into unrelated dup-key failures — the fixtures now return the unique-index winner instead of throwing, so a stall produces one honest timeout. Worth pinning a real mongod, or sharding the run, before CI gates merges (P-21). |
 | P-21 | CI (N-11) cannot gate merges until the suite is green and pinned. |
+| P-22 | **The in-app user manual (`frontend/public/manual/`) is now wrong about roles and navigation.** It documents the v2 taxonomy and the single shared sidebar; v3.0.0 replaced both. Regenerate once the portals settle — note the screenshot rate-limit trap recorded against the original 62 captures. |
+| P-23 | `/api/agents` is mounted as a deprecated alias of `/api/users` so the legacy root app keeps working through the cutover. Drop it when `vercel.json` stops routing `/` to the legacy app (P-19). |
+| P-24 | Phase 0 ships the Customer, Activity, Task, Approval and CoachingNote **routes with no screens** — that is deliberate (they are the substrate P1–P4 stand on), but it means the only way to exercise them today is the API or the test suite. |
 
 ### Deliberately out of scope
 

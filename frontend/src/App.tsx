@@ -1,104 +1,96 @@
-import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { useSession } from './auth/session';
-import { usePipeline, can } from './meta/usePipeline';
-import { NotificationBell } from './components/NotificationBell';
+import { useMe } from './portal/useMe';
+import { PortalShell } from './portal/PortalShell';
+import { RequireScreen } from './portal/RequireScreen';
+import { componentFor } from './portal/registry';
+import { NotImplemented } from './portal/NotImplemented';
 import { LoginPage } from './features/auth/LoginPage';
 import { InvitePage } from './features/auth/InvitePage';
-import { LeadsPage } from './features/leads/LeadsPage';
-import { LeadDetailPage } from './features/leads/LeadDetailPage';
-import { HygienePage } from './features/hygiene/HygienePage';
-import { WorkOrdersPage } from './features/delivery/WorkOrdersPage';
-import { WorkOrderDetailPage } from './features/delivery/WorkOrderDetailPage';
-import { InstallationsPage } from './features/installation/InstallationsPage';
-import { InstallationDetailPage } from './features/installation/InstallationDetailPage';
-import { DashboardPage } from './features/kpis/DashboardPage';
-import { NotificationsPage } from './features/notifications/NotificationsPage';
-import { SettingsPage } from './features/settings/PipelineRulesPage';
-import { AdminPage } from './features/admin/AdminPage';
 
-/** Routes that require a signed-in user; waits out token restoration so a
-    reload does not bounce a valid session to the login page. */
-function RequireAuth() {
+/**
+ * The route tree is GENERATED from the caller's portal.
+ *
+ * v2 declared eleven routes as JSX literals under a single `RequireAuth`, with the
+ * sidebar links permission-gated one by one and no route-level check at all — so any
+ * signed-in user could type /admin, watch the page mount, and read a 403 banner. Both
+ * halves now come from one server-side object (backend/src/config/portals.js): the paths
+ * a role may mount and the links it is shown are the same list.
+ */
+function Authenticated() {
   const { user, restoring } = useSession();
+  const { data: me, isLoading } = useMe();
+
   if (restoring) return null;
   if (!user) return <Navigate to="/login" replace />;
-  return <Shell />;
+  if (isLoading || !me) return null;
+
+  return <PortalShell me={me} />;
 }
 
-function Shell() {
-  const { user, logout } = useSession();
-  const { data: meta } = usePipeline();
-
+/**
+ * The whole route tree depends on /api/meta/me, so a failure there is not a page that
+ * degrades — it is no page at all. Say so, rather than rendering blank forever.
+ */
+function SessionUnavailable({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="shell">
-      <nav className="sidebar">
-        <div className="brand">IINVSYS</div>
-        {can(meta, 'kpi.read') && <NavLink to="/dashboard" end>Dashboard</NavLink>}
-        <NavLink to="/leads" end>Leads</NavLink>
-        {/* Gated by permission, never by role name — the payload's `me` block
-            is the authority. */}
-        {can(meta, 'lead.read') && <NavLink to="/hygiene">Review queue</NavLink>}
-        {can(meta, 'workorder.read') && <NavLink to="/delivery" end>Delivery</NavLink>}
-        {can(meta, 'install.read') && <NavLink to="/installation" end>Installation</NavLink>}
-        {can(meta, 'notification.read') && <NavLink to="/notifications" end>Alerts</NavLink>}
-        {/* Admin is a role judgement, not a permission one — doc 04 defines no
-            `agent.write` verb, and the routes behind it are requireMinRole. */}
-        {['manager', 'superadmin'].includes(meta?.me.role ?? '') && (
-          <NavLink to="/admin" end>Admin</NavLink>
-        )}
-        {['manager', 'superadmin'].includes(meta?.me.role ?? '') && (
-          <NavLink to="/settings" end>Settings</NavLink>
-        )}
-        {/* The user manual. Deliberately ungated: it documents what every role
-            can and cannot do, and the role that most needs that is the one with
-            the fewest permissions. It is a static page under the app's base
-            path, so the href is built from BASE_URL rather than hardcoded —
-            the deployed base is '/' after cutover and '/v2/' before it. */}
-        <a
-          href={`${import.meta.env.BASE_URL}manual/index.html`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Manual ↗
-        </a>
-        <div className="spacer" />
-        {can(meta, 'notification.read') && (
-          <div style={{ padding: '0 0 10px' }}>
-            <NotificationBell />
-          </div>
-        )}
-        <div style={{ color: 'var(--text-3)', fontSize: 12, padding: '0 10px 8px' }}>
-          {user?.name} · {meta?.me.role ?? user?.role}
+    <div className="login-wrap">
+      <div className="card" style={{ maxWidth: 460, margin: '80px auto', padding: 28 }}>
+        <h1 className="page-title">Session <em>unavailable</em></h1>
+        <div className="page-sub">// COULD NOT LOAD YOUR PERMISSIONS</div>
+        <div className="offline-banner" style={{ marginTop: 16 }}>
+          The server did not return your role and portal, so there is nothing to render.
+          This is usually the API being unreachable.
         </div>
-        <button className="neo-btn" onClick={logout}>⏻ Logout</button>
-      </nav>
-      <main className="main">
-        <Outlet />
-      </main>
+        <button className="neo-btn gold" style={{ marginTop: 16 }} onClick={onRetry}>
+          Retry
+        </button>
+      </div>
     </div>
   );
 }
 
-export function App() {
+function PortalRoutes() {
+  const { user, restoring } = useSession();
+  const { data: me, isLoading, isError, refetch } = useMe();
+
+  if (restoring) return null;
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/invite/:token" element={<InvitePage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+  if (isError) return <SessionUnavailable onRetry={() => refetch()} />;
+  if (isLoading || !me) return null;
+
+  const routes = me.portal?.routes ?? [];
+
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      {/* Unauthenticated by necessity — the holder has no credential yet. */}
+      <Route path="/login" element={<Navigate to={me.portal?.landing ?? '/login'} replace />} />
       <Route path="/invite/:token" element={<InvitePage />} />
-      <Route element={<RequireAuth />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/leads" element={<LeadsPage />} />
-        <Route path="/leads/:id" element={<LeadDetailPage />} />
-        <Route path="/hygiene" element={<HygienePage />} />
-        <Route path="/delivery" element={<WorkOrdersPage />} />
-        <Route path="/delivery/:id" element={<WorkOrderDetailPage />} />
-        <Route path="/installation" element={<InstallationsPage />} />
-        <Route path="/installation/:id" element={<InstallationDetailPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/leads" replace />} />
+
+      <Route element={<Authenticated />}>
+        {routes.map((r) => {
+          const Screen = componentFor(r.screen);
+          const element = Screen
+            ? <RequireScreen me={me} screen={r.screen}><Screen /></RequireScreen>
+            : <NotImplemented screen={r.screen} />;
+          return <Route key={r.path} path={r.path} element={element} />;
+        })}
+
+        {/* Anything else goes to this role's own landing page — never to a shared
+            default, which in v2 sent every operational role to /leads and a 403. */}
+        <Route path="*" element={<Navigate to={me.portal?.landing ?? '/login'} replace />} />
       </Route>
     </Routes>
   );
+}
+
+export function App() {
+  return <PortalRoutes />;
 }

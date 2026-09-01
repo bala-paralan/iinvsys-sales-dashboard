@@ -10,7 +10,7 @@
  */
 const request = require('supertest');
 const app     = require('../src/app');
-const Agent   = require('../src/models/Agent');
+const Agent   = require('./helpers/owner');
 const { parsePaging, MAX_LIMIT, DEFAULT_LIMIT } = require('../src/utils/pagination');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
@@ -94,13 +94,15 @@ describe('list endpoints survive hostile pagination', () => {
     const p1 = await request(app).get('/api/agents?page=1&limit=2').set('Authorization', `Bearer ${adminToken}`);
     const p3 = await request(app).get('/api/agents?page=3&limit=2').set('Authorization', `Bearer ${adminToken}`);
 
+    /* Six, not five: `User` is the directory now, so the superadmin making the request
+       is in it. `Agent` was a separate collection that held only the five just inserted. */
     expect(p1.body.data).toHaveLength(2);
-    expect(p3.body.data).toHaveLength(1);
-    expect(p1.body.pagination.total).toBe(5);
+    expect(p3.body.data).toHaveLength(2);
+    expect(p1.body.pagination.total).toBe(6);
     expect(p1.body.pagination.pages).toBe(3);
 
     const ids = new Set([...p1.body.data, ...p3.body.data].map((a) => a._id));
-    expect(ids.size).toBe(3); // no overlap between pages
+    expect(ids.size).toBe(4); // two full pages, no overlap between them
   });
 });
 

@@ -31,7 +31,11 @@ export function LoginPage() {
     setError(null);
     try {
       await login(email.trim().toLowerCase(), password);
-      navigate('/leads', { replace: true });
+      /* '/' rather than a named screen: the caller's landing route comes from their
+         portal, which App.tsx has not fetched yet at this moment. The catch-all sends
+         them there as soon as it arrives. v2 hardcoded '/leads' here, which meant every
+         operational role landed on a 403 banner the instant they signed in. */
+      navigate('/', { replace: true });
     } catch (err) {
       setError(messageFor(err));
     } finally {

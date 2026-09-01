@@ -91,18 +91,18 @@ describe('POST /api/auth/register', () => {
     const res   = await request(app)
       .post('/api/auth/register')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'New User', email: 'new@test.com', password: 'NewPass@1', role: 'agent' });
+      .send({ name: 'New User', email: 'new@test.com', password: 'NewPass@1', role: 'sales_executive' });
     expect(res.status).toBe(201);
     expect(res.body.data.user.email).toBe('new@test.com');
   });
 
   it('blocks non-superadmin from registering users', async () => {
-    await createUser({ role: 'manager', email: 'manager@test.com' });
+    await createUser({ role: 'sales_director', email: 'manager@test.com' });
     const token = await loginAs('manager@test.com');
     const res   = await request(app)
       .post('/api/auth/register')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'X', email: 'x@test.com', password: 'XPass@123', role: 'agent' });
+      .send({ name: 'X', email: 'x@test.com', password: 'XPass@123', role: 'sales_executive' });
     expect(res.status).toBe(403);
   });
 });

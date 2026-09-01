@@ -2,7 +2,7 @@
 /**
  * WorkOrder — Process 2 (Delivery).
  *
- * Created ONLY by handoffService.createWorkOrderForLead(), which is itself only
+ * Created ONLY by processHandoffService.createWorkOrderForLead(), which is itself only
  * reachable through the PO-gated `→ commercial_order` transition. That chain is
  * what makes Handoff 1 a workflow gate rather than a convention: there is no
  * route that creates a Work Order out of thin air, so a Work Order existing

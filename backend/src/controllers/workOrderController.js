@@ -19,6 +19,7 @@ const { notifyByPermission } = require('../services/notificationService');
 const { hoursBetween } = require('../utils/businessDays');
 const { ok, created, notFound, badRequest, unprocessable, gateFailed, paginated } = require('../utils/response');
 const { parsePaging } = require('../utils/pagination');
+const { scopeFilter } = require('../services/scopeService');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -26,14 +27,18 @@ const upload = multer({
 });
 
 /**
- * Doc 04 grants `agent` a SCOPED workorder.read — the delivery outcome of
- * their own deals, never the whole queue. Scoping is by the upstream lead's
- * assignment; delivery roles fall through with no filter.
+ * A Sales Executive gets a SCOPED workorder.read — the delivery outcome of their own
+ * deals, never the whole queue. Work Orders carry no owner of their own, so the scope is
+ * resolved against the UPSTREAM lead and translated into a `lead: {$in: [...]}` filter.
+ *
+ * Production roles resolve to mode 'all' and fall through with no filter, which is what
+ * makes this one function rather than a role test: adding a role changes ROLE_SCOPE in
+ * config/permissions.js, not this file.
  */
-async function agentScopeFilter(req) {
-  if (req.user.role !== 'agent') return null;
+async function upstreamLeadScope(req) {
+  if (!req.scope || req.scope.userIds === null) return null;
   const Lead = require('../models/Lead');
-  const mine = await Lead.find({ assignedAgent: req.user.agentId }).select('_id').lean();
+  const mine = await Lead.find(scopeFilter(req.scope, 'owner')).select('_id').lean();
   return { lead: { $in: mine.map((l) => l._id) } };
 }
 
@@ -41,7 +46,7 @@ async function agentScopeFilter(req) {
 
 async function listWorkOrders(req, res, next) {
   try {
-    const filter = (await agentScopeFilter(req)) || {};
+    const filter = (await upstreamLeadScope(req)) || {};
     if (req.query.stage) filter.stage = req.query.stage;
     if (req.query.status) filter.status = req.query.status;
 
@@ -63,7 +68,7 @@ async function getWorkOrder(req, res, next) {
     if (!wo) return notFound(res, 'Work Order not found');
 
     /* Agent scoping: 404, not 403, so ids cannot be probed. */
-    const scope = await agentScopeFilter(req);
+    const scope = await upstreamLeadScope(req);
     if (scope && !scope.lead.$in.some((id) => String(id) === String(wo.lead))) {
       return notFound(res, 'Work Order not found');
     }
@@ -301,7 +306,7 @@ async function deliverWorkOrder(req, res, next) {
     /* Handoff 2 — Installation Job. The service seam exists; B3 fills it in.
        Same rule as Handoff 1: a handoff failure must not un-deliver a
        physically delivered order. */
-    const { createInstallationJobForWorkOrder } = require('../services/handoffService');
+    const { createInstallationJobForWorkOrder } = require('../services/processHandoffService');
     const job = await createInstallationJobForWorkOrder(wo, req);
 
     return ok(res, {

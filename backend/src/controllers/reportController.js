@@ -124,12 +124,14 @@ async function sendNow(req, res, next) {
    The JSON behind the workbook, scoped like the workbook. superadmin/manager */
 async function previewData(req, res, next) {
   try {
-    const Agent = require('../models/Agent');
+    const User  = require('../models/User');
     const Lead  = require('../models/Lead');
     const kpiService = require('../services/kpiService');
     const { scopeFor } = require('../utils/excelReport');
 
-    const scope = scopeFor(req.user);
+    /* Async since it moved onto services/scopeService.js — a team scope needs one
+       indexed User lookup to resolve the subtree. */
+    const scope = await scopeFor(req.user);
     let window;
     try {
       window = kpiService.resolveWindow(req.query);
@@ -139,14 +141,14 @@ async function previewData(req, res, next) {
     }
 
     /* One aggregation, not one query per agent. The previous implementation
-       ran `Lead.find({assignedAgent})` inside a loop and counted in JS — 40
+       ran `Lead.find({owner})` inside a loop and counted in JS — 40
        agents was 41 round trips and a full document scan each time. */
-    const agents = await Agent.find(scope.agentFilter).lean();
+    const agents = await User.find(scope.agentFilter).lean();
     const grouped = await Lead.aggregate([
-      { $match: { ...scope.leadFilter, assignedAgent: { $in: agents.map((a) => a._id) } } },
+      { $match: { ...scope.leadFilter, owner: { $in: agents.map((a) => a._id) } } },
       {
         $group: {
-          _id: '$assignedAgent',
+          _id: '$owner',
           totalLeads: { $sum: 1 },
           won: { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, 1, 0] } },
           wonValue: { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, { $ifNull: ['$value', 0] }, 0] } },

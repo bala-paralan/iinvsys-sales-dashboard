@@ -33,8 +33,8 @@ afterAll(async () => { await clearCollections(); await disconnect(); });
 
 beforeEach(async () => {
   await clearCollections();
-  managerToken = tok(await insertUser({ role: 'manager', name: 'Sneha' }));
-  agentToken = tok(await insertUser({ role: 'agent', name: 'Rahul' }));
+  managerToken = tok(await insertUser({ role: 'sales_director', name: 'Sneha' }));
+  agentToken = tok(await insertUser({ role: 'sales_executive', name: 'Rahul' }));
   expo = await Expo.create({
     name: 'Bengaluru Tech Summit', venue: 'BIEC', city: 'Bangalore',
     startDate: new Date(Date.now() + 7 * 86400000),
@@ -215,7 +215,7 @@ describe('POST /api/expos/:id/referrers/:uid/reinvite', () => {
   });
 
   it('404s for a user who is not a referrer on this expo', async () => {
-    const stranger = await insertUser({ role: 'agent' });
+    const stranger = await insertUser({ role: 'sales_executive' });
     const res = await request(app)
       .post(`/api/expos/${expo._id}/referrers/${stranger}/reinvite`)
       .set('Authorization', `Bearer ${managerToken}`);

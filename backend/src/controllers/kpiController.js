@@ -27,21 +27,22 @@ function handlerFor(process, compute, extra) {
       const window = windowOr400(req, res);
       if (!window) return undefined;
 
-      const metrics = await compute(window);
+      /* Which numbers, not just which window. See kpiService.scopeBases(). */
+      const metrics = await compute(window, req.scope);
       return ok(res, {
         process,
         window: { from: window.from, to: window.to, label: window.label },
         metrics,
-        ...(extra ? await extra() : {}),
+        ...(extra ? await extra(req) : {}),
       });
     } catch (err) { return next(err); }
   };
 }
 
-const salesKpis = handlerFor('sales', (w) => kpis.salesKpis(w),
-  () => kpis.salesHygieneCounters().then((counters) => ({ counters })));
-const deliveryKpis = handlerFor('delivery', (w) => kpis.deliveryKpis(w));
-const installationKpis = handlerFor('installation', (w) => kpis.installationKpis(w));
+const salesKpis = handlerFor('sales', (w, scope) => kpis.salesKpis(w, scope),
+  (req) => kpis.salesHygieneCounters(new Date(), req.scope).then((counters) => ({ counters })));
+const deliveryKpis = handlerFor('delivery', (w, scope) => kpis.deliveryKpis(w, scope));
+const installationKpis = handlerFor('installation', (w, scope) => kpis.installationKpis(w, scope));
 
 /**
  * All three processes in one call, for the manager dashboard.
@@ -55,10 +56,10 @@ async function summary(req, res, next) {
     const window = windowOr400(req, res);
     if (!window) return undefined;
 
-    const sales = await kpis.salesKpis(window);
-    const delivery = await kpis.deliveryKpis(window);
-    const installation = await kpis.installationKpis(window);
-    const counters = await kpis.salesHygieneCounters();
+    const sales = await kpis.salesKpis(window, req.scope);
+    const delivery = await kpis.deliveryKpis(window, req.scope);
+    const installation = await kpis.installationKpis(window, req.scope);
+    const counters = await kpis.salesHygieneCounters(new Date(), req.scope);
 
     const all = [...sales, ...delivery, ...installation];
     return ok(res, {

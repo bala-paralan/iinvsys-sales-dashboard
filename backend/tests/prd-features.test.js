@@ -29,17 +29,17 @@ afterAll(async () => { await db.disconnect(); });
 /* ── Shared setup helper ───────────────────────────────────────────── */
 async function setup() {
   const mongoose = require('mongoose');
-  const Agent    = require('../src/models/Agent');
+  const Agent    = require('./helpers/owner');
   const User     = require('../src/models/User');
 
-  const mgrId = await insertUser({ role: 'manager', email: 'mgr@t.com' });
+  const mgrId = await insertUser({ role: 'sales_director', email: 'mgr@t.com' });
   const mgrTok = tok(mgrId);
 
   const agentProfile = await Agent.create({
     name: 'Agt One', initials: 'AO', email: 'agt1@t.com', phone: '9000000001',
     territory: 'Delhi', designation: 'Sales', createdBy: mgrId,
   });
-  const agtId  = await insertUser({ role: 'agent', email: 'agt1@t.com', agentId: agentProfile._id });
+  const agtId  = await insertUser({ role: 'sales_executive', email: 'agt1@t.com', agentId: agentProfile._id });
   const agtTok = tok(agtId);
 
   return { mgrId, mgrTok, agtId, agtTok, agentProfile };
@@ -367,7 +367,7 @@ describe('PRD 3: POST /api/leads/bulk-scan', () => {
       .set(authHeader(agtTok))
       .send({ leads: [{ name: 'X', phone: '9000000099', source: 'exhibition_event' }] });
 
-    /* agents ARE allowed (auth = requireMinRole('agent')); controller returns 200 or 201 */
+    /* agents ARE allowed (auth = requireMinRole('sales_executive')); controller returns 200 or 201 */
     expect([200, 201, 403]).toContain(res.status);
   });
 });
@@ -516,23 +516,23 @@ describe('PRD 5: POST /api/leads/:id/enrich', () => {
 
   test('agent cannot enrich another agents lead', async () => {
     const mongoose = require('mongoose');
-    const Agent = require('../src/models/Agent');
+    const Agent = require('./helpers/owner');
     const User  = require('../src/models/User');
 
-    const mgrId  = await insertUser({ role: 'manager', email: 'mgr2@t.com' });
+    const mgrId  = await insertUser({ role: 'sales_director', email: 'mgr2@t.com' });
     const mgrTok2 = tok(mgrId);
 
     const ap1 = await Agent.create({ name: 'Ag1', initials: 'A1', email: 'ag1@t.com', phone: '9111111111', territory: 'X', designation: 'Sales', createdBy: mgrId });
     const ap2 = await Agent.create({ name: 'Ag2', initials: 'A2', email: 'ag2@t.com', phone: '9111111112', territory: 'Y', designation: 'Sales', createdBy: mgrId });
-    const ag1Id = await insertUser({ role: 'agent', email: 'ag1@t.com', agentId: ap1._id });
-    const ag2Id = await insertUser({ role: 'agent', email: 'ag2@t.com', agentId: ap2._id });
+    const ag1Id = await insertUser({ role: 'sales_executive', email: 'ag1@t.com', agentId: ap1._id });
+    const ag2Id = await insertUser({ role: 'sales_executive', email: 'ag2@t.com', agentId: ap2._id });
     const ag1Tok = tok(ag1Id);
     const ag2Tok = tok(ag2Id);
 
     /* Create lead assigned to agent 1 */
     const lead = await Lead.create({
       name: 'Lead Owned', phone: '9300000001', source: 'inbound_enquiry',
-      assignedAgent: ap1._id, stage: 'suspect', createdBy: mgrId,
+      owner: ap1._id, stage: 'suspect', createdBy: mgrId,
     });
 
     /* Agent 2 tries to enrich — should be forbidden */

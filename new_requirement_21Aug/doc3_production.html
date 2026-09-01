@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iinvsys ERP Bible V3 – Module 3: Production & Delivery</title>
+<style>
+:root{--primary:#0A2540;--teal:#0D9488;--success:#27AE60;--warning:#F39C12;--danger:#E74C3C;--light:#F4F7FB;--border:#D1DCE8;--text:#1A2B3C;--muted:#6B7C93;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#EEF2F7;color:var(--text);font-size:14px;}
+.cover{background:linear-gradient(135deg,#022c22 0%,#064e3b 55%,#0D9488 100%);color:white;padding:80px 60px;min-height:340px;position:relative;overflow:hidden;}
+.cover::after{content:'';position:absolute;right:-80px;top:-80px;width:420px;height:420px;border-radius:50%;background:rgba(255,255,255,.04);}
+.cover-tag{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#99F6E4;margin-bottom:16px;}
+.cover h1{font-size:38px;font-weight:700;line-height:1.2;margin-bottom:10px;}
+.cover h2{font-size:18px;font-weight:300;color:rgba(255,255,255,.8);margin-bottom:24px;}
+.cover-meta{display:flex;gap:40px;font-size:13px;color:rgba(255,255,255,.7);}
+.cover-meta strong{color:white;display:block;font-size:15px;}
+.page{max-width:1120px;margin:0 auto;padding:48px 32px;}
+.rb{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;}
+.rb-dir{background:#92400E;color:#FEF3C7;}.rb-hd{background:#0F766E;color:#CCFBF1;}.rb-eng{background:#1D4ED8;color:#DBEAFE;}
+.role-banner{border-radius:12px;padding:20px 24px;margin-bottom:40px;display:flex;gap:18px;align-items:flex-start;}
+.rb-dir-b{background:linear-gradient(90deg,#1C0A00,#3D1A00);}
+.rb-hd-b{background:linear-gradient(90deg,#022c22,#064e3b);}
+.rb-eng-b{background:linear-gradient(90deg,#1E3A8A,#1D4ED8);}
+.role-icon{font-size:36px;flex-shrink:0;}
+.role-info h2{font-size:17px;font-weight:700;color:white;margin-bottom:5px;}
+.role-info p{font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;}
+.role-info ul{margin-top:8px;padding-left:16px;font-size:11px;color:rgba(255,255,255,.65);line-height:1.8;}
+.sf{background:white;border-radius:12px;box-shadow:0 4px 28px rgba(10,37,64,.13);margin-bottom:32px;overflow:hidden;border:1.5px solid var(--border);}
+.sl{padding:10px 20px;font-size:12px;font-weight:700;letter-spacing:.8px;display:flex;align-items:center;gap:10px;color:white;}
+.sl-dir{background:#1C0A00;}.sl-hd{background:#064e3b;}.sl-eng{background:#1E3A8A;}
+.badge{background:rgba(255,255,255,.2);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:600;}
+.ml{margin-left:auto;}
+.br{background:#222;padding:10px 16px 0;display:flex;align-items:center;gap:7px;}
+.dot{width:12px;height:12px;border-radius:50%;}
+.dr{background:#FF5F57}.dy{background:#FEBC2E}.dg{background:#28C840}
+.burl{background:#333;border-radius:6px;flex:1;padding:5px 14px;color:#999;font-size:11px;margin-left:10px;font-family:monospace;}
+.shell{display:flex;min-height:520px;}
+.sb{width:215px;flex-shrink:0;}
+.sb-dir{background:#1C0A00;}.sb-hd{background:#064e3b;}.sb-eng{background:#1E3A8A;}
+.sbl{padding:16px;border-bottom:1px solid rgba(255,255,255,.1);}
+.sblt{color:white;font-size:14px;font-weight:700;}
+.sbls{font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-top:2px;}
+.sd-s{color:#FCD34D;}.sh-s{color:#99F6E4;}.se-s{color:#BFDBFE;}
+.sbs{padding:10px 0 4px;}
+.sbsl{padding:0 14px 5px;font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.35);text-transform:uppercase;}
+.sbi{display:flex;align-items:center;gap:9px;padding:8px 14px;color:rgba(255,255,255,.7);font-size:12px;}
+.sbi.ad{background:rgba(180,83,9,.25);color:white;border-left:3px solid #FCD34D;}
+.sbi.ah{background:rgba(13,148,136,.25);color:white;border-left:3px solid #99F6E4;}
+.sbi.ae{background:rgba(29,78,216,.25);color:white;border-left:3px solid #BFDBFE;}
+.cnt{background:#E74C3C;color:white;border-radius:10px;padding:1px 7px;font-size:9px;margin-left:auto;}
+.main{flex:1;background:var(--light);display:flex;flex-direction:column;}
+.tb{background:white;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.tbt{font-size:15px;font-weight:700;color:var(--primary);}
+.ta{display:flex;gap:8px;align-items:center;}
+.btn{padding:6px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;}
+.btn-dir{background:#B45309;color:white;}.btn-hd{background:#0F766E;color:white;}.btn-eng{background:#1D4ED8;color:white;}
+.btn-o{background:white;color:var(--primary);border:1.5px solid var(--border);}
+.btn-s{background:var(--success);color:white;}.btn-d{background:var(--danger);color:white;}.btn-w{background:var(--warning);color:white;}
+.btn-sm{padding:3px 9px;font-size:10px;}
+.ca{padding:16px;flex:1;overflow:auto;}
+.grid{display:grid;gap:12px;margin-bottom:16px;}
+.g5{grid-template-columns:repeat(5,1fr);}.g4{grid-template-columns:repeat(4,1fr);}.g3{grid-template-columns:repeat(3,1fr);}.g2{grid-template-columns:1fr 1fr;}
+.card{background:white;border-radius:8px;padding:14px;border:1px solid var(--border);}
+.cl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.cv{font-size:22px;font-weight:700;color:var(--primary);margin-bottom:3px;}
+.cd{font-size:10px;color:var(--success);}
+.tbl{background:white;border-radius:8px;border:1px solid var(--border);overflow:hidden;}
+.tblh{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);}
+.tblt{font-size:12px;font-weight:700;color:var(--primary);}
+table{width:100%;border-collapse:collapse;}
+th{background:var(--light);padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);}
+td{padding:9px 12px;font-size:11px;border-bottom:1px solid #F0F4F8;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.st{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.st-pend{background:#DBEAFE;color:#1D4ED8;}.st-prod{background:#FEF3C7;color:#92400E;}.st-qc{background:#EDE9FE;color:#5B21B6;}.st-ready{background:#D1FAE5;color:#065F46;}.st-disp{background:#CCFBF1;color:#0F766E;}.st-deliv{background:#F0FDF4;color:#16A34A;}
+.if{width:100%;background:var(--light);border:1.5px solid var(--border);border-radius:6px;padding:8px 11px;font-size:12px;color:var(--text);}
+textarea.if{height:65px;resize:none;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fgr{margin-bottom:12px;}
+.fgr.full{grid-column:1/-1;}
+.dr2{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #F0F4F8;font-size:11px;}
+.drl{color:var(--muted);}.drv{font-weight:600;color:var(--primary);}
+.pb{background:var(--border);border-radius:20px;height:7px;overflow:hidden;flex:1;}
+.pf{height:100%;border-radius:20px;}
+.av{width:28px;height:28px;border-radius:50%;color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.av-d{background:#B45309;}.av-h{background:#0F766E;}.av-e{background:#1D4ED8;}.av-o{background:#D97706;}.av-g{background:var(--success);}
+.ann{display:flex;gap:12px;margin-top:14px;margin-bottom:6px;}
+.an{width:26px;height:26px;border-radius:50%;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.an-d{background:#B45309;}.an-h{background:#0F766E;}.an-e{background:#1D4ED8;}
+.ab{flex:1;}.at{font-size:12px;font-weight:700;color:var(--primary);margin-bottom:2px;}.ad{font-size:11px;color:var(--muted);line-height:1.6;}
+.info{background:#F0FDFA;border-left:4px solid var(--teal);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#134e4a;line-height:1.7;}
+.warn{background:#FFFBEB;border-left:4px solid var(--warning);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0;font-size:11px;color:#78350F;line-height:1.7;}
+.divider{border:none;border-top:2px solid var(--border);margin:48px 0;}
+.section{margin-bottom:48px;}
+.stag{font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:5px;}
+.stag-d{color:#B45309;}.stag-h{color:#0F766E;}.stag-e{color:#1D4ED8;}
+.stitle{font-size:21px;font-weight:700;color:var(--primary);margin-bottom:8px;padding-bottom:8px;display:inline-block;}
+.stitle-d{border-bottom:3px solid #B45309;}.stitle-h{border-bottom:3px solid #0F766E;}.stitle-e{border-bottom:3px solid #1D4ED8;}
+.sdesc{color:var(--muted);margin-top:10px;margin-bottom:22px;max-width:800px;line-height:1.7;font-size:13px;}
+.toc{background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;}
+.toc h3{color:var(--primary);font-size:14px;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid var(--teal);display:inline-block;}
+.toc-list{list-style:none;}
+.toc-list li{padding:4px 0;font-size:12px;border-bottom:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;}
+.toc-list li:last-child{border:none;}
+.toc-list span{color:var(--muted);font-size:10px;}
+.chip{padding:2px 9px;border-radius:20px;font-size:9px;font-weight:600;display:inline-block;}
+.chip-r{background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;}
+.chip-d{background:#DBEAFE;color:#1D4ED8;border:1px solid #BFDBFE;}
+.chip-t{background:#CCFBF1;color:#0F766E;border:1px solid #99F6E4;}
+.chip-y{background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;}
+.chip-p{background:#EDE9FE;color:#5B21B6;border:1px solid #DDD6FE;}
+.gantt-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #F0F4F8;}
+.gantt-label{width:160px;font-size:11px;flex-shrink:0;}
+.gantt-bar{flex:1;background:var(--border);border-radius:4px;height:22px;position:relative;overflow:hidden;}
+.gantt-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700;}
+.step{display:flex;align-items:flex-start;gap:12px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:white;}
+.step-num{width:28px;height:28px;border-radius:50%;color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.step-done{background:var(--success);}.step-active{background:#1D4ED8;}.step-pend{background:var(--muted);}
+.pff{text-align:center;padding:28px;color:var(--muted);font-size:11px;border-top:2px solid var(--border);margin-top:56px;}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-tag">iinvsys ERP Bible V3 · Document 3 of 4 · Production & Delivery Module</div>
+  <h1>Production & Delivery</h1>
+  <h2>Production Head · Production Engineer · Sales Director (read-only view) · No shared screens</h2>
+  <div class="cover-meta">
+    <div><strong>Module</strong>PD-MODULE-03</div>
+    <div><strong>Version</strong>3.0 Final</div>
+    <div><strong>Roles</strong>Production Head · Engineer</div>
+    <div><strong>Triggered By</strong>Sales CO Confirmation</div>
+    <div><strong>Total Screens</strong>15</div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- Flow overview -->
+<div style="background:white;border-radius:10px;border:1px solid var(--border);padding:22px 26px;margin-bottom:36px;">
+  <div style="font-size:14px;font-weight:700;color:var(--primary);margin-bottom:16px;border-bottom:2px solid var(--teal);padding-bottom:7px;display:inline-block;">Production Module — Trigger & Flow</div>
+  <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
+    <div style="padding:12px 16px;background:#D1FAE5;border-radius:8px;border:1px solid #A7F3D0;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#065F46;">Sales Director</div>
+      <div style="font-size:10px;color:#047857;margin-top:2px;">Confirms CO<br>₹ + PO received</div>
+    </div>
+    <div style="padding:0 8px;font-size:20px;color:var(--muted);">→</div>
+    <div style="padding:12px 16px;background:#CCFBF1;border-radius:8px;border:1px solid #99F6E4;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#0F766E;">Auto PRD-XXXX</div>
+      <div style="font-size:10px;color:#0D9488;margin-top:2px;">Production order<br>auto-created</div>
+    </div>
+    <div style="padding:0 8px;font-size:20px;color:var(--muted);">→</div>
+    <div style="padding:12px 16px;background:#CCFBF1;border-radius:8px;border:1px solid #99F6E4;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#0F766E;">Production Head</div>
+      <div style="font-size:10px;color:#0D9488;margin-top:2px;">Reviews BOM<br>Assigns engineer</div>
+    </div>
+    <div style="padding:0 8px;font-size:20px;color:var(--muted);">→</div>
+    <div style="padding:12px 16px;background:#DBEAFE;border-radius:8px;border:1px solid #BFDBFE;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#1D4ED8;">Engineer</div>
+      <div style="font-size:10px;color:#2563EB;margin-top:2px;">Builds per WIP steps<br>Logs progress</div>
+    </div>
+    <div style="padding:0 8px;font-size:20px;color:var(--muted);">→</div>
+    <div style="padding:12px 16px;background:#CCFBF1;border-radius:8px;border:1px solid #99F6E4;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#0F766E;">QC Gate</div>
+      <div style="font-size:10px;color:#0D9488;margin-top:2px;">Head approves QC<br>Unlocks dispatch</div>
+    </div>
+    <div style="padding:0 8px;font-size:20px;color:var(--muted);">→</div>
+    <div style="padding:12px 16px;background:#CCFBF1;border-radius:8px;border:1px solid #99F6E4;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#0F766E;">Dispatch + POD</div>
+      <div style="font-size:10px;color:#0D9488;margin-top:2px;">Head authorises<br>POD triggers install</div>
+    </div>
+    <div style="padding:0 8px;font-size:20px;color:var(--muted);">→</div>
+    <div style="padding:12px 16px;background:#FEF3C7;border-radius:8px;border:1px solid #FDE68A;text-align:center;min-width:140px;">
+      <div style="font-size:12px;font-weight:700;color:#92400E;">Installation</div>
+      <div style="font-size:10px;color:#B45309;margin-top:2px;">INS-XXXX auto-created<br>Module 4 starts</div>
+    </div>
+  </div>
+  <div style="margin-top:14px;background:#F0FDFA;border-radius:8px;padding:12px 16px;font-size:11px;color:#134e4a;line-height:1.7;">
+    <strong>Engineer access rule:</strong> Engineers see ONLY their assigned orders. They see NO financial values (no order value, no revenue). BOM quantities and part names are visible; pricing is hidden. The Production Head controls all financial visibility, dispatch authorization, and QC approvals.
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ul class="toc-list">
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-01 · Production Head Dashboard — all orders, all engineers, KPIs <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-02 · Engineer Workload & Assignment Screen <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-03 · Production Order Detail (full view with value) <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-04 · BOM View & Material Procurement <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-05 · Gantt Schedule — All Orders Timeline <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-06 · WIP Detail — Live Status Per Order <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-07 · QC Approval Gate (Head Only) <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-08 · Dispatch Authorization (Head Only Gate) <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-09 · Delivery Tracking & POD <span>HEAD</span></li>
+    <li><span class="rb rb-hd" style="font-size:9px;">HEAD</span>&nbsp;PD-HD-10 · Production & Delivery Reports <span>HEAD</span></li>
+    <li><span class="rb rb-eng" style="font-size:9px;">ENGINEER</span>&nbsp;PD-ENG-01 · My Dashboard — my assigned orders only <span>ENGINEER</span></li>
+    <li><span class="rb rb-eng" style="font-size:9px;">ENGINEER</span>&nbsp;PD-ENG-02 · My Order Detail + WIP Steps <span>ENGINEER</span></li>
+    <li><span class="rb rb-eng" style="font-size:9px;">ENGINEER</span>&nbsp;PD-ENG-03 · BOM Reference — read-only, no pricing <span>ENGINEER</span></li>
+    <li><span class="rb rb-eng" style="font-size:9px;">ENGINEER</span>&nbsp;PD-ENG-04 · Submit QC Results for Head Approval <span>ENGINEER</span></li>
+    <li><span class="rb rb-eng" style="font-size:9px;">ENGINEER</span>&nbsp;PD-ENG-05 · Flag Issue / Request Help <span>ENGINEER</span></li>
+  </ul>
+</div>
+
+<!-- ══════════════ PRODUCTION HEAD ══════════════ -->
+
+<div class="role-banner rb-hd-b">
+  <div class="role-icon">🏭</div>
+  <div class="role-info">
+    <h2>Production Head — Full Oversight</h2>
+    <p>The Production Head controls everything from order receipt to POD confirmation. They see all orders, assign engineers, manage the Gantt schedule, review BOM, approve QC, and authorise dispatch. All financial values are visible to the Head. The Head is the only role that can unlock dispatch — engineers cannot self-dispatch.</p>
+    <ul><li>Receives production orders triggered by Sales CO confirmation</li><li>Assigns engineers to orders (can split one order across engineers)</li><li>Reviews and approves QC results — gate before dispatch</li><li>Authorises all dispatches — logs courier/vehicle details</li><li>Tracks delivery and records POD — triggers Installation creation</li></ul>
+  </div>
+  <div class="rb rb-hd" style="flex-shrink:0;align-self:flex-start;">PRODUCTION HEAD</div>
+</div>
+
+<!-- PD-HD-01 -->
+<div class="section">
+  <div class="stag stag-h">Screen PD-HD-01 · Production Head</div>
+  <div class="stitle stitle-h">Production Head Dashboard</div>
+  <p class="sdesc">The Production Head's command center — all active production orders, their current stage, assigned engineer, delivery deadline, and any overdue flags. The Head can see overall throughput, upcoming delivery commitments, engineer workload at a glance, and whether any order is behind schedule.</p>
+
+  <div class="sf">
+    <div class="sl sl-hd">PD-HD-01 · Production Head Dashboard <span class="badge">HEAD ONLY</span><span class="rb rb-hd ml" style="font-size:10px;">🏭 PRODUCTION HEAD</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/prod-head/dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-hd">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls sh-s">Production — Head</div></div>
+        <div class="sbs">
+          <div class="sbsl">Production</div>
+          <div class="sbi ah"><span>📊</span>Dashboard</div>
+          <div class="sbi"><span>📦</span>All Orders <span class="cnt">14</span></div>
+          <div class="sbi"><span>👥</span>Engineer Assignment</div>
+          <div class="sbi"><span>📅</span>Gantt Schedule</div>
+          <div class="sbi"><span>📋</span>BOM & Materials</div>
+          <div class="sbi"><span>🔬</span>QC Approvals <span class="cnt">2</span></div>
+        </div>
+        <div class="sbs">
+          <div class="sbsl">Dispatch</div>
+          <div class="sbi"><span>🚚</span>Dispatch Auth <span class="cnt">1</span></div>
+          <div class="sbi"><span>📍</span>Delivery Tracking</div>
+          <div class="sbi"><span>📊</span>Reports</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-h">PH</div><div><div style="font-size:11px;color:white;font-weight:600;">Production Head</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Full Access</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Production Dashboard — Aug 2026</div><div class="ta"><button class="btn btn-hd">📅 View Gantt</button><button class="btn btn-o btn-sm">⬇ Export Report</button></div></div>
+        <div class="ca">
+          <div class="grid g5">
+            <div class="card"><div class="cl">Active Orders</div><div class="cv">14</div><div class="cd">6 in production</div></div>
+            <div class="card"><div class="cl">Due This Week</div><div class="cv" style="color:var(--warning);">4</div><div class="cd">Needs monitoring</div></div>
+            <div class="card"><div class="cl">Overdue</div><div class="cv" style="color:var(--danger);">1</div><div class="cd">PRD-2026-031 ⚠</div></div>
+            <div class="card"><div class="cl">QC Pending</div><div class="cv" style="color:var(--warning);">2</div><div class="cd">Awaiting Head review</div></div>
+            <div class="card"><div class="cl">Ready to Dispatch</div><div class="cv" style="color:var(--success);">1</div><div class="cd">Needs authorisation</div></div>
+          </div>
+
+          <div class="tbl">
+            <div class="tblh"><div class="tblt">All Active Production Orders</div><div style="display:flex;gap:6px;"><select class="if" style="width:auto;padding:3px 8px;font-size:10px;"><option>All Engineers</option><option>Eng. Suresh</option><option>Eng. Ramesh</option></select><button class="btn btn-hd btn-sm">Assign Orders</button></div></div>
+            <table>
+              <tr><th>Order ID</th><th>Customer</th><th>Product / Solution</th><th>Order Value</th><th>Stage</th><th>Assigned Eng.</th><th>Target Delivery</th><th>% Complete</th><th>Action</th></tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#0F766E;">PRD-2026-041</td>
+                <td><div style="font-weight:700;">DMRC Delhi</div><div style="font-size:10px;color:var(--muted);">SA-2026-041</div></td>
+                <td>ConnectSei Rolling Stock Monitor (50 units)</td>
+                <td style="font-weight:700;color:#5B21B6;">₹4.56Cr</td>
+                <td><span class="st-prod" style="background:#FEF3C7;color:#92400E;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">In Production</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-e" style="font-size:9px;">SR</div>Suresh R.</div></td>
+                <td>10 Sep 2026</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:60%;background:#0F766E;"></div></div><span style="font-size:10px;">60%</span></div></td>
+                <td><button class="btn btn-hd btn-sm">View →</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#0F766E;">PRD-2026-038</td>
+                <td><div style="font-weight:700;">BEL Defence</div><div style="font-size:10px;color:var(--muted);">SA-2026-038</div></td>
+                <td>IIoT Edge Gateway System</td>
+                <td style="font-weight:700;color:#5B21B6;">₹1.98Cr</td>
+                <td><span class="st-qc" style="background:#EDE9FE;color:#5B21B6;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">QC Review</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-g" style="font-size:9px;">RM</div>Ramesh M.</div></td>
+                <td>25 Aug 2026</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:100%;background:var(--success);"></div></div><span style="font-size:10px;">100%</span></div></td>
+                <td><button class="btn btn-hd btn-sm" style="background:#5B21B6;">QC Approve →</button></td>
+              </tr>
+              <tr style="background:#FEF2F2;">
+                <td style="font-family:monospace;font-weight:700;color:var(--danger);">PRD-2026-031</td>
+                <td><div style="font-weight:700;">ICF Chennai</div><div style="font-size:10px;color:var(--muted);">SA-2026-031</div></td>
+                <td>Railway Sensor Modules (12 units)</td>
+                <td style="font-weight:700;color:#5B21B6;">₹44L</td>
+                <td><span style="background:#FEE2E2;color:#991B1B;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">OVERDUE ⚠</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-o" style="font-size:9px;">AK</div>Anil K.</div></td>
+                <td style="color:var(--danger);font-weight:700;">15 Aug ⚠</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:80%;background:var(--danger);"></div></div><span style="font-size:10px;color:var(--danger);">80%</span></div></td>
+                <td><button class="btn btn-d btn-sm">Escalate →</button></td>
+              </tr>
+              <tr>
+                <td style="font-family:monospace;font-weight:700;color:#0F766E;">PRD-2026-029</td>
+                <td><div style="font-weight:700;">BEL Sensors</div><div style="font-size:10px;color:var(--muted);">SA-2026-029</div></td>
+                <td>Vibration Sensor IoT Kit</td>
+                <td style="font-weight:700;color:#5B21B6;">₹1.14Cr</td>
+                <td><span style="background:#CCFBF1;color:#0F766E;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;">Ready to Dispatch</span></td>
+                <td><div style="display:flex;align-items:center;gap:6px;"><div class="av av-e" style="font-size:9px;">SR</div>Suresh R.</div></td>
+                <td>22 Aug 2026</td>
+                <td><div style="display:flex;align-items:center;gap:5px;"><div class="pb" style="width:70px;"><div class="pf" style="width:100%;background:var(--success);"></div></div><span style="font-size:10px;">✓</span></div></td>
+                <td><button class="btn btn-s btn-sm">Dispatch →</button></td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Engineer workload summary -->
+          <div class="card" style="margin-top:14px;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;">👥 Engineer Workload Overview</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+              <div style="padding:10px;background:var(--light);border-radius:7px;border:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div class="av av-e">SR</div><div style="font-size:12px;font-weight:700;">Suresh R.</div></div>
+                <div style="font-size:11px;color:var(--muted);">2 orders assigned</div>
+                <div style="margin-top:6px;"><div class="pb"><div class="pf" style="width:80%;background:#0F766E;"></div></div></div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px;">80% capacity</div>
+              </div>
+              <div style="padding:10px;background:var(--light);border-radius:7px;border:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div class="av av-g">RM</div><div style="font-size:12px;font-weight:700;">Ramesh M.</div></div>
+                <div style="font-size:11px;color:var(--muted);">1 order — QC complete</div>
+                <div style="margin-top:6px;"><div class="pb"><div class="pf" style="width:40%;background:var(--success);"></div></div></div>
+                <div style="font-size:10px;color:var(--success);margin-top:4px;">Available for new order</div>
+              </div>
+              <div style="padding:10px;background:#FEF2F2;border-radius:7px;border:1px solid #FECACA;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div class="av av-o">AK</div><div style="font-size:12px;font-weight:700;">Anil K.</div></div>
+                <div style="font-size:11px;color:var(--danger);">1 order — OVERDUE ⚠</div>
+                <div style="margin-top:6px;"><div class="pb"><div class="pf" style="width:100%;background:var(--danger);"></div></div></div>
+                <div style="font-size:10px;color:var(--danger);margin-top:4px;">Needs intervention</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- PD-HD-07 QC Approval Gate -->
+<div class="section">
+  <div class="stag stag-h">Screen PD-HD-07 · Production Head</div>
+  <div class="stitle stitle-h">QC Approval Gate</div>
+  <p class="sdesc">When an engineer submits their QC results, it lands here for the Head's review. The Head reviews the test results, attached photos/documents, and any deviation notes. Only after the Head approves QC is the dispatch option unlocked. This is a mandatory gate — no engineer can bypass it.</p>
+
+  <div class="sf">
+    <div class="sl sl-hd">PD-HD-07 · QC Approval — PRD-2026-038 BEL Defence <span class="badge">HEAD ONLY</span><span class="rb rb-hd ml" style="font-size:10px;">🏭 HEAD</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/prod-head/qc-approvals/PRD-2026-038</div></div>
+    <div class="shell" style="min-height:440px;">
+      <div class="sb sb-hd"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi ah"><span>🔬</span>QC Approvals</div></div></div>
+      <div class="main">
+        <div class="tb"><div class="tbt">QC Review — PRD-2026-038 · BEL Defence · IIoT Edge Gateway</div><div class="ta"><button class="btn btn-s">✅ Approve QC → Enable Dispatch</button><button class="btn btn-d btn-sm">❌ Reject — Return to Engineer</button></div></div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;">
+            <div>
+              <div class="card" style="margin-bottom:10px;">
+                <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;">Order Summary</div>
+                <div class="dr2"><span class="drl">Order ID</span><span class="drv" style="font-family:monospace;color:#0F766E;">PRD-2026-038</span></div>
+                <div class="dr2"><span class="drl">Customer</span><span class="drv">BEL Defence</span></div>
+                <div class="dr2"><span class="drl">Product</span><span class="drv">IIoT Edge Gateway</span></div>
+                <div class="dr2"><span class="drl">Order Value</span><span class="drv" style="color:#5B21B6;">₹1.98Cr</span></div>
+                <div class="dr2"><span class="drl">Engineer</span><span class="drv">Ramesh M.</span></div>
+                <div class="dr2"><span class="drl">QC Submitted</span><span class="drv">Today 11:30 AM</span></div>
+                <div class="dr2"><span class="drl">Dispatch Target</span><span class="drv">25 Aug 2026</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="card" style="margin-bottom:10px;">
+                <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:12px;">QC Test Results — Submitted by Ramesh M.</div>
+                <table style="font-size:11px;">
+                  <tr><th>Test Parameter</th><th>Standard</th><th>Result</th><th>Status</th></tr>
+                  <tr><td>Power Supply: Input Voltage Range</td><td>10–30V DC</td><td>10.2 – 29.8V</td><td><span style="color:var(--success);">✓ Pass</span></td></tr>
+                  <tr><td>Operating Temperature</td><td>-20°C to +70°C</td><td>-22°C to +71°C</td><td><span style="color:var(--warning);">⚠ Marginal</span></td></tr>
+                  <tr><td>IP Rating (Ingress Protection)</td><td>IP67</td><td>IP67 confirmed</td><td><span style="color:var(--success);">✓ Pass</span></td></tr>
+                  <tr><td>Vibration Resistance</td><td>IEC 60068-2-6</td><td>Tested — Pass</td><td><span style="color:var(--success);">✓ Pass</span></td></tr>
+                  <tr><td>MTBF Simulation</td><td>&gt;50,000h</td><td>52,400h</td><td><span style="color:var(--success);">✓ Pass</span></td></tr>
+                  <tr><td>Firmware Version</td><td>v2.4.1</td><td>v2.4.1</td><td><span style="color:var(--success);">✓ Pass</span></td></tr>
+                </table>
+              </div>
+              <div class="card">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Engineer's QC Notes</div>
+                <div style="font-size:11px;background:var(--light);border-radius:6px;padding:10px;line-height:1.6;margin-bottom:8px;">Temperature test showed marginal upper limit of +71°C vs spec +70°C. Deviation is 1°C, within test tolerance band (±2°C per BEL spec clause 4.3.2). All other parameters within spec. Unit is functionally complete and ready for dispatch.</div>
+                <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:6px;">Attached Photos (3):</div>
+                <div style="display:flex;gap:6px;">
+                  <div style="width:60px;height:45px;background:#D1FAE5;border-radius:4px;border:1px solid #A7F3D0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#065F46;">📷 QC</div>
+                  <div style="width:60px;height:45px;background:#D1FAE5;border-radius:4px;border:1px solid #A7F3D0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#065F46;">📷 Box</div>
+                  <div style="width:60px;height:45px;background:#D1FAE5;border-radius:4px;border:1px solid #A7F3D0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#065F46;">📷 Tag</div>
+                </div>
+                <div style="margin-top:12px;"><textarea class="if" style="height:55px;" placeholder="Head QC decision note (optional but recommended if marginal)…"></textarea></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="an an-h">1</div><div class="ab"><div class="at">QC Gate Is Mandatory</div><div class="ad">Engineers cannot mark an order as "dispatch ready" — only the Production Head can do that after reviewing QC results. This is enforced at the backend level. If the Head is absent, only the Head's delegate (configured by IT) can approve QC. This prevents accidental dispatch of faulty units.</div></div></div>
+</div>
+
+<hr class="divider">
+
+<!-- PD-HD-08 Dispatch Auth -->
+<div class="section">
+  <div class="stag stag-h">Screen PD-HD-08 · Production Head</div>
+  <div class="stitle stitle-h">Dispatch Authorization — Head-Only Gate</div>
+  <p class="sdesc">After QC approval, the Production Head authorises the physical dispatch. This screen captures courier details, vehicle/AWB number, expected delivery date, and packing list. Only after the Head confirms dispatch is the tracking activated and the customer notified.</p>
+
+  <div class="sf">
+    <div class="sl sl-hd">PD-HD-08 · Dispatch Authorization — PRD-2026-029 BEL Sensors <span class="badge">HEAD ONLY</span><span class="rb rb-hd ml" style="font-size:10px;">🏭 HEAD</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/prod-head/dispatch/PRD-2026-029</div></div>
+    <div class="shell" style="min-height:440px;">
+      <div class="sb sb-hd"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi ah"><span>🚚</span>Dispatch Auth</div></div></div>
+      <div class="main">
+        <div class="tb"><div class="tbt">Dispatch Auth — PRD-2026-029 · BEL Sensors</div><div class="ta"><button class="btn btn-o btn-sm">Cancel</button><button class="btn btn-s">🚚 Confirm Dispatch</button></div></div>
+        <div class="ca">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div style="background:white;border-radius:8px;border:1px solid var(--border);padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:14px;border-bottom:2px solid #0F766E;padding-bottom:6px;display:inline-block;">Order to Dispatch</div>
+              <div class="dr2"><span class="drl">Order ID</span><span class="drv" style="font-family:monospace;color:#0F766E;">PRD-2026-029</span></div>
+              <div class="dr2"><span class="drl">Customer</span><span class="drv">BEL Sensors, Bangalore</span></div>
+              <div class="dr2"><span class="drl">Product</span><span class="drv">Vibration Sensor IoT Kit (10 units)</span></div>
+              <div class="dr2"><span class="drl">Order Value</span><span class="drv" style="color:#5B21B6;">₹1.14Cr</span></div>
+              <div class="dr2"><span class="drl">QC Approved</span><span class="drv" style="color:var(--success);">✓ Head approved 21 Aug</span></div>
+              <div class="dr2"><span class="drl">Delivery Address</span><span class="drv">BEL Complex, Jalahalli, Bangalore</span></div>
+              <div class="dr2"><span class="drl">Contact at BEL</span><span class="drv">K. Narayana — Logistics Head</span></div>
+            </div>
+            <div style="background:white;border-radius:8px;border:2px solid #0F766E;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#0F766E;margin-bottom:14px;">Dispatch Details</div>
+              <div class="fg">
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Dispatch Mode *</label><select class="if"><option>Road – Company Vehicle</option><option>Road – Courier (Blue Dart)</option><option>Road – Courier (FedEx)</option><option>Air Cargo</option><option>Rail Cargo</option></select></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">AWB / Docket No. *</label><input class="if" placeholder="e.g. BD123456789"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Dispatch Date *</label><input class="if" type="date" value="2026-08-21"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Expected Delivery *</label><input class="if" type="date" value="2026-08-22"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">No. of Cartons</label><input class="if" placeholder="e.g. 4 cartons"></div>
+                <div class="fgr"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Gross Weight (kg)</label><input class="if" placeholder="e.g. 48 kg"></div>
+                <div class="fgr full"><label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Dispatch Notes</label><textarea class="if" placeholder="Packing notes, special handling, fragile items, temperature requirements…"></textarea></div>
+              </div>
+              <div style="background:#F0FDFA;border-radius:6px;padding:10px;font-size:11px;color:#134e4a;line-height:1.7;">
+                After confirming dispatch:<br>
+                ✓ Sales Director gets notification (order dispatched)<br>
+                ✓ Delivery tracking activated in ERP<br>
+                ✓ Customer notification sent (via Sales Exec)<br>
+                ✓ POD screen activated for confirmation on delivery
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════ ENGINEER SCREENS ══════════════ -->
+
+<div class="role-banner rb-eng-b">
+  <div class="role-icon">🔧</div>
+  <div class="role-info">
+    <h2>Production Engineer — My Assigned Orders Only</h2>
+    <p>Each Production Engineer sees only the orders assigned to them by the Production Head. They follow the WIP steps, log progress at each step, upload photos for each completed stage, and submit QC results when done. They CANNOT see financial values, other engineers' orders, or trigger dispatch. Their job is purely to build and report progress.</p>
+    <ul><li>Sees only their assigned production orders</li><li>Follows step-by-step WIP instructions set by Head</li><li>Logs progress and uploads photos at each step</li><li>Submits QC test results (Head must approve before dispatch)</li><li>Cannot see order value, revenue, or other engineers' work</li></ul>
+  </div>
+  <div class="rb rb-eng" style="flex-shrink:0;align-self:flex-start;">ENGINEER</div>
+</div>
+
+<!-- PD-ENG-01 -->
+<div class="section">
+  <div class="stag stag-e">Screen PD-ENG-01 · Production Engineer</div>
+  <div class="stitle stitle-e">My Production Dashboard</div>
+  <p class="sdesc">The engineer's personal view — shows only the production orders assigned to them, their deadlines, and current WIP stage. No financial values, no other engineers' orders, no revenue data. Simple and focused on what the engineer needs to build today.</p>
+
+  <div class="sf">
+    <div class="sl sl-eng">PD-ENG-01 · Engineer Dashboard — Suresh R. <span class="badge">ENGINEER ONLY</span><span class="rb rb-eng ml" style="font-size:10px;">🔧 ENGINEER</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/prod-eng/my-dashboard</div></div>
+    <div class="shell">
+      <div class="sb sb-eng">
+        <div class="sbl"><div class="sblt">iinvsys</div><div class="sbls se-s">My Production</div></div>
+        <div class="sbs">
+          <div class="sbsl">My Work</div>
+          <div class="sbi ae"><span>📊</span>My Dashboard</div>
+          <div class="sbi"><span>📦</span>My Orders <span class="cnt">2</span></div>
+          <div class="sbi"><span>📋</span>BOM Reference</div>
+          <div class="sbi"><span>🔬</span>Submit QC</div>
+          <div class="sbi"><span>⚠</span>Flag Issue</div>
+        </div>
+        <div style="margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;">
+          <div class="av av-e">SR</div><div><div style="font-size:11px;color:white;font-weight:600;">Suresh R.</div><div style="font-size:9px;color:rgba(255,255,255,.5);">Production Engineer</div></div>
+        </div>
+      </div>
+      <div class="main">
+        <div class="tb"><div class="tbt">My Production Orders — Suresh R.</div></div>
+        <div class="ca">
+          <div class="grid g4">
+            <div class="card"><div class="cl">My Active Orders</div><div class="cv">2</div></div>
+            <div class="card"><div class="cl">Due This Week</div><div class="cv" style="color:var(--warning);">1</div><div class="cd">PRD-2026-029 — 22 Aug</div></div>
+            <div class="card"><div class="cl">Steps Completed Today</div><div class="cv" style="color:var(--success);">3</div></div>
+            <div class="card"><div class="cl">Pending Steps</div><div class="cv" style="color:var(--warning);">2</div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <!-- Order 1 -->
+            <div class="card" style="border-left:4px solid #0F766E;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                <div><div style="font-size:13px;font-weight:700;color:var(--primary);">PRD-2026-029 — BEL Sensors</div><div style="font-size:11px;color:var(--muted);">Vibration Sensor IoT Kit · 10 units</div></div>
+                <div style="display:flex;align-items:center;gap:8px;"><span style="background:#CCFBF1;color:#0F766E;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">QC Ready</span><span style="font-size:11px;color:var(--warning);">⏰ Due 22 Aug</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div class="pb"><div class="pf" style="width:100%;background:var(--success);"></div></div><span style="font-size:11px;font-weight:700;color:var(--success);">All steps complete — QC submitted</span></div>
+              <button class="btn btn-s btn-sm">View QC Status →</button>
+            </div>
+            <!-- Order 2 -->
+            <div class="card" style="border-left:4px solid #1D4ED8;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                <div><div style="font-size:13px;font-weight:700;color:var(--primary);">PRD-2026-041 — DMRC Delhi</div><div style="font-size:11px;color:var(--muted);">ConnectSei Rolling Stock Monitor · 50 units</div></div>
+                <div style="display:flex;align-items:center;gap:8px;"><span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">In Production</span><span style="font-size:11px;color:var(--muted);">Target: 10 Sep</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><div class="pb"><div class="pf" style="width:60%;background:#0F766E;"></div></div><span style="font-size:11px;font-weight:700;">60% — Step 4 of 7</span></div>
+              <button class="btn btn-eng btn-sm">Continue Production →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- PD-ENG-02 WIP Steps -->
+<div class="section">
+  <div class="stag stag-e">Screen PD-ENG-02 · Production Engineer</div>
+  <div class="stitle stitle-e">My Order Detail — WIP Steps & Progress Log</div>
+  <p class="sdesc">The engineer's working screen for each order. Shows the step-by-step WIP checklist defined by the Production Head. The engineer logs completion of each step, uploads a photo as proof, and records any issues. The Production Head sees this log in real time.</p>
+
+  <div class="sf">
+    <div class="sl sl-eng">PD-ENG-02 · PRD-2026-041 — DMRC Rolling Stock Monitor <span class="badge">ENGINEER ONLY</span><span class="rb rb-eng ml" style="font-size:10px;">🔧 ENGINEER</span></div>
+    <div class="br"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div><div class="burl">app.iinvsys.com/prod-eng/orders/PRD-2026-041</div></div>
+    <div class="shell" style="min-height:520px;">
+      <div class="sb sb-eng"><div class="sbl"><div class="sblt">iinvsys</div></div><div class="sbs"><div class="sbi ae"><span>📦</span>My Orders</div></div></div>
+      <div class="main">
+        <div class="tb">
+          <div style="font-size:11px;color:var(--muted);">PRD-2026-041 · DMRC Delhi · ConnectSei (50 units)</div>
+          <div class="ta"><span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">In Production</span><button class="btn btn-d btn-sm">⚠ Flag Issue</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 300px;flex:1;overflow:hidden;">
+          <div style="padding:14px;overflow-y:auto;">
+            <div class="card" style="margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:8px;">Order Summary (No Financial Values)</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;">
+                <div class="dr2"><span class="drl">Order ID</span><span class="drv" style="font-family:monospace;color:#0F766E;">PRD-2026-041</span></div>
+                <div class="dr2"><span class="drl">Customer</span><span class="drv">DMRC Delhi</span></div>
+                <div class="dr2"><span class="drl">Product</span><span class="drv">ConnectSei RS Monitor</span></div>
+                <div class="dr2"><span class="drl">Qty</span><span class="drv">50 units</span></div>
+                <div class="dr2"><span class="drl">Target Date</span><span class="drv">10 Sep 2026</span></div>
+                <div class="dr2"><span class="drl">Your Progress</span><span class="drv" style="color:#0F766E;">Step 4 of 7 — 60%</span></div>
+              </div>
+            </div>
+            <!-- WIP Steps -->
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;">Production WIP Steps</div>
+            <div class="step">
+              <div class="step-num step-done">✓</div>
+              <div><div style="font-size:12px;font-weight:700;color:var(--success);">1. PCB Sourcing & Inspection</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">Completed 10 Aug · 50/50 PCBs received, tested</div><button class="btn btn-o btn-sm" style="margin-top:6px;font-size:9px;">View Photo</button></div>
+            </div>
+            <div class="step">
+              <div class="step-num step-done">✓</div>
+              <div><div style="font-size:12px;font-weight:700;color:var(--success);">2. SMD Component Placement & Soldering</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">Completed 13 Aug · All 50 units soldered, visual inspection done</div><button class="btn btn-o btn-sm" style="margin-top:6px;font-size:9px;">View Photo</button></div>
+            </div>
+            <div class="step">
+              <div class="step-num step-done">✓</div>
+              <div><div style="font-size:12px;font-weight:700;color:var(--success);">3. Firmware Flashing — v2.4.1</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">Completed 15 Aug · 50/50 units flashed successfully</div></div>
+            </div>
+            <div class="step" style="background:#EFF6FF;border:1.5px solid #60A5FA;">
+              <div class="step-num step-active">4</div>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:700;color:#1D4ED8;">4. Enclosure Assembly & Sealing ← CURRENT STEP</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;">Assemble PCB into IP67 enclosure, apply gasket seal, torque screws to spec</div>
+                <div style="margin-top:10px;"><textarea class="if" style="height:55px;" placeholder="Progress notes for this step — what was done, any deviations…"></textarea></div>
+                <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-eng btn-sm">📷 Upload Photo</button><button class="btn btn-s btn-sm">✓ Mark Step Complete</button></div>
+              </div>
+            </div>
+            <div class="step" style="opacity:.5;">
+              <div class="step-num step-pend">5</div>
+              <div><div style="font-size:12px;font-weight:700;">5. Burn-In Test (24 hours)</div><div style="font-size:10px;color:var(--muted);">Pending</div></div>
+            </div>
+            <div class="step" style="opacity:.5;">
+              <div class="step-num step-pend">6</div>
+              <div><div style="font-size:12px;font-weight:700;">6. Final Functional Test</div><div style="font-size:10px;color:var(--muted);">Pending</div></div>
+            </div>
+            <div class="step" style="opacity:.5;">
+              <div class="step-num step-pend">7</div>
+              <div><div style="font-size:12px;font-weight:700;">7. Packaging & Label</div><div style="font-size:10px;color:var(--muted);">Pending</div></div>
+            </div>
+          </div>
+          <!-- BOM quick view -->
+          <div style="background:white;border-left:1px solid var(--border);padding:14px;overflow-y:auto;">
+            <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px;border-bottom:2px solid #1D4ED8;padding-bottom:6px;display:inline-block;">BOM Reference — Step 4</div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">Parts required for enclosure assembly:</div>
+            <table style="font-size:10px;width:100%;border-collapse:collapse;">
+              <tr><th>Part</th><th>Qty</th><th>Check</th></tr>
+              <tr><td>IP67 Enclosure (ABS)</td><td>50</td><td><input type="checkbox" checked disabled></td></tr>
+              <tr><td>Neoprene Gasket</td><td>50</td><td><input type="checkbox" checked disabled></td></tr>
+              <tr><td>M4 Stainless Screws</td><td>200</td><td><input type="checkbox" checked disabled></td></tr>
+              <tr><td>Cable Gland (PG-7)</td><td>100</td><td><input type="checkbox"></td></tr>
+              <tr><td>Torque Wrench 1.5Nm</td><td>1</td><td><input type="checkbox"></td></tr>
+            </table>
+            <div style="margin-top:10px;background:#FEF3C7;border-radius:6px;padding:8px;font-size:10px;color:#92400E;line-height:1.6;"><strong>Note:</strong> Torque spec for M4 screws = 1.5Nm ±0.2Nm. Over-torquing will crack the gasket seat. Check torque wrench calibration before use.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ann"><div class="an an-e">1</div><div class="ab"><div class="at">No Financial Values for Engineers</div><div class="ad">Notice that the engineer's order view shows customer name, product, and delivery date — but NOT the order value (₹1.14Cr or ₹4.56Cr). Financial data is visible only to the Production Head and Sales Director. This is a backend access control — not just hidden in the UI but not sent to the engineer's session at all.</div></div></div>
+</div>
+
+<div class="pff">
+  iinvsys ERP Bible V3 · Module 3: Production &amp; Delivery · Complete Role-Based Specification<br>
+  Production Head (10 screens) · Production Engineer (5 screens) · 15 total<br>
+  Triggered by Sales CO Confirmation → Production Order → QC Gate → Dispatch Auth → POD → Installation INS-XXXX<br>
+  "Democratizing Technology, Driving Innovation"
+</div>
+</body>
+</html>

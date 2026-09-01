@@ -3,7 +3,7 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const ctrl = require('../controllers/productController');
 const { authenticate }   = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/rbac');
+const { requirePermission } = require('../middleware/rbac');
 
 const productValidation = [
   body('name').trim().notEmpty(),
@@ -20,11 +20,11 @@ const productUpdateValidation = [
   body('price').optional().isFloat({ min: 0 }),
 ];
 
-router.get('/',    authenticate, requireMinRole('readonly'), ctrl.listProducts);
-router.post('/',   authenticate, requireMinRole('superadmin'), productValidation, ctrl.createProduct);
+router.get('/',    authenticate, requirePermission('catalog.read'), ctrl.listProducts);
+router.post('/',   authenticate, requirePermission('catalog.write'), productValidation, ctrl.createProduct);
 
-router.get('/:id',    authenticate, requireMinRole('readonly'),    ctrl.getProduct);
-router.put('/:id',    authenticate, requireMinRole('superadmin'),  productUpdateValidation, ctrl.updateProduct);
-router.delete('/:id', authenticate, requireMinRole('superadmin'),  ctrl.deleteProduct);
+router.get('/:id',    authenticate, requirePermission('catalog.read'),    ctrl.getProduct);
+router.put('/:id',    authenticate, requirePermission('catalog.write'),  productUpdateValidation, ctrl.updateProduct);
+router.delete('/:id', authenticate, requirePermission('catalog.write'),  ctrl.deleteProduct);
 
 module.exports = router;

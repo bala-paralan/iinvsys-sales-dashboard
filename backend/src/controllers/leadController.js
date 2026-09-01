@@ -12,6 +12,7 @@ const audit = require('../services/auditService');
 const pipeline = require('../config/pipeline');
 const { applyTransition, previewGate } = require('../services/stageService');
 const { can } = require('../middleware/rbac');
+const { scopeFilter, scopeAllows, trackFilter } = require('../services/scopeService');
 const { nanoid } = (() => {
   try { return require('nanoid'); } catch { return { nanoid: () => Math.random().toString(36).slice(2, 10) }; }
 })();
@@ -76,14 +77,19 @@ function queueEnrichment(leadId, userId) {
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 
-function buildFilter(query, agentScope) {
-  const { stage, source, assignedAgent, expo, q, overdue,
+function buildFilter(query, scope) {
+  const { stage, source, owner, expo, q, overdue, track,
           city, state, natureOfBusiness, interestedIn } = query;
   const filter = {};
 
-  /* Agent scoping: agents see only their own leads */
-  if (agentScope) filter.assignedAgent = agentScope;
-  else if (assignedAgent) filter.assignedAgent = assignedAgent;
+  /* Row-level visibility first, then the caller's own ?owner= filter narrowed to sit
+     INSIDE it. A manager may filter down to one of their two executives; asking for
+     someone else's id leaves the team filter in place rather than widening it, so the
+     peer comparison doc 2 forbids is not one query string away. */
+  Object.assign(filter, scopeFilter(scope, 'owner'), trackFilter(scope));
+  if (owner && (!scope || scopeAllows(scope, owner))) filter.owner = owner;
+  /* Doc 1 vs doc 2: Inside Sales records and SPENCO deals share this collection. */
+  if (track && !filter.track) filter.track = track;
 
   if (stage)  filter.stage  = stage;
   if (source) filter.source = source;
@@ -99,7 +105,7 @@ function buildFilter(query, agentScope) {
     filter.stage       = { $nin: ['commercial_order', 'order_lost'] };
     filter.$or = [
       { lastContact: { $lt: sevenDaysAgo } },
-      { lastContact: null, followUps: { $size: 0 } },
+      { lastContact: null },
     ];
   }
   return filter;
@@ -110,7 +116,7 @@ function buildFilter(query, agentScope) {
 async function listLeads(req, res, next) {
   try {
     const { sort = '-createdAt' } = req.query;
-    const filter = buildFilter(req.query, req.agentScope);
+    const filter = buildFilter(req.query, req.scope);
 
     /* Referrers see all leads for their expo only */
     if (req.referrerExpoId) filter.expo = req.referrerExpoId;
@@ -119,7 +125,7 @@ async function listLeads(req, res, next) {
 
     const [leads, total] = await Promise.all([
       Lead.find(filter)
-        .populate('assignedAgent', 'name initials color')
+        .populate('owner', 'name initials color')
         .populate('products', 'name sku price')
         .populate('expo', 'name city')
         .populate('createdBy', 'name role')
@@ -140,11 +146,10 @@ async function listLeads(req, res, next) {
 async function getLead(req, res, next) {
   try {
     const lead = await Lead.findById(req.params.id)
-      .populate('assignedAgent', 'name initials color designation')
+      .populate('owner', 'name initials color designation')
       .populate('products', 'name sku price category')
       .populate('expo', 'name city startDate endDate')
       .populate('createdBy', 'name role')
-      .populate('followUps.agent', 'name initials')
       .lean({ virtuals: true });
 
     if (!lead) return notFound(res, 'Lead not found');
@@ -155,7 +160,7 @@ async function getLead(req, res, next) {
     }
 
     /* Agent: can only view own leads */
-    if (req.agentScope && String(lead.assignedAgent?._id || lead.assignedAgent) !== String(req.agentScope)) {
+    if (!scopeAllows(req.scope, lead.owner?._id || lead.owner)) {
       return forbidden(res, 'Access denied');
     }
     return ok(res, lead);
@@ -175,11 +180,14 @@ async function createLead(req, res, next) {
     if (req.referrerExpoId) {
       req.body.expo   = req.referrerExpoId;
       req.body.source = 'exhibition_event';
-      delete req.body.assignedAgent;
+      delete req.body.owner;
     }
 
-    /* Agents can only create leads assigned to themselves */
-    if (req.agentScope) req.body.assignedAgent = req.agentScope;
+    /* An own-scoped caller (Sales Executive, IS Executive) may only create leads they
+       own — otherwise they could hand themselves visibility of someone else's book by
+       creating a record against it. */
+    if (req.scope && req.scope.mode === 'own') req.body.owner = req.user._id;
+    else if (!req.body.owner) req.body.owner = req.user._id;
 
     const lead = await Lead.create({ ...stripServerOwned(req.body), createdBy: req.user._id });
     /* The model seeded the opening stageHistory entry; name the actor on it. */
@@ -189,7 +197,7 @@ async function createLead(req, res, next) {
       await lead.save();
     }
     const populated = await Lead.findById(lead._id)
-      .populate('assignedAgent', 'name initials color')
+      .populate('owner', 'name initials color')
       .populate('products', 'name sku price')
       .lean({ virtuals: true });
 
@@ -220,8 +228,8 @@ async function updateLead(req, res, next) {
     }
 
     /* Agents can only edit their own assigned leads, limited fields */
-    if (req.agentScope) {
-      if (String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
+    if (req.scope && req.scope.userIds !== null) {
+      if (!scopeAllows(req.scope, lead.owner)) return forbidden(res, 'Access denied');
       const allowed = ['stage', 'notes'];
       Object.keys(req.body).forEach(k => { if (!allowed.includes(k)) delete req.body[k]; });
     }
@@ -245,7 +253,7 @@ async function updateLead(req, res, next) {
     await lead.save();
 
     const populated = await Lead.findById(lead._id)
-      .populate('assignedAgent', 'name initials color')
+      .populate('owner', 'name initials color')
       .populate('products', 'name sku price')
       .lean({ virtuals: true });
     return ok(res, populated, 'Lead updated');
@@ -261,7 +269,7 @@ async function deleteLead(req, res, next) {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return notFound(res, 'Lead not found');
 
-    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) {
+    if (!scopeAllows(req.scope, lead.owner)) {
       return forbidden(res, 'Access denied');
     }
     await Lead.findByIdAndDelete(req.params.id);
@@ -274,39 +282,10 @@ async function deleteLead(req, res, next) {
       snapshot: {
         name: lead.name, phone: lead.phone, email: lead.email, company: lead.company,
         stage: lead.stage, source: lead.source, value: lead.value,
-        assignedAgent: lead.assignedAgent, expo: lead.expo, createdAt: lead.createdAt,
+        owner: lead.owner, expo: lead.expo, createdAt: lead.createdAt,
       },
     }, req);
     return ok(res, {}, 'Lead deleted');
-  } catch (err) {
-    next(err);
-  }
-}
-
-/* ── POST /api/leads/:id/followups ───────────────────────────────── */
-
-async function addFollowUp(req, res, next) {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
-
-    const lead = await Lead.findById(req.params.id);
-    if (!lead) return notFound(res, 'Lead not found');
-
-    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) {
-      return forbidden(res, 'Access denied');
-    }
-
-    const followUp = {
-      agent: req.user.agentId || req.user._id,
-      ...req.body,
-      timestamp: new Date(),
-    };
-    lead.followUps.push(followUp);
-    lead.lastContact = new Date();
-    await lead.save();
-
-    return created(res, lead.followUps[lead.followUps.length - 1], 'Follow-up logged');
   } catch (err) {
     next(err);
   }
@@ -385,12 +364,13 @@ async function checkDuplicate(req, res, next) {
       if (firstChar) candidateFilter.$or.push({ name: { $regex: '^' + firstChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
     }
 
-    /* Respect agent scoping; managers see all; referrers see only their expo */
-    if (req.agentScope)         candidateFilter.assignedAgent = req.agentScope;
-    else if (req.referrerExpoId) candidateFilter.expo          = req.referrerExpoId;
+    /* Row scoping: an executive matches against their own book, a manager against
+       their team's, a referrer only within their expo. */
+    if (req.referrerExpoId) candidateFilter.expo = req.referrerExpoId;
+    else Object.assign(candidateFilter, scopeFilter(req.scope, 'owner'));
 
     const candidates = await Lead.find(candidateFilter)
-      .populate('assignedAgent', 'name initials')
+      .populate('owner', 'name initials')
       .populate('expo', 'name')
       .limit(200)
       .lean({ virtuals: true });
@@ -412,7 +392,7 @@ async function checkDuplicate(req, res, next) {
       if (strength) matches.push({
         lead: {
           id: c._id, name: c.name, phone: c.phone, email: c.email, company: c.company || '',
-          stage: c.stage, assignedAgent: c.assignedAgent || null, expo: c.expo || null,
+          stage: c.stage, owner: c.owner || null, expo: c.expo || null,
           createdAt: c.createdAt, score: c.matchScore || 1,
         },
         strength, reason,
@@ -444,7 +424,7 @@ async function mergeLead(req, res, next) {
     if (!target || !source) return notFound(res, 'Lead(s) not found');
 
     /* RBAC: agents can only merge into their own leads */
-    if (req.agentScope && String(target.assignedAgent) !== String(req.agentScope)) {
+    if (!scopeAllows(req.scope, target.owner)) {
       return forbidden(res, 'Access denied');
     }
 
@@ -460,8 +440,9 @@ async function mergeLead(req, res, next) {
       }
     }
 
-    /* AC5: migrate followUps and union products */
-    target.followUps.push(...source.followUps);
+    /* AC5: union products. Activities need no migration here — they belong to the
+       CUSTOMER, not the lead, so merging two leads for one account leaves one timeline
+       already correct. Customer merge moves them; see customerController.mergeCustomer. */
     const productSet = new Set([...(target.products || []).map(String), ...(source.products || []).map(String)]);
     target.products  = Array.from(productSet);
     if (source.lastContact && (!target.lastContact || source.lastContact > target.lastContact)) {
@@ -488,7 +469,7 @@ async function mergeLead(req, res, next) {
     }, req);
 
     const populated = await Lead.findById(target._id)
-      .populate('assignedAgent', 'name initials color')
+      .populate('owner', 'name initials color')
       .populate('products', 'name sku price')
       .lean({ virtuals: true });
     return ok(res, populated, 'Leads merged');
@@ -534,7 +515,8 @@ async function bulkScan(req, res, next) {
     const existing  = await Lead.find({ phone: { $regex: new RegExp(`(${phones.join('|')})$`) } }).select('phone').lean();
     const dupPhones = new Set(existing.map(l => l.phone.replace(/\D/g,'').slice(-10)));
 
-    const agentId = req.agentScope || null;
+    /* Bulk-scanned cards belong to whoever scanned them. */
+    const ownerId = req.user.role === 'referrer' ? null : req.user._id;
 
     const toInsert = leads
       .filter(l => !dupPhones.has((l.phone || '').replace(/\D/g,'').slice(-10)))
@@ -547,7 +529,7 @@ async function bulkScan(req, res, next) {
           notes:         l.notes  || '',
           source:        l.source || 'inbound_enquiry',
           stage:         'suspect',
-          assignedAgent: agentId,
+          owner: ownerId,
           ocrCapture:    l.ocrCapture || null,
           batch:         { batchId, batchName },
           createdBy:     req.user._id,
@@ -555,7 +537,7 @@ async function bulkScan(req, res, next) {
         if (req.referrerExpoId) {
           row.expo          = req.referrerExpoId;
           row.source        = 'exhibition_event';
-          row.assignedAgent = null;
+          row.owner = null;
         }
         return row;
       });
@@ -589,7 +571,7 @@ async function triggerEnrich(req, res, next) {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return notFound(res, 'Lead not found');
-    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
+    if (!scopeAllows(req.scope, lead.owner)) return forbidden(res, 'Access denied');
     if (req.referrerExpoId && String(lead.expo) !== String(req.referrerExpoId)) return forbidden(res, 'Access denied');
 
     /* Fire async; respond immediately (AC1: rep never blocked) */
@@ -609,7 +591,7 @@ async function rollbackEnrichField(req, res, next) {
 
     const lead = await Lead.findById(req.params.id);
     if (!lead) return notFound(res, 'Lead not found');
-    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return forbidden(res, 'Access denied');
+    if (!scopeAllows(req.scope, lead.owner)) return forbidden(res, 'Access denied');
 
     lead[field] = '';
     if (lead.enrichment) lead.enrichment.delete(field);
@@ -636,8 +618,8 @@ async function getBatch(req, res, next) {
   try {
     const { batchId } = req.params;
     const filter = { 'batch.batchId': batchId };
-    if (req.agentScope)         filter.assignedAgent = req.agentScope;
-    else if (req.referrerExpoId) filter.expo          = req.referrerExpoId;
+    if (req.referrerExpoId) filter.expo = req.referrerExpoId;
+    else Object.assign(filter, scopeFilter(req.scope, 'owner'));
 
     const leads = await Lead.find(filter)
       .select('name phone email company stage ocrCapture batch enrichment createdAt')
@@ -653,9 +635,9 @@ async function getBatch(req, res, next) {
    docs/requirements/03-stage-gates.md
    ══════════════════════════════════════════════════════════════════════════ */
 
-/** Agents may only touch their own book; everyone else is already permission-gated. */
+/** Row-level visibility for the transition endpoints. */
 function denyIfOutOfScope(req, lead) {
-  if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) return true;
+  if (!scopeAllows(req.scope, lead.owner)) return true;
   if (req.referrerExpoId && String(lead.expo) !== String(req.referrerExpoId)) return true;
   return false;
 }
@@ -726,13 +708,13 @@ async function advanceLead(req, res, next) {
        failure of the transition that caused it. */
     let workOrder = null;
     if (result.to === 'commercial_order') {
-      const { createWorkOrderForLead } = require('../services/handoffService');
+      const { createWorkOrderForLead } = require('../services/processHandoffService');
       const populated_ = await Lead.findById(lead._id).populate('products', 'name sku price');
       workOrder = await createWorkOrderForLead(populated_, req);
     }
 
     const populated = await Lead.findById(lead._id)
-      .populate('assignedAgent', 'name initials color')
+      .populate('owner', 'name initials color')
       .populate('products', 'name sku price')
       .lean({ virtuals: true });
 
@@ -783,7 +765,7 @@ async function previewLeadGate(req, res, next) {
 async function hygieneQueue(req, res, next) {
   try {
     const filter = { needsReview: true };
-    if (req.agentScope) filter.assignedAgent = req.agentScope;
+    Object.assign(filter, scopeFilter(req.scope, 'owner'), trackFilter(req.scope));
     if (req.referrerExpoId) filter.expo = req.referrerExpoId;
     if (req.query.code) filter.reviewIssues = req.query.code;
 
@@ -791,9 +773,9 @@ async function hygieneQueue(req, res, next) {
 
     const [leads, total, byCode] = await Promise.all([
       Lead.find(filter)
-        .select('name phone company stage stageEnteredAt assignedAgent reviewIssues '
+        .select('name phone company stage stageEnteredAt owner reviewIssues '
               + 'needsReview expectedCloseDate nextFollowUpDate value')
-        .populate('assignedAgent', 'name initials color')
+        .populate('owner', 'name initials color')
         .sort({ stageEnteredAt: 1 })
         .skip(skip).limit(limit)
         .lean(),
@@ -832,7 +814,7 @@ async function uploadAttachment(req, res, next) {
 
     /* Same scoping the rest of the controller applies — an agent may only
        attach to a lead assigned to them. */
-    if (req.agentScope && String(lead.assignedAgent) !== String(req.agentScope)) {
+    if (!scopeAllows(req.scope, lead.owner)) {
       return forbidden(res, 'Access denied');
     }
 
@@ -863,7 +845,7 @@ async function uploadAttachment(req, res, next) {
 }
 
 module.exports = {
-  listLeads, getLead, createLead, updateLead, deleteLead, addFollowUp, bulkImport,
+  listLeads, getLead, createLead, updateLead, deleteLead, bulkImport,
   checkDuplicate, mergeLead, logTelemetry,
   bulkScan, triggerEnrich, rollbackEnrichField, getBatch,
   advanceLead, previewLeadGate, hygieneQueue,

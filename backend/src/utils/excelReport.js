@@ -4,7 +4,7 @@
  *
  * What the previous version did, and why none of it survived:
  *
- *   · **N+1 per agent.** `Agent.find()` then `Lead.find({assignedAgent})` inside
+ *   · **N+1 per agent.** `Agent.find()` then `Lead.find({owner})` inside
  *     the loop — 40 agents meant 41 round trips, and every lead document was
  *     pulled into memory to be counted. Now one `$group` per sheet.
  *   · **No scoping.** It always exported EVERY lead. An agent who could reach
@@ -107,6 +107,34 @@ function buildKpiSheet(ws, groups, window) {
 
 /* ── Sheet 2: Sales Pipeline ─────────────────────────────────────────────── */
 
+/**
+ * Drop the value columns when the caller holds no `finance.read`.
+ *
+ * The workbook streams a buffer and never passes through utils/response.js, so
+ * utils/redact.js — which is what stops a production engineer's API responses carrying
+ * order values — cannot see it. Without this, the export is a way around the redaction.
+ * The keys below are the workbook's own column keys for the fields named in
+ * config/fieldVisibility.js.
+ */
+const MONEY_COLUMN_KEYS = ['value', 'pipeline', 'wonVal', 'target', 'tgtPct', 'poValue'];
+
+function applyFinanceVisibility(ws, scope) {
+  if (scope.finance) return;
+  ws.columns = ws.columns.filter((c) => !MONEY_COLUMN_KEYS.includes(c.key));
+}
+
+/**
+ * Work Orders carry a customerSnapshot rather than a readable lead (A24), so a scoped
+ * delivery sheet is resolved through the leads the caller owns — the same translation
+ * workOrderController.upstreamLeadScope() does for the API.
+ */
+async function workOrderFilter(scope) {
+  if (!scope || !scope.scope || scope.scope.userIds === null) return {};
+  const Lead = require('../models/Lead');
+  const mine = await Lead.find(scope.leadFilter).select('_id').lean();
+  return { lead: { $in: mine.map((l) => l._id) } };
+}
+
 async function buildLeadsSheet(ws, Lead, scope) {
   ws.columns = [
     { header: 'Opportunity', key: 'opportunity', width: 34 },
@@ -125,10 +153,11 @@ async function buildLeadsSheet(ws, Lead, scope) {
     { header: 'Agent', key: 'agent', width: 18 },
     { header: 'Needs Review', key: 'review', width: 30 },
   ];
+  applyFinanceVisibility(ws, scope);
   styleHeader(ws.getRow(1));
 
   const leads = await Lead.find(scope.leadFilter)
-    .populate('assignedAgent', 'name')
+    .populate('owner', 'name')
     .sort({ createdAt: -1 })
     .lean();
 
@@ -147,7 +176,7 @@ async function buildLeadsSheet(ws, Lead, scope) {
       spenco: l.spenco && l.spenco.total ? `${l.spenco.total}/30` : '—',
       close: date(l.expectedCloseDate),
       followUp: date(l.nextFollowUpDate),
-      agent: (l.assignedAgent && l.assignedAgent.name) || '—',
+      agent: (l.owner && l.owner.name) || '—',
       review: (l.reviewIssues || []).join(', ') || '',
     });
     styleDataRow(row, i);
@@ -160,7 +189,7 @@ async function buildLeadsSheet(ws, Lead, scope) {
 
 /**
  * One aggregation for every agent, replacing a query per agent plus a full
- * document scan. `$group` on `assignedAgent` gives all six figures in a single
+ * document scan. `$group` on `owner` gives all six figures in a single
  * pass over the index.
  */
 async function buildAgentSheet(ws, Agent, Lead, scope) {
@@ -176,16 +205,17 @@ async function buildAgentSheet(ws, Agent, Lead, scope) {
     { header: 'Target (₹)', key: 'target', width: 15 },
     { header: 'Target Achieved %', key: 'tgtPct', width: 18 },
   ];
+  applyFinanceVisibility(ws, scope);
   styleHeader(ws.getRow(1));
 
   const agents = await Agent.find(scope.agentFilter).lean();
   if (!agents.length) return;
 
   const rows = await Lead.aggregate([
-    { $match: { ...scope.leadFilter, assignedAgent: { $in: agents.map((a) => a._id) } } },
+    { $match: { ...scope.leadFilter, owner: { $in: agents.map((a) => a._id) } } },
     {
       $group: {
-        _id: '$assignedAgent',
+        _id: '$owner',
         total: { $sum: 1 },
         won: { $sum: { $cond: [{ $eq: ['$stage', WON_STAGE] }, 1, 0] } },
         lost: { $sum: { $cond: [{ $eq: ['$stage', LOST_STAGE] }, 1, 0] } },
@@ -227,7 +257,7 @@ async function buildAgentSheet(ws, Agent, Lead, scope) {
 
 /* ── Sheet 4: Delivery ───────────────────────────────────────────────────── */
 
-async function buildDeliverySheet(ws, WorkOrder) {
+async function buildDeliverySheet(ws, WorkOrder, scope) {
   ws.columns = [
     { header: 'Work Order', key: 'wo', width: 18 },
     { header: 'Customer', key: 'customer', width: 24 },
@@ -245,9 +275,10 @@ async function buildDeliverySheet(ws, WorkOrder) {
     { header: 'Discrepancies', key: 'disc', width: 26 },
     { header: 'Damage', key: 'damage', width: 10 },
   ];
+  applyFinanceVisibility(ws, scope);
   styleHeader(ws.getRow(1));
 
-  const orders = await WorkOrder.find({}).sort({ createdAt: -1 }).lean();
+  const orders = await WorkOrder.find(await workOrderFilter(scope)).sort({ createdAt: -1 }).lean();
 
   orders.forEach((w, i) => {
     const delays = w.delayEvents || [];
@@ -284,7 +315,7 @@ async function buildDeliverySheet(ws, WorkOrder) {
  * That is this sheet: one row per code, with how often notice was late — the
  * pattern a manager acts on, which no per-order listing makes visible.
  */
-async function buildDelaySheet(ws, WorkOrder, window) {
+async function buildDelaySheet(ws, WorkOrder, window, scope) {
   ws.columns = [
     { header: 'Reason Code', key: 'code', width: 30 },
     { header: 'Delays', key: 'count', width: 10 },
@@ -296,6 +327,7 @@ async function buildDelaySheet(ws, WorkOrder, window) {
   styleHeader(ws.getRow(1));
 
   const rows = await WorkOrder.aggregate([
+    { $match: await workOrderFilter(scope) },
     { $unwind: '$delayEvents' },
     { $match: { 'delayEvents.at': { $gte: window.from, $lt: window.to } } },
     {
@@ -400,29 +432,44 @@ async function buildInstallationSheet(ws, InstallationJob, scope) {
 /**
  * Translate a user into what they may export.
  *
- * Explicit and required: the old export silently included every lead in the
- * database regardless of who asked for it. An agent must see their own leads
- * and nothing else, and the delivery/installation sheets are omitted entirely
- * rather than scoped, because an agent holds no `workorder.read`.
+ * Explicit and required: an earlier export silently included every lead in the database
+ * regardless of who asked. It now runs on the same resolver as every screen
+ * (services/scopeService.js) rather than the fourth hand-rolled copy of the rule.
+ *
+ * TWO THINGS THIS FILE MUST DO FOR ITSELF, because it streams a buffer and never touches
+ * utils/response.js:
+ *   - row scoping, below;
+ *   - FIELD redaction. utils/redact.js sits in ok()/created()/paginated(), so a workbook
+ *     bypasses it entirely. `scope.finance` is what keeps a production engineer's export
+ *     from carrying the order values their screen refuses to show them — the leak this
+ *     function's own comment already described: "An export that is broader than the
+ *     screen it summarises is a leak."
  */
-function scopeFor(user) {
+async function scopeFor(user) {
   if (!user) throw new Error('excelReport: a user is required to scope the export');
   const { can } = require('../middleware/rbac');
+  const { resolveScope, scopeFilter } = require('../services/scopeService');
 
-  const agentScoped = user.role === 'agent' && user.agentId;
-  /* A technician holds install.read, so without this they would export EVERY
-     job in the company — while `GET /api/installations` shows them only their
-     own. An export that is broader than the screen it summarises is a leak. */
-  const techScoped = user.role === 'technician';
+  const scope = await resolveScope(user);
+  const restricted = scope.userIds !== null;
+  const ownScoped = scope.mode === 'own';
 
+  /* An own-scoped SALES role holds workorder.read and install.read, but neither of those
+     collections carries their id: a Work Order is reached through the upstream lead and an
+     Installation Job through its technician. Rather than emit a sheet this builder cannot
+     correctly narrow — which would be the whole company's — those sheets are omitted for
+     them entirely. A Field Engineer keeps their installation sheet, because
+     `installFilter` IS the right scope for them. */
   return {
-    leadFilter: agentScoped ? { assignedAgent: user.agentId } : {},
-    agentFilter: agentScoped ? { _id: user.agentId } : {},
-    installFilter: techScoped ? { technician: user._id } : {},
+    scope,
+    leadFilter:  scopeFilter(scope, 'owner'),
+    agentFilter: restricted ? { _id: { $in: scope.userIds } } : { role: { $ne: 'referrer' } },
+    installFilter: scopeFilter(scope, 'technician'),
     sales: can(user, 'lead.read'),
-    delivery: can(user, 'workorder.read') && !agentScoped,
-    installation: can(user, 'install.read') && !agentScoped,
+    delivery: can(user, 'workorder.read') && !ownScoped,
+    installation: can(user, 'install.read') && (!ownScoped || can(user, 'install.execute')),
     kpis: can(user, 'kpi.read'),
+    finance: can(user, 'finance.read'),
   };
 }
 
@@ -434,13 +481,13 @@ function scopeFor(user) {
  * @param {object} [opts.query] `?from=&to=&period=` for the reporting window
  */
 async function generateReportBuffer(opts = {}) {
-  const Agent = require('../models/Agent');
+  const User = require('../models/User');
   const Lead = require('../models/Lead');
   const WorkOrder = require('../models/WorkOrder');
   const InstallationJob = require('../models/InstallationJob');
 
   const { user, query = {} } = opts;
-  const scope = scopeFor(user);
+  const scope = await scopeFor(user);
   const window = kpiService.resolveWindow(query);
 
   const wb = new ExcelJS.Workbook();
@@ -450,9 +497,9 @@ async function generateReportBuffer(opts = {}) {
 
   if (scope.kpis) {
     const groups = {};
-    if (scope.sales) groups.Sales = await kpiService.salesKpis(window);
-    if (scope.delivery) groups.Delivery = await kpiService.deliveryKpis(window);
-    if (scope.installation) groups.Installation = await kpiService.installationKpis(window);
+    if (scope.sales) groups.Sales = await kpiService.salesKpis(window, scope.scope);
+    if (scope.delivery) groups.Delivery = await kpiService.deliveryKpis(window, scope.scope);
+    if (scope.installation) groups.Installation = await kpiService.installationKpis(window, scope.scope);
     if (Object.keys(groups).length) {
       buildKpiSheet(wb.addWorksheet('KPI Summary'), groups, window);
     }
@@ -460,11 +507,11 @@ async function generateReportBuffer(opts = {}) {
 
   if (scope.sales) {
     await buildLeadsSheet(wb.addWorksheet('Sales Pipeline'), Lead, scope);
-    await buildAgentSheet(wb.addWorksheet('Agent Performance'), Agent, Lead, scope);
+    await buildAgentSheet(wb.addWorksheet('Agent Performance'), User, Lead, scope);
   }
   if (scope.delivery) {
-    await buildDeliverySheet(wb.addWorksheet('Delivery'), WorkOrder);
-    await buildDelaySheet(wb.addWorksheet('Delay Reason Codes'), WorkOrder, window);
+    await buildDeliverySheet(wb.addWorksheet('Delivery'), WorkOrder, scope);
+    await buildDelaySheet(wb.addWorksheet('Delay Reason Codes'), WorkOrder, window, scope);
   }
   if (scope.installation) {
     await buildInstallationSheet(wb.addWorksheet('Installation & CS'), InstallationJob, scope);

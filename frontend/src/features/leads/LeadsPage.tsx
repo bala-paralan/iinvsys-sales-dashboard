@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { usePipeline, PIPELINE_FALLBACK, can } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 import { KanbanBoard } from '../../components/KanbanBoard';
 import type { KanbanStage } from '../../components/KanbanBoard';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
@@ -33,6 +34,7 @@ const inr = (n?: number) =>
 
 export function LeadsPage() {
   const pipeline = usePipeline();
+  const { data: me } = useMe();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<LeadRow | null>(null);
   const [creating, setCreating] = useState(false);
@@ -51,7 +53,7 @@ export function LeadsPage() {
       <h1 className="page-title">Lead <em>Pipeline</em></h1>
       <div className="page-sub">// SPENCO · STAGE GATES ENFORCED SERVER-SIDE</div>
 
-      {can(pipeline.data, 'lead.write') && (
+      {can(me, 'lead.write') && (
         <button className="neo-btn gold" style={{ margin: '12px 0' }} onClick={() => setCreating(true)}>
           + New Lead
         </button>
@@ -113,7 +115,7 @@ export function LeadsPage() {
           entityPath={`/leads/${selected._id}`}
           entityName={selected.name}
           stages={stages}
-          allowOverride={!!pipeline.data?.me.permissions.includes('lead.gate_override')}
+          allowOverride={can(me, 'lead.gate_override')}
           invalidateKeys={[['leads'], ['hygiene']]}
           onClose={() => setSelected(null)}
           onAdvanced={() => setSelected(null)}

@@ -9,7 +9,7 @@ const jwt      = require('jsonwebtoken');
 const app      = require('../src/app');
 const db       = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
-const Agent    = require('../src/models/Agent');
+const Agent    = require('./helpers/owner');
 const Lead     = require('../src/models/Lead');
 const Setting  = require('../src/models/Setting');
 
@@ -266,7 +266,7 @@ describe('API CONTRACT — ok() response wrapper shape', () => {
   });
 
   it('TC-CT-S006 GET /api/auth/me success:true with valid token', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.body.success).toBe(true);
   });
@@ -326,7 +326,7 @@ describe('API CONTRACT — Correct HTTP status codes', () => {
   });
 
   it('TC-SC006 insufficient role returns 403 not 401', async () => {
-    const uid = await insertUser({ role: 'agent' });
+    const uid = await insertUser({ role: 'sales_executive' });
     const r = await request(app).get('/api/reports/config').set('Authorization', `Bearer ${tok(uid)}`);
     expect(r.status).toBe(403);
   });
@@ -363,15 +363,20 @@ describe('REGRESSION — Agent soft-delete uses status not isActive', () => {
     });
     await request(app).delete(`/api/agents/${agent._id}`).set('Authorization', `Bearer ${adminToken}`);
     const check = await Agent.findById(agent._id);
-    expect(check.status).toBe('inactive');
+    expect(check.isActive).toBe(false);
   });
 
-  it('TC-RG021 Agent model has status field not isActive', async () => {
+  it('TC-RG021 status and isActive never disagree', async () => {
     const agent = await Agent.create({
       name: 'Check Agent', initials: 'CA', email: 'ca@test.com',
       phone: '9000000001', territory: 'Y', target: 0, color: '#fff', createdBy: adminId,
     });
-    expect(agent.status).toBeDefined();
-    expect(agent.isActive).toBeUndefined();
+    /* `Agent.status` was an 'active'|'inactive' string and `User.isActive` a boolean.
+       `Agent` is retired and User carries both — `status` is a virtual over `isActive` —
+       so what needs pinning now is that the two never disagree. */
+    expect(agent.status).toBe('active');
+    expect(agent.isActive).toBe(true);
+    agent.status = 'inactive';
+    expect(agent.isActive).toBe(false);
   });
 });

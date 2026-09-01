@@ -13,7 +13,7 @@ const app       = require('../src/app');
 const WorkOrder = require('../src/models/WorkOrder');
 const Lead      = require('../src/models/Lead');
 const Notification = require('../src/models/Notification');
-const handoff   = require('../src/services/handoffService');
+const handoff   = require('../src/services/processHandoffService');
 const sweeps    = require('../src/utils/jobs/deliverySweeps');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 const { insertUser, tok } = require('./helpers/testUtils');
@@ -49,10 +49,11 @@ beforeAll(connect);
 afterAll(disconnect);
 beforeEach(async () => {
   await clearCollections();
-  dmToken = tok(await insertUser({ role: 'delivery_manager', name: 'Dev' }));
-  warehouseToken = tok(await insertUser({ role: 'warehouse', name: 'Ware' }));
-  agentToken = tok(await insertUser({ role: 'agent', name: 'Rahul' }));
-  managerId = await insertUser({ role: 'manager', name: 'Sneha' });
+  dmToken = tok(await insertUser({ role: 'production_head', name: 'Dev' }));
+  warehouseToken = tok(await insertUser({ role: 'production_engineer', name: 'Ware' }));
+  agentToken = tok(await insertUser({ role: 'sales_executive', name: 'Rahul' }));
+  /* The A11 sweeps address holders of `workorder.accept` — the Production Head. */
+  managerId = await insertUser({ role: 'production_head', name: 'Prod Head' });
 });
 
 describe('permissions — the matrix from doc 04, enforced', () => {
@@ -67,15 +68,17 @@ describe('permissions — the matrix from doc 04, enforced', () => {
     /* One WO from someone else's deal… */
     const other = await mkWorkOrder();
     /* …and one from the agent's own book. */
-    const Agent = require('../src/models/Agent');
+    const Agent = require('./helpers/owner');
     const me = await Agent.create({
       name: 'Rahul', initials: 'RS', email: 'rahul@iinvsys.test',
       phone: '9876500001', territory: 'West',
     });
-    const agentUid = await insertUser({ role: 'agent', name: 'Rahul2', agentId: me._id });
+    /* The SAME record — `Agent` is retired, so the profile IS the login. Creating a
+       second user here gives them a scope that owns none of the leads below. */
+    const agentUid = me._id;
     const myLead = await Lead.create({
       name: 'My Customer', phone: '9876511111', source: 'cold_call',
-      stage: 'commercial_order', assignedAgent: me._id, poNumber: 'PO-MINE', value: 1000,
+      stage: 'commercial_order', owner: me._id, poNumber: 'PO-MINE', value: 1000,
     });
     const mine = await handoff.createWorkOrderForLead(myLead);
 

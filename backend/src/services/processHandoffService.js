@@ -1,6 +1,16 @@
 'use strict';
+/*
+ * NAMED `processHandoffService`, not `handoffService`.
+ *
+ * "Handoff" already meant two things here — Sales→Delivery and Delivery→Installation —
+ * and ERP Bible V3 doc 1 IS-HD-04 introduces a third: the IS Head's "Sales Handoff
+ * Approval Queue", where a qualified Inside Sales lead is approved into SPENCO. That one
+ * is a `qualificationHandoff` and lands in Phase 1. Renaming this file first is cheaper
+ * than three things called handoff.
+ */
+
 /**
- * handoffService — the two formal handoff points between the three processes.
+ * processHandoffService — the two formal handoff points between the three processes.
  *
  *   Handoff 1: verified PO (→ commercial_order) ─→ Delivery Work Order
  *   Handoff 2: signed DA (status → delivered)   ─→ Installation Job   (B3)

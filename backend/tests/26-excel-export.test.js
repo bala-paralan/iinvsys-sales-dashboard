@@ -13,7 +13,7 @@ const mongoose = require('mongoose');
 const ExcelJS = require('exceljs');
 const app = require('../src/app');
 const Lead = require('../src/models/Lead');
-const Agent = require('../src/models/Agent');
+const Agent = require('./helpers/owner');
 const WorkOrder = require('../src/models/WorkOrder');
 const InstallationJob = require('../src/models/InstallationJob');
 const { generateReportBuffer, scopeFor } = require('../src/utils/excelReport');
@@ -62,14 +62,17 @@ beforeEach(async () => {
   });
 
   const adminId = await insertUser({ role: 'superadmin', name: 'Root' });
-  const managerId = await insertUser({ role: 'manager', name: 'Sneha' });
-  const agentId = await insertUser({ role: 'agent', name: 'Rahul', agentId: agentProfile._id });
-  const techId = await insertUser({ role: 'technician', name: 'Tara' });
+  const managerId = await insertUser({ role: 'sales_director', name: 'Sneha' });
+  /* The SAME record: `Agent` is retired, so the profile and the login are one User.
+     Passing the profile's email makes the fixture adopt it rather than create a second
+     person who owns none of the leads below. */
+  const agentId = await insertUser({ role: 'sales_executive', name: 'Rahul', email: 'rahul@iinvsys.test' });
+  const techId = await insertUser({ role: 'field_engineer', name: 'Tara' });
 
   adminUser = { _id: adminId, role: 'superadmin' };
-  managerUser = { _id: managerId, role: 'manager' };
-  agentUser = { _id: agentId, role: 'agent', agentId: agentProfile._id };
-  techUser = { _id: techId, role: 'technician' };
+  managerUser = { _id: managerId, role: 'sales_director' };
+  agentUser = { _id: agentId, role: 'sales_executive' };
+  techUser = { _id: techId, role: 'field_engineer' };
 
   adminToken = tok(adminId);
   agentToken = tok(agentId);
@@ -77,11 +80,11 @@ beforeEach(async () => {
 
   await Lead.create({
     name: 'Mine', phone: '9811100001', source: 'exhibition_event', company: 'Sharma Industries',
-    state: 'Maharashtra', stage: 'negotiation', value: 250000, assignedAgent: agentProfile._id,
+    state: 'Maharashtra', stage: 'negotiation', value: 250000, owner: agentProfile._id,
   });
   await Lead.create({
     name: 'Theirs', phone: '9811100002', source: 'cold_call', company: 'Verma Foods',
-    state: 'Karnataka', stage: 'commercial_order', value: 900000, assignedAgent: otherAgent._id,
+    state: 'Karnataka', stage: 'commercial_order', value: 900000, owner: otherAgent._id,
   });
 
   const wo = await WorkOrder.create({
@@ -135,10 +138,10 @@ describe('scoping', () => {
   });
 
   it('refuses a role with nothing to export rather than writing an empty file', async () => {
-    /* `readonly` holds no permissions at all. ExcelJS would happily produce a
+    /* A referrer holds no internal permission at all. ExcelJS would happily produce a
        zero-sheet workbook that Excel then calls corrupt. */
-    const readonlyUser = { _id: await insertUser({ role: 'readonly' }), role: 'readonly' };
-    await expect(generateReportBuffer({ user: readonlyUser, query: WINDOW }))
+    const emptyUser = { _id: await insertUser({ role: 'referrer' }), role: 'referrer' };
+    await expect(generateReportBuffer({ user: emptyUser, query: WINDOW }))
       .rejects.toMatchObject({ code: 'EXPORT_EMPTY_SCOPE' });
   });
 
@@ -147,7 +150,10 @@ describe('scoping', () => {
        filter this workbook held every job in the company, while
        GET /api/installations shows them only their own. */
     const wb = await openWorkbook(await generateReportBuffer({ user: techUser, query: WINDOW }));
-    expect(sheetNames(wb)).toEqual(['Installation & CS']);
+    /* Doc 4 IC-FE-01 gives the Field Engineer a dashboard of their own jobs, so they hold
+       `kpi.read` — scoped to themselves — where v2's technician held none. What they still
+       must not get is Sales or Delivery. */
+    expect(sheetNames(wb)).toEqual(['KPI Summary', 'Installation & CS']);
     const ws = wb.getWorksheet('Installation & CS');
     expect(ws.rowCount).toBe(1);              // header only — the job is unassigned
   });
@@ -156,10 +162,12 @@ describe('scoping', () => {
     await expect(generateReportBuffer({})).rejects.toThrow(/user is required/);
   });
 
-  it('scopeFor states each role in one place', () => {
-    expect(scopeFor(managerUser)).toMatchObject({ sales: true, delivery: true, installation: true });
-    expect(scopeFor(agentUser)).toMatchObject({ sales: true, delivery: false, installation: false });
-    expect(scopeFor(techUser)).toMatchObject({ sales: false, kpis: false, delivery: false, installation: true });
+  it('scopeFor states each role in one place', async () => {
+    /* Async since it moved onto services/scopeService.js — resolving a team scope needs
+       one indexed User lookup. */
+    expect(await scopeFor(managerUser)).toMatchObject({ sales: true, delivery: true, installation: true });
+    expect(await scopeFor(agentUser)).toMatchObject({ sales: true, delivery: false, installation: false });
+    expect(await scopeFor(techUser)).toMatchObject({ sales: false, kpis: true, delivery: false, installation: true });
   });
 });
 
@@ -219,8 +227,12 @@ describe('workbook contents', () => {
     const wb = await openWorkbook(await generateReportBuffer({ user: adminUser, query: WINDOW }));
     const ws = wb.getWorksheet('Agent Performance');
     /* A new joiner has not achieved a 0% win rate — they have not had the
-       chance to win yet, and a 0 in this column reads as a performance figure. */
-    expect(column(ws, 'Win Rate %')).toEqual(['—', '—']);
+       chance to win yet, and a 0 in this column reads as a performance figure.
+       The sheet lists every staff member now rather than the two rows the retired
+       `Agent` collection held, so assert the value rather than the row count. */
+    const winRates = column(ws, 'Win Rate %');
+    expect(winRates.length).toBeGreaterThan(0);
+    expect([...new Set(winRates)]).toEqual(['—']);
   });
 
   it('does not call a still-open work order late', async () => {

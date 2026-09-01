@@ -3,7 +3,7 @@ const request = require('supertest');
 const app     = require('../src/app');
 const db      = require('./helpers/db');
 const User    = require('../src/models/User');
-const Agent   = require('../src/models/Agent');
+const Agent   = require('./helpers/owner');
 const Lead    = require('../src/models/Lead');
 
 beforeAll(async () => { await db.connect(); });
@@ -11,7 +11,7 @@ afterEach(async () => { await db.clearCollections(); });
 afterAll(async () => { await db.disconnect(); });
 
 async function setup() {
-  const mgr = await User.create({ name: 'Mgr', email: 'mgr@t.com', password: 'Pass@1234', role: 'manager', isActive: true });
+  const mgr = await User.create({ name: 'Mgr', email: 'mgr@t.com', password: 'Pass@1234', role: 'sales_director', isActive: true });
   const agentProfile = await Agent.create({
     name: 'A1', initials: 'A1', email: 'a1@t.com', phone: '9000000001',
     territory: 'Pune', designation: 'Sales', createdBy: mgr._id,
@@ -37,7 +37,7 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'Test User', phone: '+91 99999 00000', source: 'inbound_enquiry',
-        assignedAgent: agentId,
+        owner: agentId,
         city: 'Pune', state: 'Maharashtra',
         natureOfBusiness: 'system-integrator',
         interestedIn: 'direct-purchase',
@@ -56,7 +56,7 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'X', phone: '+91 88888 00000', source: 'inbound_enquiry',
-        assignedAgent: agentId,
+        owner: agentId,
         natureOfBusiness: 'not-a-real-value',
       });
     expect(res.status).toBe(422);
@@ -69,7 +69,7 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'Y', phone: '+91 77777 00000', source: 'inbound_enquiry',
-        assignedAgent: agentId,
+        owner: agentId,
         interestedIn: 'lease',
       });
     expect(res.status).toBe(422);
@@ -82,7 +82,7 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'Z', phone: '+91 66666 00000', source: 'inbound_enquiry',
-        assignedAgent: agentId,
+        owner: agentId,
         city: '', state: '', natureOfBusiness: '', interestedIn: '',
       });
     expect(res.status).toBe(201);
@@ -93,7 +93,7 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
   test('PUT /api/leads/:id — manager can update the four fields', async () => {
     const { token, agentId } = await setup();
     const create = await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'L', phone: '+91 55555 00000', source: 'inbound_enquiry', assignedAgent: agentId,
+      name: 'L', phone: '+91 55555 00000', source: 'inbound_enquiry', owner: agentId,
     });
     const id = create.body.data._id;
 
@@ -110,11 +110,11 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
   test('GET /api/leads — can filter on the new fields', async () => {
     const { token, agentId } = await setup();
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'A', phone: '111', source: 'inbound_enquiry', assignedAgent: agentId,
+      name: 'A', phone: '111', source: 'inbound_enquiry', owner: agentId,
       city: 'Pune', natureOfBusiness: 'manufacturer', interestedIn: 'collaboration',
     });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'B', phone: '222', source: 'inbound_enquiry', assignedAgent: agentId,
+      name: 'B', phone: '222', source: 'inbound_enquiry', owner: agentId,
       city: 'Mumbai', natureOfBusiness: 'reseller', interestedIn: 'direct-purchase',
     });
 
@@ -136,10 +136,10 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
   test('GET /api/leads?city=… filter narrows results', async () => {
     const { token, agentId } = await setup();
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'P1', phone: '811', source: 'inbound_enquiry', assignedAgent: agentId, city: 'Pune',
+      name: 'P1', phone: '811', source: 'inbound_enquiry', owner: agentId, city: 'Pune',
     });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'M1', phone: '812', source: 'inbound_enquiry', assignedAgent: agentId, city: 'Mumbai',
+      name: 'M1', phone: '812', source: 'inbound_enquiry', owner: agentId, city: 'Mumbai',
     });
     const res = await request(app).get('/api/leads?city=Pune').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
@@ -150,11 +150,11 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
   test('GET /api/leads?natureOfBusiness=… and ?interestedIn=… filter narrows results', async () => {
     const { token, agentId } = await setup();
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'A', phone: '901', source: 'inbound_enquiry', assignedAgent: agentId,
+      name: 'A', phone: '901', source: 'inbound_enquiry', owner: agentId,
       natureOfBusiness: 'manufacturer', interestedIn: 'collaboration',
     });
     await request(app).post('/api/leads').set('Authorization', `Bearer ${token}`).send({
-      name: 'B', phone: '902', source: 'inbound_enquiry', assignedAgent: agentId,
+      name: 'B', phone: '902', source: 'inbound_enquiry', owner: agentId,
       natureOfBusiness: 'reseller', interestedIn: 'direct-purchase',
     });
 
@@ -185,9 +185,9 @@ describe('Lead — extra optional fields (city, state, natureOfBusiness, interes
       .set('Authorization', `Bearer ${token}`)
       .send({
         leads: [
-          { name: 'B1', phone: '+91 11111 00001', source: 'inbound_enquiry', assignedAgent: agentId,
+          { name: 'B1', phone: '+91 11111 00001', source: 'inbound_enquiry', owner: agentId,
             city: 'Pune', state: 'MH', natureOfBusiness: 'oem', interestedIn: 'product-integration' },
-          { name: 'B2', phone: '+91 11111 00002', source: 'inbound_enquiry', assignedAgent: agentId,
+          { name: 'B2', phone: '+91 11111 00002', source: 'inbound_enquiry', owner: agentId,
             city: 'Mumbai', state: 'MH', natureOfBusiness: 'reseller', interestedIn: 'dealership' },
         ],
       });

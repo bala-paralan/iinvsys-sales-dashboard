@@ -4,6 +4,12 @@
 > Every row below appears in that module as an `entryRequires` entry. Change one, change the other
 > in the same commit. `backend/tests/07-pipeline-gate.test.js` asserts the behaviour described here.
 
+> **Role names in the prose below are the Business Process Framework's** ("Delivery Manager",
+> "technician"), not system roles. ERP Bible V3 renamed the taxonomy — see
+> [`04-roles-and-permissions.md`](04-roles-and-permissions.md). The gates themselves are
+> unchanged: `technician` and the rest are FIELD names on the record, and every notification is
+> addressed by permission rather than by role name.
+
 ## How a gate works
 
 A gate is evaluated when a record moves **forward** to a new stage. It answers one question:

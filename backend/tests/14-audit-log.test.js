@@ -12,7 +12,7 @@ const audit    = require('../src/services/auditService');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 
 const REQ = {
-  user: { _id: new mongoose.Types.ObjectId(), name: 'Priya Nair', role: 'manager' },
+  user: { _id: new mongoose.Types.ObjectId(), name: 'Priya Nair', role: 'sales_director' },
   ip: '10.0.0.7',
   headers: { 'user-agent': 'jest' },
 };
@@ -82,7 +82,7 @@ describe('auditService.record', () => {
   it('captures the actor and request fingerprint', async () => {
     await audit.record({ action: 'record.create', entityType: 'lead', summary: 'created' }, REQ);
     const e = await AuditLog.findOne().lean();
-    expect(e.actor).toMatchObject({ name: 'Priya Nair', role: 'manager' });
+    expect(e.actor).toMatchObject({ name: 'Priya Nair', role: 'sales_director' });
     expect(String(e.actor.user)).toBe(String(REQ.user._id));
     expect(e.ip).toBe('10.0.0.7');
     expect(e.userAgent).toBe('jest');
@@ -167,17 +167,17 @@ describe('typed helpers pin the meta shape', () => {
 
   it('roleChange records both sides', async () => {
     await audit.roleChange({
-      userId: new mongoose.Types.ObjectId(), name: 'Amit', before: 'agent', after: 'manager',
+      userId: new mongoose.Types.ObjectId(), name: 'Amit', before: 'sales_executive', after: 'sales_director',
     }, REQ);
     const e = await AuditLog.findOne({ action: 'user.role_change' }).lean();
-    expect(e.meta).toMatchObject({ before: 'agent', after: 'manager' });
+    expect(e.meta).toMatchObject({ before: 'sales_executive', after: 'sales_director' });
   });
 });
 
 describe('sign-in logging', () => {
   it('records a successful sign-in against the account', async () => {
     const id = new mongoose.Types.ObjectId();
-    await audit.login({ ok: true, email: 'a@iinvsys.test', userId: id, name: 'A', role: 'agent' });
+    await audit.login({ ok: true, email: 'a@iinvsys.test', userId: id, name: 'A', role: 'sales_executive' });
     const e = await AuditLog.findOne({ action: 'auth.login' }).lean();
     expect(String(e.actor.user)).toBe(String(id));
   });

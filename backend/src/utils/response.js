@@ -1,12 +1,26 @@
 'use strict';
 
+const { redact } = require('./redact');
+
+/*
+ * ok / created / paginated run every payload through redact() against res.locals.user.
+ *
+ * This is the only place every JSON response passes through, and therefore the only
+ * place a newly added endpoint cannot forget. Doc 3 requires that a production engineer
+ * never RECEIVES an order value — not that the value is hidden in the client — so the
+ * enforcement has to be here rather than in a component.
+ *
+ * res.locals.user is set by middleware/auth.js alongside req.user; these helpers take a
+ * response, not a request, so there is no other way to reach the caller.
+ */
+
 /** 200 OK */
 const ok = (res, data = {}, message = 'Success') =>
-  res.status(200).json({ success: true, message, data });
+  res.status(200).json({ success: true, message, data: redact(data, res.locals.user) });
 
 /** 201 Created */
 const created = (res, data = {}, message = 'Created') =>
-  res.status(201).json({ success: true, message, data });
+  res.status(201).json({ success: true, message, data: redact(data, res.locals.user) });
 
 /** 400 Bad Request */
 const badRequest = (res, message = 'Bad request', errors = []) =>
@@ -24,9 +38,10 @@ const forbidden = (res, message = 'Forbidden') =>
 const notFound = (res, message = 'Not found') =>
   res.status(404).json({ success: false, message });
 
-/** 409 Conflict */
-const conflict = (res, message = 'Conflict') =>
-  res.status(409).json({ success: false, message });
+/** 409 Conflict. `extra` carries the alternatives — e.g. the duplicate candidates a
+    customer create matched — so the client can offer a choice rather than just a refusal. */
+const conflict = (res, message = 'Conflict', extra = null) =>
+  res.status(409).json({ success: false, message, ...(extra || {}) });
 
 /** 422 Unprocessable Entity */
 const unprocessable = (res, message = 'Validation failed', errors = []) =>
@@ -52,7 +67,7 @@ const gateFailed = (res, code, message, missing = []) =>
 const paginated = (res, items, total, page, limit) =>
   res.status(200).json({
     success: true,
-    data: items,
+    data: redact(items, res.locals.user),
     pagination: {
       total,
       page,

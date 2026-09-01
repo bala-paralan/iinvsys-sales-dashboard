@@ -15,7 +15,7 @@ const nodemailer  = require('nodemailer');
 const app         = require('../src/app');
 const db          = require('./helpers/db');
 const User        = require('../src/models/User');
-const Agent       = require('../src/models/Agent');
+const Agent       = require('./helpers/owner');
 const Lead        = require('../src/models/Lead');
 const EmailConfig = require('../src/models/EmailConfig');
 
@@ -78,7 +78,7 @@ describe('GET /api/reports/config', () => {
   });
 
   it('returns 403 for agent role', async () => {
-    const uid = await insertUser('agent');
+    const uid = await insertUser('sales_executive');
     const res = await request(app)
       .get('/api/reports/config')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -86,7 +86,7 @@ describe('GET /api/reports/config', () => {
   });
 
   it('returns 403 for manager role', async () => {
-    const uid = await insertUser('manager');
+    const uid = await insertUser('sales_director');
     const res = await request(app)
       .get('/api/reports/config')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -130,7 +130,7 @@ describe('PUT /api/reports/config', () => {
   });
 
   it('returns 403 for manager', async () => {
-    const uid = await insertUser('manager');
+    const uid = await insertUser('sales_director');
     const res = await request(app)
       .put('/api/reports/config')
       .set('Authorization', `Bearer ${tok(uid)}`)
@@ -217,7 +217,7 @@ describe('POST /api/reports/send', () => {
   });
 
   it('returns 403 for agent', async () => {
-    const uid = await insertUser('agent');
+    const uid = await insertUser('sales_executive');
     const res = await request(app)
       .post('/api/reports/send')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -225,7 +225,7 @@ describe('POST /api/reports/send', () => {
   });
 
   it('returns 400 when no recipients configured', async () => {
-    const uid = await insertUser('manager');
+    const uid = await insertUser('sales_director');
     // config exists but has no recipients
     await EmailConfig.create({ recipients: [], periodicity: 'daily' });
     const res = await request(app)
@@ -241,7 +241,7 @@ describe('POST /api/reports/send', () => {
       periodicity: 'weekly',
       template: { subject: 'Report {{date}}', body: 'See {{period}}' },
     });
-    const uid = await insertUser('manager');
+    const uid = await insertUser('sales_director');
     const res = await request(app)
       .post('/api/reports/send')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -265,7 +265,7 @@ describe('POST /api/reports/send', () => {
 
   it('updates lastSentAt after successful send', async () => {
     await EmailConfig.create({ recipients: ['r@r.com'], periodicity: 'daily' });
-    const uid = await insertUser('manager');
+    const uid = await insertUser('sales_director');
     await request(app)
       .post('/api/reports/send')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -282,7 +282,7 @@ describe('GET /api/reports/preview', () => {
   });
 
   it('returns 403 for agent', async () => {
-    const uid = await insertUser('agent');
+    const uid = await insertUser('sales_executive');
     const res = await request(app)
       .get('/api/reports/preview')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -290,7 +290,7 @@ describe('GET /api/reports/preview', () => {
   });
 
   it('returns preview data shape for manager', async () => {
-    const uid = await insertUser('manager');
+    const uid = await insertUser('sales_director');
     const res = await request(app)
       .get('/api/reports/preview')
       .set('Authorization', `Bearer ${tok(uid)}`);
@@ -330,9 +330,9 @@ describe('GET /api/reports/preview', () => {
     });
     await Lead.create([
       { name: 'L1', phone: '9100000001', source: 'inbound_enquiry', stage: 'commercial_order',
-        value: 50000, assignedAgent: agentRes._id, createdBy: adminId },
+        value: 50000, owner: agentRes._id, createdBy: adminId },
       { name: 'L2', phone: '9100000002', source: 'inbound_enquiry', stage: 'suspect',
-        value: 20000, assignedAgent: agentRes._id, createdBy: adminId },
+        value: 20000, owner: agentRes._id, createdBy: adminId },
     ]);
 
     const res = await request(app)

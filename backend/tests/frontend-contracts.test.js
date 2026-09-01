@@ -21,7 +21,7 @@ const jwt     = require('jsonwebtoken');
 const app     = require('../src/app');
 const db      = require('./helpers/db');
 const User    = require('../src/models/User');
-const Agent   = require('../src/models/Agent');
+const Agent   = require('./helpers/owner');
 const Lead    = require('../src/models/Lead');
 const Expo    = require('../src/models/Expo');
 const Product = require('../src/models/Product');
@@ -34,21 +34,38 @@ afterAll(async () => { await db.disconnect(); });
 
 async function insertUser(attrs) {
   const emailFallback = `${attrs.role || 'user'}_${Date.now()}@test.com`;
-  const res = await User.collection.insertOne({
-    name:        attrs.name  || attrs.role || 'User',
-    email:       attrs.email || emailFallback,
-    password:    '$2b$01$placeholder',
-    role:        attrs.role  || 'agent',
-    agentId:     attrs.agentId  || null,
-    expoId:      attrs.expoId   || null,
-    expiresAt:   attrs.expiresAt ?? null,
-    isTemporary: false,
-    isActive:    attrs.isActive ?? true,
-    lastLogin:   null,
-    createdAt:   new Date(),
-    updatedAt:   new Date(),
-  });
-  return res.insertedId;
+  /* One person, one record: the agent profile and the login are the same User now. */
+  if (attrs.email) {
+    const existing = await User.collection.findOne({ email: attrs.email });
+    if (existing) return existing._id;
+  }
+  /* Adopt-then-insert is check-then-act: if a previous test timed out and its setup is
+     still running, both calls miss the findOne and both insert. Catch the unique-index
+     violation and return the winner, so a stalled run produces ONE timeout rather than a
+     cascade of dup-key failures that hides what actually went wrong. */
+  try {
+    const res = await User.collection.insertOne({
+      name:        attrs.name  || attrs.role || 'User',
+      email:       attrs.email || emailFallback,
+      password:    '$2b$01$placeholder',
+      role:        attrs.role  || 'sales_executive',
+      agentId:     attrs.agentId  || null,
+      expoId:      attrs.expoId   || null,
+      expiresAt:   attrs.expiresAt ?? null,
+      isTemporary: false,
+      isActive:    attrs.isActive ?? true,
+      lastLogin:   null,
+      createdAt:   new Date(),
+      updatedAt:   new Date(),
+    });
+    return res.insertedId;
+  } catch (err) {
+    if (err && err.code === 11000) {
+      const winner = await User.collection.findOne({ email: attrs.email });
+      if (winner) return winner._id;
+    }
+    throw err;
+  }
 }
 
 function tok(userId, extra = {}) {
@@ -61,7 +78,7 @@ async function makeAdmin() {
 }
 
 async function makeManager() {
-  const id = await insertUser({ name: 'Mgr', email: 'mgr@test.com', role: 'manager' });
+  const id = await insertUser({ name: 'Mgr', email: 'mgr@test.com', role: 'sales_director' });
   return { id, token: tok(id) };
 }
 
@@ -72,7 +89,7 @@ async function makeAgentWithUser(suffix = '1', createdById) {
     territory: 'Delhi', designation: 'Sales Agent', target: 500000,
     createdBy: createdById,
   });
-  const uid = await insertUser({ name: `Agent${suffix}`, email: `agt${suffix}@test.com`, role: 'agent', agentId: agent._id });
+  const uid = await insertUser({ name: `Agent${suffix}`, email: `agt${suffix}@test.com`, role: 'sales_executive', agentId: agent._id });
   return { agent, uid, token: tok(uid) };
 }
 
@@ -219,8 +236,10 @@ describe('GET /api/settings — response shape consumed by renderSettings()', ()
     expect(res.status).toBe(401);
   });
 
-  it('readonly role can list settings (200)', async () => {
-    const id  = await insertUser({ role: 'readonly', email: 'ro@test.com' });
+  /* `settings.read` is the Director's and superadmin's; the retired `readonly` floor used
+     to admit every internal viewer here, which is the hole 10-role-matrix regresses. */
+  it('the Director can list settings (200)', async () => {
+    const id  = await insertUser({ role: 'sales_director', email: 'ro@test.com' });
     const res = await request(app)
       .get('/api/settings')
       .set('Authorization', `Bearer ${tok(id)}`);
@@ -522,8 +541,8 @@ describe('POST /api/leads/bulk — BUG-03: correct route (not /bulk-import)', ()
     expect(res.status).toBe(403);
   });
 
-  it('readonly cannot bulk-import (403)', async () => {
-    const id  = await insertUser({ role: 'readonly', email: 'ro@test.com' });
+  it('a role with no business in the pipeline cannot bulk-import (403)', async () => {
+    const id  = await insertUser({ role: 'production_engineer', email: 'pe@test.com' });
     const res = await request(app)
       .post('/api/leads/bulk')
       .set('Authorization', `Bearer ${tok(id)}`)
@@ -581,7 +600,7 @@ describe('GET /api/leads — paginated response shape consumed by loadAllData()'
   it('each lead item has fields the normalizer expects: _id, name, phone, source, stage', async () => {
     const admin  = await makeAdmin();
     const { agent } = await makeAgentWithUser('1', admin.id);
-    await makeLead({ assignedAgent: agent._id, phone: '9001111111' }, admin.id);
+    await makeLead({ owner: agent._id, phone: '9001111111' }, admin.id);
     const res = await request(app)
       .get('/api/leads')
       .set('Authorization', `Bearer ${admin.token}`);
@@ -596,18 +615,18 @@ describe('GET /api/leads — paginated response shape consumed by loadAllData()'
     expect(lead).toHaveProperty('createdAt');
   });
 
-  it('assignedAgent is populated with name, initials, color', async () => {
+  it('owner is populated with name, initials, color', async () => {
     const admin = await makeAdmin();
     const { agent } = await makeAgentWithUser('1', admin.id);
-    await makeLead({ assignedAgent: agent._id, phone: '9001111111' }, admin.id);
+    await makeLead({ owner: agent._id, phone: '9001111111' }, admin.id);
     const res = await request(app)
       .get('/api/leads')
       .set('Authorization', `Bearer ${admin.token}`);
     const lead = res.body.data[0];
-    expect(typeof lead.assignedAgent).toBe('object');
-    expect(lead.assignedAgent).toHaveProperty('name');
-    expect(lead.assignedAgent).toHaveProperty('initials');
-    expect(lead.assignedAgent).toHaveProperty('color');
+    expect(typeof lead.owner).toBe('object');
+    expect(lead.owner).toHaveProperty('name');
+    expect(lead.owner).toHaveProperty('initials');
+    expect(lead.owner).toHaveProperty('color');
   });
 
   it('page & limit query params work — second page is empty when total ≤ limit', async () => {
@@ -655,11 +674,15 @@ describe('GET /api/agents — shape consumed by loadAllData()', () => {
 
   it('each agent item has _id, name, initials, email, phone, territory, status, target', async () => {
     const admin = await makeAdmin();
-    await makeAgentWithUser('1', admin.id);
+    const made = await makeAgentWithUser('1', admin.id);
     const res = await request(app)
       .get('/api/agents')
       .set('Authorization', `Bearer ${admin.token}`);
-    const agent = res.body.data[0];
+    /* The directory holds every role now, not just sales agents — a Production Head has
+       no territory and no sales target — so this asserts the shape the legacy client
+       consumes for the row it actually renders as an agent. */
+    const agent = res.body.data.find((u) => String(u._id) === String(made.uid));
+    expect(agent).toBeDefined();
     expect(agent).toHaveProperty('_id');
     expect(agent).toHaveProperty('name');
     expect(agent).toHaveProperty('initials');
@@ -672,7 +695,7 @@ describe('GET /api/agents — shape consumed by loadAllData()', () => {
 
   it('agent color field exists (used in frontend avatar rendering)', async () => {
     const admin = await makeAdmin();
-    await makeAgentWithUser('1', admin.id);
+    const made = await makeAgentWithUser('1', admin.id);
     const res = await request(app)
       .get('/api/agents')
       .set('Authorization', `Bearer ${admin.token}`);
@@ -772,7 +795,7 @@ describe('POST /api/auth/login — shape consumed by login handler', () => {
     const hash   = await bcrypt.hash('Test@123', 1);
     await User.collection.insertOne({
       name: 'Login Test', email: 'logintest@test.com',
-      password: hash, role: 'manager',
+      password: hash, role: 'sales_director',
       agentId: null, expoId: null, expiresAt: null,
       isTemporary: false, isActive: true,
       lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
@@ -796,7 +819,7 @@ describe('POST /api/auth/login — shape consumed by login handler', () => {
     const hash   = await bcrypt.hash('Correct@123', 1);
     await User.collection.insertOne({
       name: 'Login Test', email: 'login2@test.com',
-      password: hash, role: 'agent',
+      password: hash, role: 'sales_executive',
       agentId: null, expoId: null, expiresAt: null,
       isTemporary: false, isActive: true,
       lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
@@ -819,7 +842,7 @@ describe('POST /api/auth/login — shape consumed by login handler', () => {
     const hash   = await bcrypt.hash('Test@123', 1);
     await User.collection.insertOne({
       name: 'Deactivated', email: 'deact@test.com',
-      password: hash, role: 'agent',
+      password: hash, role: 'sales_executive',
       agentId: null, expoId: null, expiresAt: null,
       isTemporary: false, isActive: false,
       lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
@@ -881,7 +904,7 @@ describe('POST /api/leads — shape consumed by lead create modal', () => {
     const res = await request(app)
       .post('/api/leads')
       .set('Authorization', `Bearer ${admin.token}`)
-      .send({ name: 'New Lead', phone: '9001234567', source: 'inbound_enquiry', assignedAgent: agent._id });
+      .send({ name: 'New Lead', phone: '9001234567', source: 'inbound_enquiry', owner: agent._id });
     expect(res.status).toBe(201);
     expect(res.body.data).toHaveProperty('_id');
     expect(res.body.data.name).toBe('New Lead');
@@ -934,7 +957,7 @@ describe('PUT /api/leads/:id — update lead from modal', () => {
   it('manager can update name, phone, source, value (stage goes via /advance)', async () => {
     const admin = await makeAdmin();
     const { agent } = await makeAgentWithUser('1', admin.id);
-    const lead = await makeLead({ assignedAgent: agent._id }, admin.id);
+    const lead = await makeLead({ owner: agent._id }, admin.id);
     const res = await request(app)
       .put(`/api/leads/${lead._id}`)
       .set('Authorization', `Bearer ${admin.token}`)
@@ -947,7 +970,7 @@ describe('PUT /api/leads/:id — update lead from modal', () => {
   it('agent can only update notes — not name/phone (stage goes via /advance)', async () => {
     const admin = await makeAdmin();
     const { agent, token: agtTok } = await makeAgentWithUser('1', admin.id);
-    const lead = await makeLead({ assignedAgent: agent._id, name: 'Original Name' }, admin.id);
+    const lead = await makeLead({ owner: agent._id, name: 'Original Name' }, admin.id);
     await request(app)
       .put(`/api/leads/${lead._id}`)
       .set('Authorization', `Bearer ${agtTok}`)
@@ -963,7 +986,7 @@ describe('PUT /api/leads/:id — update lead from modal', () => {
     const admin = await makeAdmin();
     const { agent: a1, token: tok1 } = await makeAgentWithUser('1', admin.id);
     const { agent: a2 }              = await makeAgentWithUser('2', admin.id);
-    const lead = await makeLead({ assignedAgent: a2._id }, admin.id);
+    const lead = await makeLead({ owner: a2._id }, admin.id);
     const res  = await request(app)
       .put(`/api/leads/${lead._id}`)
       .set('Authorization', `Bearer ${tok1}`)
@@ -983,46 +1006,6 @@ describe('PUT /api/leads/:id — update lead from modal', () => {
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-describe('POST /api/leads/:id/followups — follow-up modal', () => {
-
-  it('valid channels: call, whatsapp, email, visit, other are accepted', async () => {
-    const admin = await makeAdmin();
-    const { agent } = await makeAgentWithUser('1', admin.id);
-    for (const ch of ['call','whatsapp','email','visit','other']) {
-      const lead = await makeLead({ assignedAgent: agent._id }, admin.id);
-      const res = await request(app)
-        .post(`/api/leads/${lead._id}/followups`)
-        .set('Authorization', `Bearer ${admin.token}`)
-        .send({ channel: ch, notes: 'Test' });
-      expect(res.status).toBe(201);
-    }
-  }, 60000);
-
-  it('invalid channel (fax) returns 422', async () => {
-    const admin = await makeAdmin();
-    const { agent } = await makeAgentWithUser('1', admin.id);
-    const lead = await makeLead({ assignedAgent: agent._id }, admin.id);
-    const res  = await request(app)
-      .post(`/api/leads/${lead._id}/followups`)
-      .set('Authorization', `Bearer ${admin.token}`)
-      .send({ channel: 'fax' });
-    expect(res.status).toBe(422);
-  });
-
-  it('follow-up updates lastContact on the lead', async () => {
-    const admin = await makeAdmin();
-    const { agent } = await makeAgentWithUser('1', admin.id);
-    const lead = await makeLead({ assignedAgent: agent._id }, admin.id);
-    await request(app)
-      .post(`/api/leads/${lead._id}/followups`)
-      .set('Authorization', `Bearer ${admin.token}`)
-      .send({ channel: 'call', notes: 'Called' });
-    const check = await request(app)
-      .get(`/api/leads/${lead._id}`)
-      .set('Authorization', `Bearer ${admin.token}`);
-    expect(check.body.data.lastContact).not.toBeNull();
-  });
-});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SECTION 6 — AGENT MANAGEMENT CONTRACTS
@@ -1078,7 +1061,7 @@ describe('DELETE /api/agents/:id — soft delete (deactivate)', () => {
       .get(`/api/agents/${agent._id}`)
       .set('Authorization', `Bearer ${admin.token}`);
     // Agent model uses 'status' field ('active'|'inactive'), not isActive boolean
-    expect(check.body.data.status).toBe('inactive');
+    expect(check.body.data.isActive).toBe(false);
   });
 
   it('manager cannot soft-delete agents (403)', async () => {

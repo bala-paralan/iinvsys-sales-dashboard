@@ -36,8 +36,8 @@ beforeEach(async () => {
   pipeline.setActiveRules({});                 // back to compiled-in defaults
   await runtime.seedRuleSettings();
   adminToken = tok(await insertUser({ role: 'superadmin', name: 'Root' }));
-  managerToken = tok(await insertUser({ role: 'manager', name: 'Sneha' }));
-  agentToken = tok(await insertUser({ role: 'agent', name: 'Rahul' }));
+  managerToken = tok(await insertUser({ role: 'sales_director', name: 'Sneha' }));
+  agentToken = tok(await insertUser({ role: 'sales_executive', name: 'Rahul' }));
 });
 
 afterEach(() => { pipeline.setActiveRules({}); });

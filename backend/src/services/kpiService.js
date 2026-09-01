@@ -21,6 +21,7 @@ const Lead = require('../models/Lead');
 const WorkOrder = require('../models/WorkOrder');
 const InstallationJob = require('../models/InstallationJob');
 const pipeline = require('../config/pipeline');
+const { scopeFilter } = require('./scopeService');
 const bd = require('../utils/businessDays');
 
 /* ── window ──────────────────────────────────────────────────────────────── */
@@ -139,29 +140,53 @@ const mean = (values) => (values.length
  * genuine transitions. A lead created mid-funnel then simply sits out the
  * conversion it was never part of, instead of inflating it.
  */
-function enteredStage(stage, window, { transitionsOnly = false } = {}) {
-  const entry = { to: stage, at: { $gte: window.from, $lt: window.to } };
-  if (transitionsOnly) entry.from = { $ne: null };
-  return Lead.countDocuments({ stageHistory: { $elemMatch: entry } });
+/**
+ * Turn the caller's scope into a base filter per collection.
+ *
+ * v2's KPI endpoints took a window and nothing else, so every role holding `kpi.read`
+ * received company-wide pipeline value, win rate and revenue — the exact thing doc 2
+ * forbids in SA-MGR-01 and SA-DIR-01. Every query below now merges one of these.
+ *
+ * Work Orders carry no owner of their own (A24 — they hold a customerSnapshot, never a
+ * lead reference for reading), so a scoped delivery figure is resolved through the
+ * upstream leads once, here, rather than per metric.
+ */
+async function scopeBases(scope) {
+  if (!scope || scope.userIds === null) return { lead: {}, workOrder: {}, installation: {} };
+
+  const lead = scopeFilter(scope, 'owner');
+  const mine = await Lead.find(lead).select('_id').lean();
+  return {
+    lead,
+    workOrder: { lead: { $in: mine.map((l) => l._id) } },
+    installation: scopeFilter(scope, 'technician'),
+  };
 }
 
-const reachedStage = (stage, window) => enteredStage(stage, window);
-const convertedInto = (stage, window) => enteredStage(stage, window, { transitionsOnly: true });
+function enteredStage(stage, window, { transitionsOnly = false, base = {} } = {}) {
+  const entry = { to: stage, at: { $gte: window.from, $lt: window.to } };
+  if (transitionsOnly) entry.from = { $ne: null };
+  return Lead.countDocuments({ ...base, stageHistory: { $elemMatch: entry } });
+}
 
-async function salesKpis(window) {
+const reachedStage = (stage, window, base) => enteredStage(stage, window, { base });
+const convertedInto = (stage, window, base) => enteredStage(stage, window, { transitionsOnly: true, base });
+
+async function salesKpis(window, scope = null) {
+  const base = await scopeBases(scope);
   const [
     intoSuspect, intoProspect, intoEngagement, intoNegotiation, intoWon,
   ] = await Promise.all([
-    reachedStage('suspect', window),
-    convertedInto('prospect', window),
-    reachedStage('engagement', window),
-    convertedInto('negotiation', window),
-    convertedInto(pipeline.WON_STAGE, window),
+    reachedStage('suspect', window, base.lead),
+    convertedInto('prospect', window, base.lead),
+    reachedStage('engagement', window, base.lead),
+    convertedInto('negotiation', window, base.lead),
+    convertedInto(pipeline.WON_STAGE, window, base.lead),
   ]);
 
   /* negotiation is a numerator for prospect_to_proposal and a denominator for
      win_rate, so it is counted both ways. */
-  const reachedNegotiation = await reachedStage('negotiation', window);
+  const reachedNegotiation = await reachedStage('negotiation', window, base.lead);
 
   /* Sales cycle: won in the window, measured from creation to the WIN entry.
      Window membership is decided by the completion date (doc 05), so a deal
@@ -171,6 +196,7 @@ async function salesKpis(window) {
      imported as already-won has a zero-day "cycle" that is not a cycle at all,
      and a handful of them drag the mean toward zero. */
   const wonLeads = await Lead.find({
+    ...base.lead,
     stageHistory: {
       $elemMatch: {
         to: pipeline.WON_STAGE, from: { $ne: null },
@@ -191,7 +217,7 @@ async function salesKpis(window) {
      now". Bounding it by the window would report the value of deals that
      happened to move last month, which is not what a pipeline is. */
   const [openAgg] = await Lead.aggregate([
-    { $match: { stage: { $in: pipeline.OPEN_SALES_STAGES } } },
+    { $match: { ...base.lead, stage: { $in: pipeline.OPEN_SALES_STAGES } } },
     {
       $group: {
         _id: null,
@@ -210,8 +236,9 @@ async function salesKpis(window) {
   ]);
 
   const [woTotal, woRevised] = await Promise.all([
-    WorkOrder.countDocuments({ createdAt: { $gte: window.from, $lt: window.to } }),
+    WorkOrder.countDocuments({ ...base.workOrder, createdAt: { $gte: window.from, $lt: window.to } }),
     WorkOrder.countDocuments({
+      ...base.workOrder,
       createdAt: { $gte: window.from, $lt: window.to },
       revisionCount: { $gt: 0 },
     }),
@@ -235,21 +262,25 @@ async function salesKpis(window) {
 }
 
 /** Manager-dashboard counters from doc 05. Not KPIs — no targets, no status. */
-async function salesHygieneCounters(now = new Date()) {
+async function salesHygieneCounters(now = new Date(), scope = null) {
+  const base = await scopeBases(scope);
   const inactiveCutoff = new Date(
     now.getTime() - pipeline.INACTIVITY_ALERT_DAYS * 86400000);
 
   const [needingReview, inactive, missingFollowup, closeDateExpired] = await Promise.all([
-    Lead.countDocuments({ needsReview: true }),
+    Lead.countDocuments({ ...base.lead, needsReview: true }),
     Lead.countDocuments({
+      ...base.lead,
       stage: { $in: pipeline.OPEN_SALES_STAGES },
       $or: [{ lastContact: { $lt: inactiveCutoff } }, { lastContact: null }],
     }),
     Lead.countDocuments({
+      ...base.lead,
       stage: { $in: pipeline.OPEN_SALES_STAGES },
       $or: [{ nextFollowUpDate: null }, { nextFollowUpDate: { $lt: now } }],
     }),
     Lead.countDocuments({
+      ...base.lead,
       stage: { $in: pipeline.OPEN_SALES_STAGES },
       expectedCloseDate: { $ne: null, $lt: now },
     }),
@@ -258,7 +289,7 @@ async function salesHygieneCounters(now = new Date()) {
   /* stage_age_exceeded is a per-stage threshold, so it is the one counter that
      cannot be a single query — reviewIssues already carries the verdict from
      the last write, which is what the nightly sweep refreshes. */
-  const stageAgeExceeded = await Lead.countDocuments({ reviewIssues: 'stage_age_exceeded' });
+  const stageAgeExceeded = await Lead.countDocuments({ ...base.lead, reviewIssues: 'stage_age_exceeded' });
 
   return {
     leads_needing_review: needingReview,
@@ -271,8 +302,9 @@ async function salesHygieneCounters(now = new Date()) {
 
 /* ── Process 2 — Delivery ────────────────────────────────────────────────── */
 
-async function deliveryKpis(window) {
-  const inWindow = { deliveredAt: { $gte: window.from, $lt: window.to } };
+async function deliveryKpis(window, scope = null) {
+  const base = await scopeBases(scope);
+  const inWindow = { ...base.workOrder, deliveredAt: { $gte: window.from, $lt: window.to } };
 
   const delivered = await WorkOrder.find(inWindow)
     .select('deliveredAt originalCommittedDate deliveryAccuracy damageReported attachments')
@@ -297,6 +329,7 @@ async function deliveryKpis(window) {
      days cannot be expressed in an aggregation pipeline, so this is computed
      per document — bounded by one month of acceptances. */
   const accepted = await WorkOrder.find({
+    ...base.workOrder,
     acceptedAt: { $gte: window.from, $lt: window.to },
   }).select('acceptedAt committedDateSetAt').lean();
 
@@ -307,6 +340,7 @@ async function deliveryKpis(window) {
   /* Delay compliance counts EVENTS, not work orders: a work order delayed
      three times with one late notice is 2/3 compliant, not 0/1. */
   const [delayAgg] = await WorkOrder.aggregate([
+    { $match: base.workOrder },
     { $unwind: '$delayEvents' },
     { $match: { 'delayEvents.at': { $gte: window.from, $lt: window.to } } },
     {
@@ -324,6 +358,7 @@ async function deliveryKpis(window) {
   ]);
 
   const dispatched = await WorkOrder.find({
+    ...base.workOrder,
     dispatchedAt: { $gte: window.from, $lt: window.to },
   }).select('createdAt dispatchedAt').lean();
   const dispatchDays = dispatched
@@ -344,8 +379,10 @@ async function deliveryKpis(window) {
 
 /* ── Process 3 — Installation & Customer Service ─────────────────────────── */
 
-async function installationKpis(window) {
+async function installationKpis(window, scope = null) {
+  const base = await scopeBases(scope);
   const completed = await InstallationJob.find({
+    ...base.installation,
     completedAt: { $gte: window.from, $lt: window.to },
   }).select('completedAt firstTimeRight workOrder').populate('workOrder', 'deliveredAt').lean();
 
@@ -360,12 +397,14 @@ async function installationKpis(window) {
   const ftr = completed.filter((j) => j.firstTimeRight === true).length;
 
   const commissioned = await InstallationJob.find({
+    ...base.installation,
     'commissioning.customerCountersignedAt': { $gte: window.from, $lt: window.to },
   }).select('commissioning').lean();
   const passedClean = commissioned.filter(
     (j) => j.commissioning.passed && j.commissioning.retestCount === 0).length;
 
   const handedOver = await InstallationJob.find({
+    ...base.installation,
     'handover.handedOverAt': { $gte: window.from, $lt: window.to },
   }).select('attachments').lean();
   const withCert = handedOver.filter(
@@ -374,6 +413,7 @@ async function installationKpis(window) {
   /* Issue resolution is per ISSUE, across every job with one closed in the
      window — the job itself may have opened months earlier. */
   const [issueAgg] = await InstallationJob.aggregate([
+    { $match: base.installation },
     { $unwind: '$postSupport.issues' },
     { $match: { 'postSupport.issues.resolvedAt': { $gte: window.from, $lt: window.to } } },
     {
@@ -393,6 +433,7 @@ async function installationKpis(window) {
   ]);
 
   const [csatAgg] = await InstallationJob.aggregate([
+    { $match: base.installation },
     { $match: { 'feedback.receivedAt': { $gte: window.from, $lt: window.to }, 'feedback.csat': { $ne: null } } },
     { $group: { _id: null, count: { $sum: 1 }, mean: { $avg: '$feedback.csat' } } },
   ]);
@@ -402,6 +443,7 @@ async function installationKpis(window) {
      construction — the closure gate makes it so — which is why the 85% target
      can only be about promptness. */
   const dispatchedForms = await InstallationJob.find({
+    ...base.installation,
     'feedback.dispatchedAt': { $gte: window.from, $lt: window.to },
   }).select('feedback.dispatchedAt feedback.receivedAt').lean();
 

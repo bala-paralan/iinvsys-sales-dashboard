@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, apiUpload, ApiError } from '../../api/client';
 import type { GateRequirementFailure } from '../../api/client';
 import { usePipeline, can } from '../../meta/usePipeline';
+import { useMe } from '../../portal/useMe';
 import { EnumSelect } from '../../components/EnumSelect';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
 
@@ -63,6 +64,7 @@ export function WorkOrderDetailPage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const { data: meta } = usePipeline();
+  const { data: me } = useMe();
   const [gateOpen, setGateOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [daMissing, setDaMissing] = useState<GateRequirementFailure[] | null>(null);
@@ -179,14 +181,14 @@ export function WorkOrderDetailPage() {
                 && <span style={{ color: 'var(--amber)' }}> (original {when(d.originalCommittedDate)})</span>}
             </div>
 
-            {!d.acceptedAt && can(meta, 'workorder.accept') && (
+            {!d.acceptedAt && can(me, 'workorder.accept') && (
               <button className="neo-btn gold" style={{ marginTop: 10 }}
                 disabled={accept.isPending} onClick={() => accept.mutate()}>
                 Accept Work Order
               </button>
             )}
 
-            {d.acceptedAt && !d.originalCommittedDate && can(meta, 'workorder.commit_date') && (
+            {d.acceptedAt && !d.originalCommittedDate && can(me, 'workorder.commit_date') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                 <input type="date" className="form-input" style={{ maxWidth: 170 }}
                   value={commitDate} onChange={(e) => setCommitDate(e.target.value)} />
@@ -199,7 +201,7 @@ export function WorkOrderDetailPage() {
               </div>
             )}
 
-            {d.originalCommittedDate && d.status !== 'delivered' && can(meta, 'workorder.commit_date') && (
+            {d.originalCommittedDate && d.status !== 'delivered' && can(me, 'workorder.commit_date') && (
               <div style={{ marginTop: 14 }}>
                 <div className="form-label">Log a delay (reason code mandatory — D-4)</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -245,7 +247,7 @@ export function WorkOrderDetailPage() {
               </div>
             ))}
 
-            {can(meta, 'workorder.upload') && (
+            {can(me, 'workorder.upload') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <div style={{ minWidth: 200 }}>
                   <EnumSelect enumName="docTypes" value={docType} onChange={setDocType} />
@@ -271,7 +273,7 @@ export function WorkOrderDetailPage() {
                 stage was a dead end for everyone. It rides along as the
                 transition's patch, so the timestamp is only written if the move
                 actually succeeds. */}
-            {d.stage === 'procurement' && !d.stockConfirmedAt && can(meta, 'workorder.advance') && (
+            {d.stage === 'procurement' && !d.stockConfirmedAt && can(me, 'workorder.advance') && (
               <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 10 }}>
                 <input
                   type="checkbox"
@@ -284,7 +286,7 @@ export function WorkOrderDetailPage() {
 
             {/* packingCheckedBy is the other orphan — same story, and it wants a
                 name rather than a timestamp because the sign-off is a person. */}
-            {d.stage === 'preparation_packing' && !d.packingCheckedBy && can(meta, 'workorder.advance') && (
+            {d.stage === 'preparation_packing' && !d.packingCheckedBy && can(me, 'workorder.advance') && (
               <div style={{ marginBottom: 10 }}>
                 <label className="form-label" htmlFor="wo-packedby">Packing checklist signed off by</label>
                 <input
@@ -299,12 +301,12 @@ export function WorkOrderDetailPage() {
             )}
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {can(meta, 'workorder.advance') && d.status !== 'delivered' && (
+              {can(me, 'workorder.advance') && d.status !== 'delivered' && (
                 <button className="neo-btn gold" onClick={() => setGateOpen(true)}>
                   Advance stage →
                 </button>
               )}
-              {can(meta, 'workorder.dispatch') && !d.dispatchedAt && (
+              {can(me, 'workorder.dispatch') && !d.dispatchedAt && (
                 <>
                   <input className="form-input" style={{ maxWidth: 180 }} placeholder="carrier / vehicle"
                     value={carrier} onChange={(e) => setCarrier(e.target.value)} />
@@ -314,7 +316,7 @@ export function WorkOrderDetailPage() {
                   </button>
                 </>
               )}
-              {can(meta, 'workorder.deliver') && d.status !== 'delivered' && (
+              {can(me, 'workorder.deliver') && d.status !== 'delivered' && (
                 <>
                   <input className="form-input" type="number" style={{ maxWidth: 130 }}
                     placeholder="# delivered" value={itemsDelivered}
