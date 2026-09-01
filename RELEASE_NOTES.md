@@ -12,6 +12,53 @@ Lead, Agent & Expo Management Platform → three-process ERP (Sales · Delivery 
 
 ---
 
+## v3.1.0 — Inside Sales (ERP Bible V3, document 1)
+
+Branch `release/erp-three-process`. Fifteen screens across three roles; the module every
+other part of the specification feeds from, and the one with nothing in the app before.
+
+**The module runs on its own stage table through the existing transition engine.**
+`IS_STAGES` (New → Contacted → Qualified → Handoff Requested → Converted, plus
+Disqualified) is a fourth table driven by the same `stageService.applyTransition`, which
+gained a `stageField` option rather than a second copy of itself. Doc 1 numbers records
+`IS-2026-XXXX` and doc 2 numbers deals `SA-2026-XXX`, and IS-DIR-03's bypass creates both,
+so a qualified lead never becomes a deal in place — it mints a linked `track:'sales'`
+record and Customer 360 shows both.
+
+**BANT refuses a tick without a note.** The IS Head reads those four notes at IS-HD-04 to
+decide; "Budget ✓" is not something anyone can decide on.
+
+**One entry point to the Sales pipeline.** `salesEntryService.mintSalesLead()` is the only
+thing that creates a SPENCO record, and the advance endpoint refuses `is_converted`
+outright — so "no Sales deal without an approved handoff" is a property, not a convention.
+Phase 2's discount flow and Phase 4's AMC renewal reuse it.
+
+**Approvals are addressed to one person.** A handoff request goes to the requester's own
+`reportsTo`. The alternative — `notifyByPermission` — would tell every IS Head in the
+company about a decision only one of them can take.
+
+### Fixed while verifying, all found by running the thing
+
+- **`scopeAllows` refused owners their own records** when a controller populated the owner
+  for display: it compared a Mongoose document against a set of ids. The unit test only
+  asserted the *refusal* case, which is how a check that refuses everyone looks correct.
+  Fixed in the resolver, not at the seventeen call sites.
+- **Five audit writes wrote nothing**, three of them shipped in v3.0.0. They passed
+  `before`/`after`, which are not schema fields, and omitted the required `summary`;
+  `auditService.record` logs and returns null by design, so nothing surfaced.
+- **A stale 401 tore down a fresh session.** A request issued before sign-in could resolve
+  after it and clear the token that had just been installed — the screen returned to the
+  login form with no error, which looks like a wrong password. The handler now only clears
+  the credential that actually failed.
+- **`useMe` queried `/meta/me` while logged out**, guaranteeing a 401 on the login page.
+- **Sidebar links stopped stacking** when portal nav grouped them into sections — they had
+  been direct flex children of `.sidebar` and lost that for free.
+- **Inside Sales records could exist with no Inside Sales stage.** Now derived in the
+  model: an IS record without `isStage` is not a valid record.
+
+Backend: 49 suites, 1,725 passing, 28 skipped, 0 failing. Frontend typechecks and builds.
+
+
 ## Version index
 
 | Version | Date | Headline | Commit |

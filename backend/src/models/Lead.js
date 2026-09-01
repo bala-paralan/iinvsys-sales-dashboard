@@ -5,6 +5,18 @@ const SpencoSchema       = require('./schemas/spenco');
 const StageHistorySchema = require('./schemas/stageHistory');
 const AttachmentSchema   = require('./schemas/attachment');
 
+/*
+ * BANT — doc 1 IS-EX-05. Four independent confirmations, each with the note that makes
+ * it auditable: IS-HD-04 shows the IS Head reading "Budget ₹80–120L confirmed ✓" before
+ * approving a handoff, so `confirmed` alone would not be enough to decide on.
+ */
+const BantDimensionSchema = new mongoose.Schema({
+  confirmed:   { type: Boolean, default: false },
+  note:        { type: String, trim: true, default: '' },
+  confirmedAt: { type: Date, default: null },
+  confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+}, { _id: false });
+
 const {
   COMPANY_TYPE_KEYS, INDUSTRY_SEGMENT_KEYS, ZONE_KEYS,
   COMPETITOR_KEYS, LOST_TO_KEYS, SUBSCRIPTION_KEYS, AMC_KEYS,
@@ -91,6 +103,26 @@ const LeadSchema = new mongoose.Schema({
      `Deal` model was rejected because Lead.stage IS the SPENCO stage that stageService,
      processHandoffService, kpiService and excelReport all read. */
   track:         { type: String, enum: ['inside_sales', 'sales'], default: 'sales' },
+  /* Inside Sales records run on pipeline.IS_STAGES; `stage` above holds the SPENCO
+     stage for track:'sales'. One field, two tables — which one applies is decided by
+     `track`, and stageService is generic over whichever list it is handed. */
+  isStage:       { type: String, enum: pipeline.IS_STAGE_KEYS, default: null },
+  bant: {
+    budget:    { type: BantDimensionSchema, default: () => ({}) },
+    authority: { type: BantDimensionSchema, default: () => ({}) },
+    need:      { type: BantDimensionSchema, default: () => ({}) },
+    timeline:  { type: BantDimensionSchema, default: () => ({}) },
+  },
+  /* Doc 1 IS-DIR-03: the Director may hold a lead personally rather than let it
+     disappear into an executive's list. */
+  directorManaged:      { type: Boolean, default: false },
+  priority:             { type: String, enum: ['hot', 'high', 'normal'], default: 'normal' },
+  targetFirstContactAt: { type: Date, default: null },
+  /* The open handoff request, and the Sales lead an approved one minted. Both are
+     back-pointers written only by the service that performs the action — their presence
+     is what makes a retried approval idempotent. */
+  handoffApproval: { type: mongoose.Schema.Types.ObjectId, ref: 'Approval', default: null },
+  convertedTo:     { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', default: null },
   refId:         { type: String, trim: true, default: '' },
   originLead:    { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', default: null },
   /* The account this record belongs to. `company` above is retained as raw provenance
@@ -184,6 +216,9 @@ const LeadSchema = new mongoose.Schema({
 LeadSchema.index({ owner: 1, stage: 1 });
 LeadSchema.index({ customer: 1, track: 1, stage: 1 });
 LeadSchema.index({ track: 1, stage: 1 });
+LeadSchema.index({ track: 1, isStage: 1, owner: 1 });
+LeadSchema.index({ directorManaged: 1 });
+LeadSchema.index({ priority: 1, targetFirstContactAt: 1 });
 LeadSchema.index({ refId: 1 });
 LeadSchema.index({ lastActivityAt: 1 });
 LeadSchema.index({ source: 1 });
@@ -224,6 +259,13 @@ LeadSchema.index({ 'stageHistory.to': 1, 'stageHistory.at': 1 });
  * they were created with needsReview:false and never appeared in the review
  * queue, which is precisely the population most likely to need reviewing. */
 LeadSchema.pre('validate', function deriveFields(next) {
+  /* An Inside Sales record without an Inside Sales stage is not a valid record: doc 1's
+     whole flow keys off `isStage`, and a null one makes the list, the gate and the detail
+     page all describe a lead that is in no stage at all. Derived rather than defaulted on
+     the path, because `track` can be set after construction. */
+  if (this.track === 'inside_sales' && !this.isStage) this.isStage = 'is_new';
+  if (this.track !== 'inside_sales') this.isStage = null;
+
   /* Zone is auto-filled from state (C-8). An unrecognised state leaves it blank
      and is flagged by hygieneIssues rather than guessed at — see A17. */
   if (this.state) {

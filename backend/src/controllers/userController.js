@@ -163,7 +163,11 @@ async function setManager(req, res, next) {
       action: 'user.role_change',
       entityType: 'user',
       entityId: user._id,
-      after: { reportsTo: user.reportsTo, chain: user.chain },
+      summary: `Reporting line changed for ${user.name || user._id}`,
+      meta: {
+        reportsTo: user.reportsTo ? String(user.reportsTo) : null,
+        chain: (user.chain || []).map(String),
+      },
     }, req);
     return ok(res, await User.findById(user._id).select(SAFE_FIELDS).lean(), 'Reporting line updated');
   } catch (err) {

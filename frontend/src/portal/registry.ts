@@ -24,6 +24,19 @@ import { NotificationsPage } from '../features/notifications/NotificationsPage';
 import { AdminPage } from '../features/admin/AdminPage';
 import { SettingsPage } from '../features/settings/PipelineRulesPage';
 
+/* Phase 1 — Inside Sales (ERP Bible V3, document 1) */
+import { IsTeamPage } from '../features/insideSales/IsTeamPage';
+import { IsExecDrillPage } from '../features/insideSales/IsExecDrillPage';
+import { IsCapturePage } from '../features/insideSales/IsCapturePage';
+import { IsLeadsPage } from '../features/insideSales/IsLeadsPage';
+import { IsLeadDetailPage } from '../features/insideSales/IsLeadDetailPage';
+import { HandoffQueuePage } from '../features/insideSales/HandoffQueuePage';
+import { IsAnalyticsPage } from '../features/insideSales/IsAnalyticsPage';
+import { MyDashboardPage } from '../features/insideSales/MyDashboardPage';
+import { Customer360Page } from '../features/customers/Customer360Page';
+import { CustomersPage } from '../features/customers/CustomersPage';
+import { TasksPage } from '../features/tasks/TasksPage';
+
 export const SCREENS: Record<string, ComponentType> = {
   'kpi.dashboard':      DashboardPage,
   'lead.board':         LeadsPage,
@@ -36,6 +49,19 @@ export const SCREENS: Record<string, ComponentType> = {
   'notification.list':  NotificationsPage,
   'platform.admin':     AdminPage,
   'platform.settings':  SettingsPage,
+
+  /* Phase 1 — Inside Sales */
+  'is.team':            IsTeamPage,          // IS-DIR-01 / IS-HD-01
+  'is.exec':            IsExecDrillPage,     // IS-DIR-02 / IS-HD-03
+  'is.capture':         IsCapturePage,       // IS-DIR-03
+  'is.leads':           IsLeadsPage,         // IS-HD-02 / IS-EX-02
+  'is.lead':            IsLeadDetailPage,    // IS-EX-03 / IS-EX-04 / IS-EX-05
+  'is.handoffs':        HandoffQueuePage,    // IS-HD-04
+  'is.analytics':       IsAnalyticsPage,     // IS-DIR-05 / IS-HD-05
+  'is.myDashboard':     MyDashboardPage,     // IS-EX-01
+  'customer.360':       Customer360Page,     // IS-DIR-04 / SA-DIR-06
+  'customer.list':      CustomersPage,
+  'task.list':          TasksPage,
 };
 
 export function componentFor(screen: string): ComponentType | null {

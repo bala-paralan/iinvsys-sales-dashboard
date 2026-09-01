@@ -334,6 +334,28 @@ Customer Service Manager. The overdue plan is swept nightly.
 
 ---
 
+## Process 0 — Inside Sales (ERP Bible V3, document 1)
+
+A **fourth stage table**, not extra SPENCO stages. Doc 1 numbers Inside Sales records
+`IS-2026-XXXX` and doc 2 numbers deals `SA-2026-XXX`, and IS-DIR-03's "Bypass IS" creates
+both at once — so a qualified lead never becomes a deal in place, it *mints a linked
+`track:'sales'` record*. Customer 360 then shows the nurture and the deal as the two
+distinct things they are.
+
+The table is held in `IS_STAGES` and runs through the same `stageService.applyTransition`
+contract as Sales, Delivery and Installation, with `stageField: 'isStage'`.
+
+| Stage | Entry requires | Why |
+|---|---|---|
+| **New** | — | Assigned, not yet contacted. |
+| **Contacted** | `lastActivityAt` is a date; `customer` is linked | IS-DIR-01 treats a lead with zero activities as an instant red flag, so reaching Contacted requires that an interaction actually exists. The customer link is what the activity log hangs off. |
+| **Qualified** | all four of `bant.{budget,authority,need,timeline}.confirmed` | IS-EX-05. A dimension cannot be confirmed without a note — the IS Head reads those notes at IS-HD-04, and "Budget ✓" is not something anyone can decide on. |
+| **Handoff Requested** | `handoffApproval` is set | Reached only by `POST /api/is/leads/:id/request-handoff`, never by moving the stage. |
+| **Converted to Sales** | `convertedTo` is set | Reached only by an IS Head approving the handoff. The advance endpoint refuses this stage outright, which is what makes "no Sales deal without an approved handoff" a property of the system rather than a convention. |
+| **Disqualified** | `lostReason` | Reachable from any open stage; re-openable. |
+
+
+
 ## Notification triggers attached to gates
 
 | Event | Recipients | Severity | Email? |

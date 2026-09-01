@@ -11,7 +11,8 @@
  * every stage and enum does: a hardcoded role list in this directory would be a defect.
  */
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../api/client';
+import { useSession } from '../auth/session';
+import { api, hasToken } from '../api/client';
 
 export interface NavItem {
   label: string;
@@ -58,10 +59,16 @@ export interface Me {
   portal: Portal | null;
 }
 
-export function useMe() {
+export function useMe(): ReturnType<typeof useQuery<Me>> {
+  const { user } = useSession();
   return useQuery({
-    queryKey: ['meta', 'me'],
+    queryKey: ['meta', 'me', user?._id ?? null],
     queryFn: async () => (await api<Me>('GET', '/meta/me')).data,
+    /* Never ask who I am when nobody is signed in. Without this the login page fires a
+       request that can only 401 — noise in the console, and a real hazard while the 401
+       handler tore down whatever session existed. Keying on the user id also stops one
+       account briefly seeing the previous account's portal after a switch. */
+    enabled: hasToken() && !!user,
     /* Zero, not Infinity: this is the half that changes without the pipeline changing. */
     staleTime: 0,
     refetchOnWindowFocus: true,

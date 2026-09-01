@@ -160,7 +160,7 @@ async function getLead(req, res, next) {
     }
 
     /* Agent: can only view own leads */
-    if (!scopeAllows(req.scope, lead.owner?._id || lead.owner)) {
+    if (!scopeAllows(req.scope, lead.owner)) {
       return forbidden(res, 'Access denied');
     }
     return ok(res, lead);

@@ -183,8 +183,9 @@ async function mergeCustomer(req, res, next) {
       action: 'record.merge',
       entityType: 'customer',
       entityId: winner._id,
-      after: {
-        mergedFrom: loser._id, mergedFromName: loser.name,
+      summary: `"${loser.name}" merged into "${winner.name}"`,
+      meta: {
+        mergedFrom: String(loser._id), mergedFromName: loser.name,
         leadsMoved: leads.modifiedCount, activitiesMoved: activities.modifiedCount,
       },
     }, req);

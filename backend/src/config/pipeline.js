@@ -209,6 +209,122 @@ const SPENCO_MIN_TOTAL = 18;
 const SPENCO_SUB_GATES = { evidenceOfNeed: 3, size: 2 };
 
 /* ══════════════════════════════════════════════════════════════════════════
+   PROCESS 0 — INSIDE SALES  (ERP Bible V3, document 1)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * BANT — the qualification framework doc 1 runs before a lead may reach Sales.
+ * IS-EX-05 shows all four as independent ticks with a note each; IS-HD-04 shows the
+ * IS Head reading those four lines before approving a handoff.
+ */
+const BANT_DIMENSIONS = [
+  { key: 'budget',    label: 'Budget',    hint: 'Is there money, and roughly how much' },
+  { key: 'authority', label: 'Authority', hint: 'Is this person the decision point, or who is' },
+  { key: 'need',      label: 'Need',      hint: 'What problem are they actually solving' },
+  { key: 'timeline',  label: 'Timeline',  hint: 'When do they intend to buy' },
+];
+const BANT_KEYS = BANT_DIMENSIONS.map((d) => d.key);
+
+/*
+ * Inside Sales stages.
+ *
+ * A SEPARATE TABLE, not extra SPENCO stages. An IS record is not an early deal — doc 1
+ * numbers them IS-2026-XXXX, doc 2 numbers deals SA-2026-XXX, and IS-DIR-03's "Bypass IS"
+ * creates both at once. A qualified IS lead never becomes a deal in place; it mints a
+ * linked track:'sales' record, so Customer 360 shows the nurture and the deal as the two
+ * distinct things they are.
+ *
+ * services/stageService.js is generic over a stage list, so this table drives the same
+ * gate engine, the same stageHistory and the same advance endpoint as the other three.
+ */
+const IS_STAGES = [
+  {
+    key: 'is_new', order: 1, shortCode: 'N1', label: 'New', color: 'var(--gold)',
+    borderClass: 'gold-border', probability: 0, maxDays: 2, terminal: false,
+    ownerRole: 'is_executive',
+    definition: 'Assigned, not yet contacted.',
+    advancesOn: 'First contact attempt logged.',
+    entryRequires: [],
+  },
+  {
+    key: 'is_contacted', order: 2, shortCode: 'N2', label: 'Contacted', color: 'var(--azure)',
+    borderClass: 'blue-border', probability: 0, maxDays: 14, terminal: false,
+    ownerRole: 'is_executive',
+    definition: 'Conversation started. BANT in progress.',
+    advancesOn: 'All four BANT dimensions confirmed.',
+    entryRequires: [
+      /* Doc 1 IS-DIR-01 flags a lead with zero activities as an instant red flag, so
+         reaching Contacted requires that an interaction actually exists. */
+      { field: 'lastActivityAt', test: 'anyDate', message: 'Log the first call, email or visit before marking this Contacted' },
+      { field: 'customer',       test: 'notEmpty', message: 'Link this lead to a customer account — the activity log hangs off it' },
+    ],
+  },
+  {
+    key: 'is_qualified', order: 3, shortCode: 'N3', label: 'Qualified', color: 'var(--emerald)',
+    borderClass: 'green-border', probability: 0, maxDays: 7, terminal: false,
+    ownerRole: 'is_executive',
+    definition: 'BANT complete. Ready to request handoff to Sales.',
+    advancesOn: 'IS Executive requests handoff.',
+    entryRequires: [
+      { field: 'bant.budget.confirmed',    test: 'isTrue', message: 'Budget not confirmed — record the amount or range' },
+      { field: 'bant.authority.confirmed', test: 'isTrue', message: 'Authority not confirmed — name the decision maker' },
+      { field: 'bant.need.confirmed',      test: 'isTrue', message: 'Need not confirmed — state the problem in their words' },
+      { field: 'bant.timeline.confirmed',  test: 'isTrue', message: 'Timeline not confirmed — record when they intend to buy' },
+    ],
+  },
+  {
+    key: 'is_handoff_requested', order: 4, shortCode: 'N4', label: 'Handoff Requested',
+    color: 'var(--violet)', borderClass: 'violet-border', probability: 0, maxDays: 3,
+    terminal: false, ownerRole: 'is_head',
+    definition: 'Waiting on the IS Head. Doc 1 IS-HD-04.',
+    advancesOn: 'IS Head approves — a Sales lead is minted and this record closes.',
+    entryRequires: [
+      { field: 'handoffApproval', test: 'notEmpty', message: 'Raise the handoff request from the lead — do not move the stage by hand' },
+    ],
+  },
+  {
+    key: 'is_converted', order: 5, shortCode: 'N5', label: 'Converted to Sales',
+    color: 'var(--emerald)', borderClass: 'green-border', probability: 100,
+    terminal: true, ownerRole: 'is_head',
+    definition: 'Approved. A track:sales lead exists and carries the opportunity.',
+    advancesOn: '—',
+    entryRequires: [
+      { field: 'convertedTo', test: 'notEmpty', message: 'Conversion is performed by approving the handoff, never by hand' },
+    ],
+  },
+  {
+    key: 'is_lost', order: 6, shortCode: '—', label: 'Disqualified', color: 'var(--coral)',
+    borderClass: 'coral-border', probability: 0, terminal: true, reachableFromAny: true,
+    reopenable: true, ownerRole: 'is_executive',
+    definition: 'Not a fit, unreachable, or no budget.',
+    advancesOn: '—',
+    entryRequires: [
+      { field: 'lostReason', test: 'notEmpty', message: 'Record why this lead was disqualified' },
+    ],
+  },
+];
+
+const IS_STAGE_KEYS = IS_STAGES.map((s) => s.key);
+const IS_TERMINAL_STAGES = IS_STAGES.filter((s) => s.terminal).map((s) => s.key);
+const IS_OPEN_STAGES = IS_STAGES.filter((s) => !s.terminal).map((s) => s.key);
+const IS_QUALIFIED_STAGE = 'is_qualified';
+const IS_HANDOFF_STAGE = 'is_handoff_requested';
+const IS_CONVERTED_STAGE = 'is_converted';
+
+/* Doc 1 IS-DIR-03 — where a Director-originated lead goes. */
+const IS_ASSIGNMENT_MODES = [
+  { key: 'is_executive', label: 'Assign to IS Executive' },
+  { key: 'bypass_is',    label: 'Bypass IS → Assign to Sales Executive' },
+  { key: 'director_managed', label: 'Director Managed — Hold for now' },
+];
+
+const LEAD_PRIORITIES = [
+  { key: 'hot',    label: 'Hot — contact within 4 hours',  hours: 4 },
+  { key: 'high',   label: 'High — contact within 24 hours', hours: 24 },
+  { key: 'normal', label: 'Normal — route to queue',        hours: null },
+];
+
+/* ══════════════════════════════════════════════════════════════════════════
    PROCESS 1 — SALES
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -1183,9 +1299,10 @@ function pipelineVersion(rules) {
      usePipeline.ts caches this response with `staleTime: Infinity` keyed on `version`;
      when the hash omitted `ownerRole`, renaming a role changed what the endpoint sent
      and changed nothing about what already-signed-in clients believed — indefinitely. */
-  const ownerRoles = [...SALES_STAGES, ...DELIVERY_STAGES, ...INSTALL_STAGES]
+  const ownerRoles = [...IS_STAGES, ...SALES_STAGES, ...DELIVERY_STAGES, ...INSTALL_STAGES]
     .map((s) => `${s.key}:${s.ownerRole || ''}`).join(',');
   return hash36([
+    IS_STAGE_KEYS.join(','),
     SALES_STAGE_KEYS.join(','),
     DELIVERY_STAGE_KEYS.join(','),
     INSTALL_STAGE_KEYS.join(','),
@@ -1214,6 +1331,7 @@ function serialize(rules) {
 
   return {
     version: pipelineVersion(r),
+    insideSales:  { stages: IS_STAGES.map(publicStage), terminal: IS_TERMINAL_STAGES, qualified: IS_QUALIFIED_STAGE, handoffRequested: IS_HANDOFF_STAGE, converted: IS_CONVERTED_STAGE, lost: 'is_lost' },
     sales:        { stages: resolveStages(SALES_STAGES, r).map(publicStage), terminal: TERMINAL_SALES_STAGES, won: WON_STAGE, lost: LOST_STAGE },
     delivery:     { stages: DELIVERY_STAGES.map(publicStage), statuses: WORKORDER_STATUSES, deliveredRequires: DELIVERED_REQUIRES },
     installation: { stages: INSTALL_STAGES.map(publicStage),  statuses: INSTALL_STATUSES, handedOverRequires: HANDED_OVER_REQUIRES, closedRequires: CLOSED_REQUIRES },
@@ -1223,6 +1341,8 @@ function serialize(rules) {
       subscriptionStates: SUBSCRIPTION_STATES, amcStates: AMC_STATES,
       disqualifyReasons: DISQUALIFY_REASONS, needTypes: NEED_TYPES,
       docTypes: DOC_TYPES, delayReasonCodes: DELAY_REASON_CODES, snagSeverities: SNAG_SEVERITIES,
+      bantDimensions: BANT_DIMENSIONS, leadPriorities: LEAD_PRIORITIES,
+      isAssignmentModes: IS_ASSIGNMENT_MODES,
     },
     spenco: {
       dimensions: SPENCO_DIMENSIONS, maxPerDimension: SPENCO_MAX_PER_DIMENSION,
@@ -1253,9 +1373,12 @@ function serialize(rules) {
 
 module.exports = {
   /* stage tables */
-  SALES_STAGES, DELIVERY_STAGES, INSTALL_STAGES,
+  IS_STAGES, SALES_STAGES, DELIVERY_STAGES, INSTALL_STAGES,
   SALES_STAGE_KEYS, DELIVERY_STAGE_KEYS, INSTALL_STAGE_KEYS,
   TERMINAL_SALES_STAGES, OPEN_SALES_STAGES, WON_STAGE, LOST_STAGE,
+  IS_STAGE_KEYS, IS_TERMINAL_STAGES, IS_OPEN_STAGES,
+  IS_QUALIFIED_STAGE, IS_HANDOFF_STAGE, IS_CONVERTED_STAGE,
+  BANT_DIMENSIONS, BANT_KEYS, IS_ASSIGNMENT_MODES, LEAD_PRIORITIES,
   WORKORDER_STATUSES, INSTALL_STATUSES,
   DELIVERED_REQUIRES, HANDED_OVER_REQUIRES, CLOSED_REQUIRES,
 

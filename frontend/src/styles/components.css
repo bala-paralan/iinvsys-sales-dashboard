@@ -146,6 +146,10 @@
   margin-bottom: 20px;
 }
 .sidebar a {
+  /* `display:block` is load-bearing. These used to be direct flex children of
+     `.sidebar` (a column), which stacked them for free. Portal nav groups them inside
+     per-section wrappers, so without this they are inline and wrap into each other. */
+  display: block;
   color: var(--text-2);
   text-decoration: none;
   padding: 9px 10px;

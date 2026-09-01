@@ -15,7 +15,7 @@ const app = require('../src/app');
 const Lead = require('../src/models/Lead');
 const User = require('../src/models/User');
 const orgService = require('../src/services/orgService');
-const { resolveScope } = require('../src/services/scopeService');
+const { resolveScope, scopeAllows } = require('../src/services/scopeService');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 const roles = require('./helpers/roles');
 
@@ -108,6 +108,35 @@ describe('scope resolver', () => {
 
       const salesExec = await resolveScope(await User.findById((await roles.asSalesExecutive()).id));
       expect(salesExec.tracks).toBeNull();
+    });
+  });
+
+  describe('scopeAllows accepts an id or a populated document', () => {
+    it('unwraps a populated owner', async () => {
+      const { manager, execA } = await roles.salesTeam();
+      const scope = await resolveScope(await User.findById(manager.id));
+      const populated = await User.findById(execA.id).select('name role').lean();
+
+      expect(scopeAllows(scope, execA.id)).toBe(true);
+      /* The same person, handed over as the document a controller populated for display.
+         Without the unwrapping this is false, and the OWNER is refused their own row. */
+      expect(scopeAllows(scope, populated)).toBe(true);
+    });
+
+    it('refuses an owner outside the scope, either way round', async () => {
+      const { manager } = await roles.salesTeam('railways');
+      const outsider = await roles.asSalesExecutive({ domain: 'defence' });
+      const scope = await resolveScope(await User.findById(manager.id));
+      const populated = await User.findById(outsider.id).select('name').lean();
+
+      expect(scopeAllows(scope, outsider.id)).toBe(false);
+      expect(scopeAllows(scope, populated)).toBe(false);
+    });
+
+    it('is unrestricted for an "all" scope', async () => {
+      const director = await roles.asDirector();
+      const scope = await resolveScope(await User.findById(director.id));
+      expect(scopeAllows(scope, null)).toBe(true);
     });
   });
 

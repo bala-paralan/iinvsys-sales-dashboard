@@ -40,6 +40,19 @@ const SCREEN = {
   NOTIFICATIONS:    'notification.list',
   ADMIN:            'platform.admin',
   SETTINGS:         'platform.settings',
+
+  /* ── Phase 1: Inside Sales (ERP Bible V3, document 1) ────────────────────── */
+  IS_TEAM:          'is.team',          // IS-DIR-01 / IS-HD-01 — exec performance
+  IS_EXEC_DRILL:    'is.exec',          // IS-DIR-02 / IS-HD-03 — one exec, full activity
+  IS_CAPTURE:       'is.capture',       // IS-DIR-03 — capture and route
+  IS_LEADS:         'is.leads',         // IS-HD-02 / IS-EX-02 — the lead list
+  IS_LEAD_DETAIL:   'is.lead',          // IS-EX-03 / IS-EX-04 / IS-EX-05 — detail, log, BANT
+  IS_HANDOFFS:      'is.handoffs',      // IS-HD-04 — the approval queue
+  IS_ANALYTICS:     'is.analytics',     // IS-DIR-05 / IS-HD-05 — source reports
+  IS_MY_DASHBOARD:  'is.myDashboard',   // IS-EX-01 — my leads, my tasks, my targets
+  CUSTOMER_360:     'customer.360',     // IS-DIR-04 / SA-DIR-06
+  CUSTOMERS:        'customer.list',
+  TASKS:            'task.list',
 };
 
 /* Route entries that appear in no sidebar — detail pages reached by clicking a row. */
@@ -61,6 +74,15 @@ const PORTALS = {
         { label: 'Full Pipeline', to: '/director/pipeline', screen: SCREEN.LEADS_BOARD },
         { label: 'Review Queue',  to: '/director/review', screen: SCREEN.HYGIENE },
       ] },
+      { section: 'Inside Sales', items: [
+        { label: 'IS Command',      to: '/director/inside-sales/dashboard', screen: SCREEN.IS_TEAM },
+        { label: 'All IS Leads',    to: '/director/inside-sales/leads', screen: SCREEN.IS_LEADS },
+        { label: 'Create Lead',     to: '/director/leads/new', screen: SCREEN.IS_CAPTURE },
+        { label: 'IS Analytics',    to: '/director/inside-sales/analytics', screen: SCREEN.IS_ANALYTICS },
+      ] },
+      { section: 'Accounts', items: [
+        { label: 'Customer 360', to: '/director/customers', screen: SCREEN.CUSTOMERS },
+      ] },
       { section: 'Other Modules', items: [
         { label: 'Production',   to: '/director/production', screen: SCREEN.DELIVERY_BOARD },
         { label: 'Installation', to: '/director/installation', screen: SCREEN.INSTALL_BOARD },
@@ -73,6 +95,11 @@ const PORTALS = {
       detail('/director/pipeline/:id', SCREEN.LEAD_DETAIL),
       detail('/director/production/:id', SCREEN.DELIVERY_DETAIL),
       detail('/director/installation/:id', SCREEN.INSTALL_DETAIL),
+      /* IS-DIR-02 — click any exec row on the command dashboard. */
+      detail('/director/inside-sales/exec/:id', SCREEN.IS_EXEC_DRILL),
+      detail('/director/inside-sales/leads/:id', SCREEN.IS_LEAD_DETAIL),
+      /* IS-DIR-04 — searched from anywhere, linked from every activity. */
+      detail('/director/customers/:id', SCREEN.CUSTOMER_360),
     ],
   },
 
@@ -82,30 +109,50 @@ const PORTALS = {
     landing: '/is-head/dashboard',
     nav: [
       { section: 'My Team', items: [
-        { label: 'Team Dashboard', to: '/is-head/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'All Team Leads', to: '/is-head/leads', screen: SCREEN.LEADS_BOARD },
-        { label: 'Review Queue',   to: '/is-head/review', screen: SCREEN.HYGIENE },
+        { label: 'Team Dashboard',  to: '/is-head/dashboard', screen: SCREEN.IS_TEAM },
+        { label: 'All Team Leads',  to: '/is-head/leads', screen: SCREEN.IS_LEADS },
+        { label: 'Lead Assignment', to: '/is-head/assignment', screen: SCREEN.IS_LEADS },
+        { label: 'Handoff Queue',   to: '/is-head/handoff-queue', screen: SCREEN.IS_HANDOFFS, badge: 'handoffs' },
+      ] },
+      { section: 'Reports', items: [
+        { label: 'Team Reports', to: '/is-head/reports', screen: SCREEN.IS_ANALYTICS },
+        { label: 'Review Queue', to: '/is-head/review', screen: SCREEN.HYGIENE },
       ] },
       { section: 'Account', items: [
         { label: 'Alerts', to: '/is-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
-    routes: [detail('/is-head/leads/:id', SCREEN.LEAD_DETAIL)],
+    routes: [
+      detail('/is-head/leads/:id', SCREEN.IS_LEAD_DETAIL),
+      /* IS-HD-03 — per-exec activity, the coaching view. */
+      detail('/is-head/exec/:id', SCREEN.IS_EXEC_DRILL),
+      detail('/is-head/customers/:id', SCREEN.CUSTOMER_360),
+      detail('/is-head/leads/new', SCREEN.IS_CAPTURE),
+    ],
   },
 
   is_executive: {
     key: 'is-exec',
-    landing: '/is-exec/dashboard',
+    landing: '/is-exec/my-dashboard',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Dashboard', to: '/is-exec/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'My Leads',     to: '/is-exec/leads', screen: SCREEN.LEADS_BOARD },
+        { label: 'My Dashboard', to: '/is-exec/my-dashboard', screen: SCREEN.IS_MY_DASHBOARD },
+        { label: 'My Leads',     to: '/is-exec/leads', screen: SCREEN.IS_LEADS },
+        { label: 'My Tasks',     to: '/is-exec/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+      ] },
+      { section: 'Actions', items: [
+        { label: 'Capture Lead', to: '/is-exec/leads/new', screen: SCREEN.IS_CAPTURE },
       ] },
       { section: 'Account', items: [
         { label: 'Alerts', to: '/is-exec/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
-    routes: [detail('/is-exec/leads/:id', SCREEN.LEAD_DETAIL)],
+    /* No team dashboard, no peer list, no analytics. Doc 1: "Personal targets visible —
+       no peer comparison shown." The omission is the requirement. */
+    routes: [
+      detail('/is-exec/leads/:id', SCREEN.IS_LEAD_DETAIL),
+      detail('/is-exec/customers/:id', SCREEN.CUSTOMER_360),
+    ],
   },
 
   /* ── Doc 2 ───────────────────────────────────────────────────────────────── */

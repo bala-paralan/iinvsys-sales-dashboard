@@ -187,12 +187,23 @@ async function seed() {
   const leadsData = [
     { name: 'K. Subramaniam', phone: '9100000001', email: 'k.subramaniam@icf.gov.in', company: 'ICF Chennai',
       customer: custByName['ICF Chennai']._id, track: 'inside_sales', refId: 'IS-2026-0047',
+      isStage: 'is_contacted',
       source: 'inside_sales_outbound', stage: 'suspect', owner: byEmail['rajan.v@iinvsys.com'], value: 0 },
     { name: 'Dilip Nair', phone: '9100000002', email: 'dilip.n@bhel.in', company: 'BHEL Trichy',
       customer: custByName['BHEL Trichy']._id, track: 'inside_sales', refId: 'IS-2026-0051',
+      isStage: 'is_contacted',
       source: 'inbound_enquiry', stage: 'prospect', owner: byEmail['rajan.v@iinvsys.com'], value: 7000000 },
     { name: 'Meera S', phone: '9100000003', email: 'meera.s@ashokleyland.com', company: 'Ashok Leyland',
       customer: custByName['Ashok Leyland']._id, track: 'inside_sales', refId: 'IS-2026-0058',
+      /* Doc 1 IS-HD-04 uses this lead as its worked example, so seed it fully qualified —
+         the handoff queue then has something real to render at the phase gate. */
+      isStage: 'is_qualified',
+      bant: {
+        budget:    { confirmed: true, note: 'Rs 80-120L confirmed in the FY27 plan' },
+        authority: { confirmed: true, note: 'GM - Manufacturing is the decision point' },
+        need:      { confirmed: true, note: 'IIoT for the factory line' },
+        timeline:  { confirmed: true, note: 'Q1 FY27 (Jan 2027)' },
+      },
       source: 'inside_sales_outbound', stage: 'engagement', owner: byEmail['priya.k@iinvsys.com'], value: 10000000 },
 
     { name: 'Rajesh Kumar', phone: '9100000004', email: 'rajesh.k@dmrc.org', company: 'DMRC Delhi',

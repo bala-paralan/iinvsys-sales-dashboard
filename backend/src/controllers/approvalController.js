@@ -94,9 +94,13 @@ async function decideApproval(req, res, next) {
     await approvalService.decide(approval, req.user, { status, decision, note });
     await audit.record({
       action: 'record.update',
-      entityType: 'lead',
-      entityId: approval.subject.id,
-      after: { approval: approval._id, kind: approval.kind, status, decision },
+      entityType: 'approval',
+      entityId: approval._id,
+      summary: `${approval.kind.replace(/_/g, ' ')} approval ${status}`,
+      meta: {
+        subject: String(approval.subject.id), subjectModel: approval.subject.model,
+        kind: approval.kind, status, decision,
+      },
     }, req);
     return ok(res, approval, `Approval ${status}`);
   } catch (err) {

@@ -59,12 +59,19 @@ function sanitizePatch(patch) {
  * @param {string}   [opts.gateOverrideNote]
  * @param {object}   [opts.actor]             { _id, name }
  * @param {object}   [opts.rules]             explicit rule set, for tests
+ * @param {string}   [opts.stageField='stage'] which property holds the stage. Inside
+ *   Sales records run on IS_STAGES in `isStage` while `stage` still holds their SPENCO
+ *   position, so the two tables can share this one transition contract rather than
+ *   growing a second, subtly different copy of it.
  * @returns {{ok:true, from, to, direction, gateOverride, missing}
  *          |{ok:false, code, message, missing}}
  */
 function applyTransition(doc, stages, opts = {}) {
-  const { toStage, patch, note = '', force = false, gateOverrideNote = '', actor, rules } = opts;
-  const from = doc.stage;
+  const {
+    toStage, patch, note = '', force = false, gateOverrideNote = '', actor, rules,
+    stageField = 'stage',
+  } = opts;
+  const from = doc[stageField];
 
   /* 1 — is this move legal at all? */
   const move = pipeline.canAdvance(stages, from, toStage);
@@ -117,12 +124,14 @@ function applyTransition(doc, stages, opts = {}) {
   const durationDays = enteredAt ? Math.max(0, (now - enteredAt) / 86400000) : null;
 
   const target = pipeline.stageDef(stages, toStage);
-  doc.stage = toStage;
+  doc[stageField] = toStage;
   doc.stageEnteredAt = now;
 
   /* The stage default probability applies unless someone deliberately set a
-     different one — the hygiene rule (C-2) polices how far it may deviate. */
-  if (target && typeof target.probability === 'number') {
+     different one — the hygiene rule (C-2) polices how far it may deviate.
+     Only the SPENCO table carries a meaningful probability; Inside Sales stages are
+     all 0 and would otherwise zero a converted deal's forecast on the way past. */
+  if (stageField === 'stage' && target && typeof target.probability === 'number') {
     doc.probability = target.probability;
   }
 
@@ -148,8 +157,8 @@ function applyTransition(doc, stages, opts = {}) {
 }
 
 /** Preflight a gate without mutating anything — powers the UI checklist. */
-function previewGate(doc, stages, toStage, rules) {
-  const move = pipeline.canAdvance(stages, doc.stage, toStage);
+function previewGate(doc, stages, toStage, rules, stageField = 'stage') {
+  const move = pipeline.canAdvance(stages, doc[stageField], toStage);
   if (!move.ok) {
     return { allowed: false, code: move.reason, message: move.message, requirements: [] };
   }

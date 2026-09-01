@@ -54,7 +54,32 @@ is ✅ only in the commit that adds the test named in `Verified by`.
 | V-15 | Per-role portals — "no shared views" | ✅ | `config/portals.js` (server-side, pure data) + `frontend/src/portal/`. `nav` and `routes` derive from one object, so a hidden link cannot leave a working URL | `tests/34-portals.test.js` |
 | V-16 | A role or permission change reaches an open client | ✅ | `me` split out of the version-hashed `/meta/pipeline` payload into `GET /api/meta/me` (`staleTime: 0`); `pipelineVersion()` now also hashes the role list and every stage `ownerRole` | `tests/13-meta-endpoint.test.js`, `tests/34-portals.test.js` |
 | V-17 | `Agent` retired; `User` is the only identity model | ✅ | `Lead.assignedAgent` → `Lead.owner: ref User`. Also closes P-1: Installation Planning needs a technician ObjectId and there was no endpoint that could supply one — `GET /api/users` now can | `tests/32-scope-resolver.test.js` |
-| V-18 | Inside Sales roles cannot see the Sales pipeline (doc 1) | 🟡 | `INSIDE_SALES_ONLY_ROLES` + `scopeService.trackFilter()` confine them to `track:'inside_sales'`. The IS stage table and BANT land in Phase 1 | `tests/32-scope-resolver.test.js` |
+| V-18 | Inside Sales roles cannot see the Sales pipeline (doc 1) | ✅ | `INSIDE_SALES_ONLY_ROLES` + `scopeService.trackFilter()` confine them to `track:'inside_sales'` | `tests/32-scope-resolver.test.js`, `tests/37-inside-sales.test.js` |
+
+## ERP Bible V3 — Phase 1 (Inside Sales, document 1)
+
+Fifteen screens across three roles. The module runs on its own stage table through the
+same `stageService` contract as the other three processes — one transition engine, four
+stage tables, rather than a second engine that drifts.
+
+| # | Requirement (doc 1) | Status | Implementation | Verified by |
+|---|---|---|---|---|
+| IS-1 | Inside Sales stages: New → Contacted → Qualified → Handoff Requested → Converted, plus Disqualified | ✅ | `IS_STAGES` in `config/pipeline.js`, driven through `applyTransition(doc, IS_STAGES, {stageField:'isStage'})`. A separate table, not extra SPENCO stages: doc 1 numbers records `IS-2026-XXXX` and doc 2 numbers deals `SA-2026-XXX`, and IS-DIR-03's bypass creates both | `tests/37-inside-sales.test.js` |
+| IS-2 | BANT qualification — Budget, Authority, Need, Timeline, each independently confirmed | ✅ | `Lead.bant.{budget,authority,need,timeline}` as `{confirmed, note, confirmedAt, confirmedBy}`; `PATCH /api/is/leads/:id/bant`. A confirmation **without a note is refused** — the IS Head reads those notes to decide, so a bare tick is not a qualification | `tests/37-inside-sales.test.js` |
+| IS-3 | An IS Executive sees ONLY their own leads; the IS Head sees their whole team | ✅ | `attachScope` on every `/api/is` route; out-of-scope ids answer **404, not 403**, so they cannot be probed | `tests/37-inside-sales.test.js` |
+| IS-4 | Handoff request → IS Head approval queue (IS-EX-05 → IS-HD-04) | ✅ | `POST /api/is/leads/:id/request-handoff` raises `Approval{kind:'is_handoff'}` addressed to the requester's own `reportsTo` — one person, never a role broadcast | `tests/37-inside-sales.test.js` |
+| IS-5 | Approve / return for more qualification / escalate to Director | ✅ | `POST /api/is/handoffs/:id/decide`. A return puts the lead back at Qualified and clears the request, so it is workable rather than stuck | `tests/37-inside-sales.test.js` |
+| IS-6 | **A Sales deal is minted only by an approved handoff** | ✅ | `salesEntryService.mintSalesLead()` is the single entry point to SPENCO; the advance endpoint refuses `is_converted` outright. Idempotent via the `convertedTo` back-pointer | `tests/37-inside-sales.test.js` |
+| IS-7 | "Bypass IS" creates the lead AND a Prospect-stage deal (IS-DIR-03) | ✅ | `assignmentMode:'bypass_is'` writes both records and links them, so the origin of the deal stays visible in Customer 360 rather than the nurture disappearing | `tests/37-inside-sales.test.js` |
+| IS-8 | "Director Managed" holds a lead in the Director's own queue | ✅ | `Lead.directorManaged`; the Director is the owner, which is deliberately **not** the same as unassigned — IS-DIR-01 counts and chases those separately | `tests/37-inside-sales.test.js` |
+| IS-9 | Every activity auto-creates the next task (IS-EX-03 note 2) | ✅ | `activityService.logActivity()` writes the Activity and the Task in one operation and links them, so it cannot be half-done | `tests/37-inside-sales.test.js`, `tests/33-customer-activity.test.js` |
+| IS-10 | Last-activity aging: orange at 24h, red at 48h (IS-DIR-01) | ✅ | `activityService.lastActivityFor()` returns a severity band; surfaced by `GET /api/is/team` and the Activity column of the lead list | `tests/37-inside-sales.test.js` |
+| IS-11 | Per-exec drill-down with private coaching notes (IS-DIR-02 / IS-HD-03) | ✅ | `GET /api/coaching-notes?about=`; readable by the author and the author's ancestors, never by the subject | `tests/35-approval.test.js` |
+| IS-12 | Team performance is manager-and-above only — no peer comparison | ✅ | `GET /api/is/team` behind `kpi.read_team`, which an IS Executive does not hold | `tests/37-inside-sales.test.js` |
+
+**Deliberately not built in Phase 1.** Lead routing has no round-robin or auto-assignment:
+doc 1 shows a human choosing an assignee on every screen, and an allocation rule nobody
+asked for is a rule somebody has to unpick later.
 
 ## Sales Module
 

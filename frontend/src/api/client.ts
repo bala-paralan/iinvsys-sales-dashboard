@@ -99,6 +99,9 @@ export async function api<T>(
   body?: unknown,
 ): Promise<ApiEnvelope<T>> {
   let res: Response;
+  /* The token this request actually went out with. A 401 may land AFTER a different
+     credential has been installed — see the 401 handler below. */
+  const sentWith = token;
   try {
     res = await fetch(`/api${path}`, {
       method,
@@ -125,8 +128,19 @@ export async function api<T>(
   }
 
   if (res.status === 401) {
-    setToken(null);
-    onUnauthorized?.();
+    /*
+     * Only tear down the session if the credential that FAILED is still the current one.
+     *
+     * Requests issued before a sign-in can land after it — a `refetchOnWindowFocus` query
+     * fired while logged out, resolving a second after the user logs back in. Clearing
+     * unconditionally logged the user straight back out of a session that had just
+     * succeeded, and the screen simply returned to the login form with no error, which
+     * looks like the password was wrong.
+     */
+    if (sentWith === token) {
+      setToken(null);
+      onUnauthorized?.();
+    }
     throw new ApiError(401, payload?.message ?? 'Session expired — sign in again');
   }
 

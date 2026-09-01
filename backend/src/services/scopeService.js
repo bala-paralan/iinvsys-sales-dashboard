@@ -52,9 +52,18 @@ function scopeFilter(scope, field) {
   return { [field]: { $in: scope.userIds } };
 }
 
-/** True when the scope permits reading rows owned by `ownerId`. */
-function scopeAllows(scope, ownerId) {
+/**
+ * True when the scope permits reading rows owned by `owner`.
+ *
+ * `owner` may be an id OR a populated document — a controller that populates the owner
+ * for display then passes it here would otherwise compare an object against a set of
+ * ids, match nothing, and refuse the OWNER access to their own record. That bug is
+ * invisible to a test that only asserts the refusal case, so the unwrapping lives here
+ * rather than at each of the seventeen call sites.
+ */
+function scopeAllows(scope, owner) {
   if (!scope || scope.userIds === null) return true;
+  const ownerId = owner && typeof owner === 'object' && owner._id ? owner._id : owner;
   if (!ownerId) return false;
   return scope.userIds.some((id) => String(id) === String(ownerId));
 }
