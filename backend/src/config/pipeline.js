@@ -209,6 +209,68 @@ const SPENCO_MIN_TOTAL = 18;
 const SPENCO_SUB_GATES = { evidenceOfNeed: 3, size: 2 };
 
 /* ══════════════════════════════════════════════════════════════════════════
+   DISCOUNT AUTHORITY  (ERP Bible V3, document 2)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Doc 2, stated twice — on the org chart and in the module footer:
+ *
+ *     0–3%   Self-approve (Exec)
+ *     3–10%  Sales Manager approves
+ *     >10%   Director + COO approves
+ *
+ * Held as data, and as BANDS rather than three hard-coded comparisons, because a
+ * discount ladder is exactly the kind of rule a Sales Director changes without wanting a
+ * deploy — see config/pipelineRuntime.js, which resolves it from Settings.
+ *
+ * `maxPercent: null` means "no upper bound". Bands are half-open on the lower edge
+ * (`percent > from`), so 3% is self-approval and 3.01% is the Manager's: doc 2 writes
+ * "0–3%" and "3–10%" against each other, and the boundary has to land somewhere stated
+ * rather than wherever a `<=` happened to fall.
+ */
+const DISCOUNT_TIERS = [
+  {
+    tier: 1, from: 0, to: 3,
+    label: 'Self-approved',
+    approverRole: null,          // the executive themselves
+    permission: null,
+  },
+  {
+    tier: 2, from: 3, to: 10,
+    label: 'Sales Manager',
+    approverRole: 'sales_manager',
+    permission: 'approval.decide',
+  },
+  {
+    tier: 3, from: 10, to: null,
+    label: 'Sales Director',
+    approverRole: 'sales_director',
+    permission: 'approval.decide',
+    /* Doc 2 names a COO as co-approver above 10%. No such role has a screen anywhere in
+       the specification, so it is not a role — `Approval.coApprovedBy` is reserved so
+       that adding a second signature later is a write, not a migration. */
+    coApprovalReserved: true,
+  },
+];
+
+/** Which band a discount percentage falls in. Returns null for a nonsensical input. */
+function discountTierFor(percent, rules) {
+  const tiers = R(rules).discountTiers || DISCOUNT_TIERS;
+  const p = Number(percent);
+  if (!Number.isFinite(p) || p < 0) return null;
+  return tiers.find((t) => p > t.from && (t.to === null || p <= t.to))
+    /* 0% is not a discount request at all, but it is not an error either — it belongs to
+       the self-approval band rather than falling off the bottom of the table. */
+    || (p === 0 ? tiers[0] : null);
+}
+
+/** True when the executive may simply apply this discount themselves. */
+function discountSelfApproved(percent, rules) {
+  const t = discountTierFor(percent, rules);
+  return !!t && t.approverRole === null;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    PROCESS 0 — INSIDE SALES  (ERP Bible V3, document 1)
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -774,6 +836,10 @@ const DEFAULT_RULES = Object.freeze({
 
   /* A2 — "Qualified stage or later" names no stage that exists. */
   competitorRequiredFromStage: 'engagement',
+
+  /* Doc 2's discount ladder. Runtime-tunable because it is a commercial policy, not a
+     law of the system — the band edges are the sort of thing a Sales Director moves. */
+  discountTiers: Object.freeze(DISCOUNT_TIERS.map((t) => Object.freeze({ ...t }))),
 
   /* A5 — percentage points, not relative percent. */
   probabilityOverrideMaxPoints: PROBABILITY_OVERRIDE_MAX_POINTS,
@@ -1342,6 +1408,7 @@ function serialize(rules) {
       disqualifyReasons: DISQUALIFY_REASONS, needTypes: NEED_TYPES,
       docTypes: DOC_TYPES, delayReasonCodes: DELAY_REASON_CODES, snagSeverities: SNAG_SEVERITIES,
       bantDimensions: BANT_DIMENSIONS, leadPriorities: LEAD_PRIORITIES,
+      discountTiers: r.discountTiers,
       isAssignmentModes: IS_ASSIGNMENT_MODES,
     },
     spenco: {
@@ -1374,6 +1441,7 @@ function serialize(rules) {
 module.exports = {
   /* stage tables */
   IS_STAGES, SALES_STAGES, DELIVERY_STAGES, INSTALL_STAGES,
+  DISCOUNT_TIERS, discountTierFor, discountSelfApproved,
   SALES_STAGE_KEYS, DELIVERY_STAGE_KEYS, INSTALL_STAGE_KEYS,
   TERMINAL_SALES_STAGES, OPEN_SALES_STAGES, WON_STAGE, LOST_STAGE,
   IS_STAGE_KEYS, IS_TERMINAL_STAGES, IS_OPEN_STAGES,

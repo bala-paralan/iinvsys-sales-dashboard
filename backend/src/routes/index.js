@@ -5,6 +5,7 @@ router.use('/meta',      require('./meta'));
 router.use('/auth',      require('./auth'));
 router.use('/leads',     require('./leads'));
 router.use('/is',        require('./insideSales'));
+router.use('/deals',     require('./deals'));
 /* `Agent` is retired: User is the only identity model. /api/agents stays mounted as a
    deprecated alias so the legacy root app — still the default route in vercel.json —
    keeps working through the cutover. */

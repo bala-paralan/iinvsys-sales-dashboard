@@ -37,6 +37,15 @@ import { Customer360Page } from '../features/customers/Customer360Page';
 import { CustomersPage } from '../features/customers/CustomersPage';
 import { TasksPage } from '../features/tasks/TasksPage';
 
+/* Phase 2 — Sales / SPENCO (ERP Bible V3, document 2) */
+import { SpencoBoardPage } from '../features/sales/SpencoBoardPage';
+import { SalesTeamPage } from '../features/sales/SalesTeamPage';
+import { SalesApprovalsPage } from '../features/sales/SalesApprovalsPage';
+import { DealDetailPage } from '../features/sales/DealDetailPage';
+import { SalesDashboardPage } from '../features/sales/SalesDashboardPage';
+import { ForecastPage } from '../features/sales/ForecastPage';
+import { DealCapturePage } from '../features/sales/DealCapturePage';
+
 export const SCREENS: Record<string, ComponentType> = {
   'kpi.dashboard':      DashboardPage,
   'lead.board':         LeadsPage,
@@ -62,6 +71,15 @@ export const SCREENS: Record<string, ComponentType> = {
   'customer.360':       Customer360Page,     // IS-DIR-04 / SA-DIR-06
   'customer.list':      CustomersPage,
   'task.list':          TasksPage,
+
+  /* Phase 2 — Sales / SPENCO */
+  'sa.board':           SpencoBoardPage,      // SA-DIR-05 / SA-MGR-05 / SA-EX-02
+  'sa.deal':            DealDetailPage,       // SA-DIR-03 / SA-MGR-06 / SA-EX-03/04/06/07
+  'sa.team':            SalesTeamPage,        // SA-DIR-01/02 / SA-MGR-09
+  'sa.approvals':       SalesApprovalsPage,   // SA-DIR-07 / SA-MGR-08 / SA-DIR-09
+  'sa.forecast':        ForecastPage,         // SA-DIR-08
+  'sa.capture':         DealCapturePage,      // SA-DIR-04 / SA-EX-05
+  'sa.myDashboard':     SalesDashboardPage,   // SA-EX-01 / SA-MGR-04
 };
 
 export function componentFor(screen: string): ComponentType | null {

@@ -185,6 +185,49 @@ const LeadSchema = new mongoose.Schema({
   competitor:        { type: String, enum: opt(COMPETITOR_KEYS), default: '' },
   competitorOther:   { type: String, trim: true, default: '' },
 
+  /* ── Discount authority (doc 2, SA-EX-06 → SA-MGR-08 → SA-DIR-07) ──────────
+     The CURRENT state of the ask. The decision trail lives on the Approval, which is
+     where a counter-offer and an escalation are recorded; this is what the deal itself
+     is priced at right now. */
+  discount: {
+    percent:       { type: Number, min: 0, max: 100, default: 0 },
+    justification: { type: String, trim: true, default: '' },
+    /* List price before the discount. Captured rather than derived, because `value`
+       moves as the deal is negotiated and the margin impact has to be against the price
+       that was actually quoted. */
+    standardPrice: { type: Number, min: 0, default: 0 },
+    status:        { type: String, enum: ['none', 'self_approved', 'pending', 'approved', 'rejected'], default: 'none' },
+    tier:          { type: Number, min: 1, max: 3, default: null },
+    approval:      { type: mongoose.Schema.Types.ObjectId, ref: 'Approval', default: null },
+    decidedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    decidedAt:     { type: Date, default: null },
+  },
+
+  /* ── Proposal / quotation (doc 2, SA-EX-06) ────────────────────────────────
+     Version is what makes "Proposal v2 sent" in the activity timeline mean something;
+     the documents themselves are `attachments` with docType proposal|quote, which is
+     what the → Negotiation gate already reads. */
+  proposal: {
+    version:   { type: Number, min: 0, default: 0 },
+    sentAt:    { type: Date, default: null },
+    sentBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    note:      { type: String, trim: true, default: '' },
+  },
+
+  /* ── Commercial Order (doc 2, SA-EX-07 → SA-DIR-09) ────────────────────────
+     `poNumber` below is the customer's reference and gates the stage. These record the
+     Director's CONFIRMATION, which is the act that triggers Production — separate,
+     because an executive submitting a CO and a Director confirming it are two different
+     people doing two different things. */
+  co: {
+    submittedAt:  { type: Date, default: null },
+    submittedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    confirmedAt:  { type: Date, default: null },
+    confirmedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    approval:     { type: mongoose.Schema.Types.ObjectId, ref: 'Approval', default: null },
+    poValue:      { type: Number, min: 0, default: 0 },
+  },
+
   /* Commercial Order */
   poNumber:            { type: String, trim: true, default: '' },
   subscriptionOffered: { type: String, enum: opt(SUBSCRIPTION_KEYS), default: '' },
@@ -220,6 +263,8 @@ LeadSchema.index({ track: 1, isStage: 1, owner: 1 });
 LeadSchema.index({ directorManaged: 1 });
 LeadSchema.index({ priority: 1, targetFirstContactAt: 1 });
 LeadSchema.index({ refId: 1 });
+LeadSchema.index({ 'discount.status': 1 });
+LeadSchema.index({ 'co.confirmedAt': 1 });
 LeadSchema.index({ lastActivityAt: 1 });
 LeadSchema.index({ source: 1 });
 LeadSchema.index({ expo: 1 });

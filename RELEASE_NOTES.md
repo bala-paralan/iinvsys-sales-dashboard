@@ -12,6 +12,40 @@ Lead, Agent & Expo Management Platform → three-process ERP (Sales · Delivery 
 
 ---
 
+## v3.2.0 — Sales / SPENCO (ERP Bible V3, document 2)
+
+Branch `release/erp-three-process`. Twenty-five screens across Director, Manager and
+Executive. The SPENCO stages, gates and advance endpoint are unchanged from v2 — what doc 2
+adds is the commercial layer above them.
+
+**The discount ladder is data, and it routes up the requester's own reporting line.**
+0–3% self · 3–10% Manager · >10% Director, held as bands in `pipeline.js` and resolvable
+from Settings, because a discount ladder is commercial policy rather than a law of the
+system. `approverFor()` walks UP the requester's chain for the first holder of the
+approving role — routing to whichever manager a query returned first would breach doc 2's
+central isolation rule in the one place it matters most. A counter-offer cannot exceed the
+approver's own band, or 3–10% is advisory.
+
+**Confirming a Commercial Order starts Production**, firing the existing Handoff 1 rather
+than a second path. Handoff 1 now has two triggers — the stage transition and the CO
+confirmation — and its unique index plus back-pointer is what makes that safe.
+
+**One board at three scopes.** Column totals come back `null` for a role without
+`finance.read`; summing client-side would produce a total whose parts the same caller is
+not allowed to see.
+
+### Fixed while verifying
+
+- **A Commercial Order could be confirmed on a deal still in Negotiation**, raising a
+  production order for a deal with no PO document and no PO number. Confirming a CO fires
+  Handoff 1, so this was the H-1 guarantee — "Delivery not activatable without a confirmed
+  and verified PO" — routed around by a different endpoint. Reaching `commercial_order`
+  through the advance endpoint is now a precondition of submitting the order. Found by
+  driving the flow against a running server; the test suite was green throughout.
+
+Backend: 50 suites, 1,752 passing, 28 skipped, 0 failing. Frontend typechecks and builds.
+
+
 ## v3.1.0 — Inside Sales (ERP Bible V3, document 1)
 
 Branch `release/erp-three-process`. Fifteen screens across three roles; the module every

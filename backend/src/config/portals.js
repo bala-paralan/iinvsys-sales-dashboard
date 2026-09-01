@@ -53,6 +53,15 @@ const SCREEN = {
   CUSTOMER_360:     'customer.360',     // IS-DIR-04 / SA-DIR-06
   CUSTOMERS:        'customer.list',
   TASKS:            'task.list',
+
+  /* ── Phase 2: Sales / SPENCO (ERP Bible V3, document 2) ──────────────────── */
+  SA_BOARD:         'sa.board',         // SA-DIR-05 / SA-MGR-05 / SA-EX-02
+  SA_DEAL:          'sa.deal',          // SA-DIR-03 / SA-MGR-06 / SA-EX-03/04/06/07
+  SA_TEAM:          'sa.team',          // SA-DIR-01/02 / SA-MGR-09
+  SA_APPROVALS:     'sa.approvals',     // SA-DIR-07 / SA-MGR-08 / SA-DIR-09
+  SA_FORECAST:      'sa.forecast',      // SA-DIR-08
+  SA_CAPTURE:       'sa.capture',       // SA-DIR-04 / SA-EX-05
+  SA_MY_DASHBOARD:  'sa.myDashboard',   // SA-EX-01 / SA-MGR-01
 };
 
 /* Route entries that appear in no sidebar — detail pages reached by clicking a row. */
@@ -70,9 +79,13 @@ const PORTALS = {
     landing: '/director/dashboard',
     nav: [
       { section: 'Sales', items: [
-        { label: 'Sales Command', to: '/director/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'Full Pipeline', to: '/director/pipeline', screen: SCREEN.LEADS_BOARD },
-        { label: 'Review Queue',  to: '/director/review', screen: SCREEN.HYGIENE },
+        { label: 'Sales Command',  to: '/director/sales/dashboard', screen: SCREEN.SA_TEAM },
+        { label: 'Full Pipeline',  to: '/director/sales/pipeline', screen: SCREEN.SA_BOARD },
+        { label: 'Approvals',      to: '/director/sales/approvals', screen: SCREEN.SA_APPROVALS, badge: 'approvals' },
+        { label: 'Forecast',       to: '/director/sales/forecast', screen: SCREEN.SA_FORECAST },
+        { label: 'Create Deal',    to: '/director/sales/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'KPI Dashboard',  to: '/director/dashboard', screen: SCREEN.DASHBOARD },
+        { label: 'Review Queue',   to: '/director/review', screen: SCREEN.HYGIENE },
       ] },
       { section: 'Inside Sales', items: [
         { label: 'IS Command',      to: '/director/inside-sales/dashboard', screen: SCREEN.IS_TEAM },
@@ -92,7 +105,11 @@ const PORTALS = {
       ] },
     ],
     routes: [
+      detail('/director/pipeline', SCREEN.LEADS_BOARD),
       detail('/director/pipeline/:id', SCREEN.LEAD_DETAIL),
+      /* SA-DIR-03: click any executive on the command dashboard. */
+      detail('/director/sales/exec/:id', SCREEN.SA_TEAM),
+      detail('/director/sales/deals/:id', SCREEN.SA_DEAL),
       detail('/director/production/:id', SCREEN.DELIVERY_DETAIL),
       detail('/director/installation/:id', SCREEN.INSTALL_DETAIL),
       /* IS-DIR-02 — click any exec row on the command dashboard. */
@@ -161,11 +178,17 @@ const PORTALS = {
     landing: '/sales-mgr/dashboard',
     nav: [
       { section: 'My Team', items: [
-        { label: 'Team Dashboard', to: '/sales-mgr/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'Team Pipeline',  to: '/sales-mgr/pipeline', screen: SCREEN.LEADS_BOARD },
-        { label: 'Review Queue',   to: '/sales-mgr/review', screen: SCREEN.HYGIENE },
+        { label: 'Team Dashboard', to: '/sales-mgr/dashboard', screen: SCREEN.SA_TEAM },
+        { label: 'Team Pipeline',  to: '/sales-mgr/pipeline', screen: SCREEN.SA_BOARD },
+        { label: 'My Own Deals',   to: '/sales-mgr/my-deals', screen: SCREEN.SA_MY_DASHBOARD },
       ] },
-      { section: 'Downstream', items: [
+      { section: 'Actions', items: [
+        { label: 'Discount Approvals', to: '/sales-mgr/approvals', screen: SCREEN.SA_APPROVALS, badge: 'approvals' },
+        { label: 'New Deal',   to: '/sales-mgr/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'Customers',  to: '/sales-mgr/customers', screen: SCREEN.CUSTOMERS },
+        { label: 'My Tasks',   to: '/sales-mgr/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+      ] },
+      { section: 'Other Modules', items: [
         { label: 'Delivery',     to: '/sales-mgr/delivery', screen: SCREEN.DELIVERY_BOARD },
         { label: 'Installation', to: '/sales-mgr/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
@@ -173,20 +196,31 @@ const PORTALS = {
         { label: 'Alerts', to: '/sales-mgr/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
+    /* No company-wide figures and no other manager's team — doc 2 SA-MGR-01:
+       "For company-wide figures, the Sales Director's dashboard is the right source." */
     routes: [
-      detail('/sales-mgr/pipeline/:id', SCREEN.LEAD_DETAIL),
+      detail('/sales-mgr/deals/:id', SCREEN.SA_DEAL),
+      detail('/sales-mgr/exec/:id', SCREEN.SA_TEAM),
+      detail('/sales-mgr/customers/:id', SCREEN.CUSTOMER_360),
       detail('/sales-mgr/delivery/:id', SCREEN.DELIVERY_DETAIL),
       detail('/sales-mgr/installation/:id', SCREEN.INSTALL_DETAIL),
+      detail('/sales-mgr/review', SCREEN.HYGIENE),
     ],
   },
 
+
   sales_executive: {
     key: 'sales-exec',
-    landing: '/sales-exec/dashboard',
+    landing: '/sales-exec/my-dashboard',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Dashboard',    to: '/sales-exec/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'My SPENCO Board', to: '/sales-exec/pipeline', screen: SCREEN.LEADS_BOARD },
+        { label: 'My Dashboard',    to: '/sales-exec/my-dashboard', screen: SCREEN.SA_MY_DASHBOARD },
+        { label: 'My SPENCO Board', to: '/sales-exec/pipeline', screen: SCREEN.SA_BOARD },
+        { label: 'My Tasks',        to: '/sales-exec/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+        { label: 'My Accounts',     to: '/sales-exec/customers', screen: SCREEN.CUSTOMERS },
+      ] },
+      { section: 'Actions', items: [
+        { label: 'New Deal', to: '/sales-exec/new', screen: SCREEN.SA_CAPTURE },
       ] },
       { section: 'Downstream', items: [
         { label: 'Delivery',     to: '/sales-exec/delivery', screen: SCREEN.DELIVERY_BOARD },
@@ -196,12 +230,16 @@ const PORTALS = {
         { label: 'Alerts', to: '/sales-exec/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
+    /* No team dashboard, no approvals queue, no forecast. Doc 2: "No other exec's data,
+       no company pipeline, no manager's deals." */
     routes: [
-      detail('/sales-exec/pipeline/:id', SCREEN.LEAD_DETAIL),
+      detail('/sales-exec/deals/:id', SCREEN.SA_DEAL),
+      detail('/sales-exec/customers/:id', SCREEN.CUSTOMER_360),
       detail('/sales-exec/delivery/:id', SCREEN.DELIVERY_DETAIL),
       detail('/sales-exec/installation/:id', SCREEN.INSTALL_DETAIL),
     ],
   },
+
 
   /* ── Doc 3: no lead access at all, in either direction ───────────────────── */
   production_head: {

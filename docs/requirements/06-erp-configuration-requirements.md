@@ -81,6 +81,36 @@ stage tables, rather than a second engine that drifts.
 doc 1 shows a human choosing an assignee on every screen, and an allocation rule nobody
 asked for is a rule somebody has to unpick later.
 
+## ERP Bible V3 — Phase 2 (Sales / SPENCO, document 2)
+
+Twenty-five screens across three roles. The SPENCO stages, gates and advance endpoint are
+unchanged from v2 — what doc 2 adds is the commercial layer on top: how far the price may
+move, and when an order becomes real enough to start building.
+
+| # | Requirement (doc 2) | Status | Implementation | Verified by |
+|---|---|---|---|---|
+| SA-1 | Discount authority: 0–3% Exec · 3–10% Manager · >10% Director | ✅ | `DISCOUNT_TIERS` in `config/pipeline.js`, held as bands and resolvable from Settings — a discount ladder is commercial policy, not a law of the system. Band edges are half-open on the lower side, so 3% is self-approval and 3.01% is the Manager's | `tests/38-sales-deals.test.js` |
+| SA-2 | A request routes to the requester's OWN manager | ✅ | `dealService.approverFor()` walks **up the requester's reporting line** for the first holder of the approving role, rather than any holder of it. Picking the first row a query returned would breach SA-DIR-01 in the one place it matters most. A fallback is used only when the chain has nobody of that role, and is reported in the response rather than applied silently | `tests/38-sales-deals.test.js` |
+| SA-3 | Counter-offer — doc 2 "Counter: Approve 5%" | ✅ | `counterPercent` on the decision. **A counter may not exceed the approver's own band**, or 3–10% is advisory and a Manager grants 15% by countering upward | `tests/38-sales-deals.test.js` |
+| SA-4 | Self-approved discounts create no approval record | ✅ | Tier 1 prices the deal directly. A queue full of auto-approved rows buries the ones that need a person | `tests/38-sales-deals.test.js` |
+| SA-5 | The deal is not repriced until the discount is granted | ✅ | `discount.status: 'pending'` leaves `value` alone; `applyPrice()` runs on the decision | `tests/38-sales-deals.test.js` |
+| SA-6 | One board at three scopes (SA-DIR-05 / SA-MGR-05 / SA-EX-02) | ✅ | `GET /api/deals/board` + `attachScope`. Column totals are computed server-side and returned as `null` to a role without `finance.read` — summing client-side would produce a total whose parts the same caller may not see | `tests/38-sales-deals.test.js` |
+| SA-7 | Manager 1 cannot see Manager 2's numbers | ✅ | `GET /api/deals/team` behind `kpi.read_team`, scoped to the reporting subtree. An executive holds neither and is refused | `tests/38-sales-deals.test.js` |
+| SA-8 | Commercial Order submission → Director confirmation (SA-EX-07 → SA-DIR-09) | ✅ | `Approval{kind:'co_confirm'}` addressed to the Director. Only the person it is addressed to may confirm | `tests/38-sales-deals.test.js` |
+| SA-9 | **The stage gate is a precondition of the CO, not a parallel path** | ✅ | A CO may only be submitted once the deal has reached `commercial_order` through the advance endpoint. Without this a Director could confirm an order for a deal still in Negotiation — no PO document, no PO number — which is H-1 routed around by a different endpoint | `tests/38-sales-deals.test.js` |
+| SA-10 | Confirming the CO triggers Production | ✅ | Fires the **existing** `processHandoffService.createWorkOrderForLead` (Handoff 1) rather than a second path, so there is one definition of "a Work Order exists for this deal". Handoff 1 now has two triggers — the stage transition and the CO confirmation — and its unique index plus back-pointer is what makes that safe | `tests/38-sales-deals.test.js`, `tests/21-handoff-workorder.test.js` |
+| SA-11 | Revenue forecast weighted by probability (SA-DIR-08) | ✅ | `GET /api/deals/forecast`, weighting by each deal's own probability falling back to the stage default — the same number `kpiService` uses, so the forecast and the KPI dashboard cannot disagree | — (arithmetic over scoped rows already pinned by SA-6) |
+| SA-12 | Deal creation and assignment (SA-DIR-04 / SA-EX-05) | ✅ | `POST /api/deals` through `salesEntryService.mintSalesLead()` — the same entry point an Inside Sales handoff uses, so both produce the same shape | `tests/38-sales-deals.test.js` |
+
+**Deliberately not built.** No quotation *document* builder: doc 2 SA-EX-06 draws a
+proposal composer, but proposals and quotes are already `Attachment` docTypes that gate
+→ Negotiation, and a document generator is a project of its own. `proposal.version` records
+that one was sent, which is what the activity timeline and the gate actually read.
+
+The COO co-signature above 10% (doc 2's "Director + COO") is **not** a role: no COO has a
+screen anywhere in the specification. `Approval.coApprovedBy` is reserved so adding the
+second signature later is a write, not a migration.
+
 ## Sales Module
 
 | # | Requirement (verbatim intent) | Status | Implementation / gap | Verified by |
