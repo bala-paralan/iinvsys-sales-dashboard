@@ -164,6 +164,11 @@ const DOC_TYPES = [
   { key: 'invoice',                  label: 'Tax Invoice',             entity: 'workorder' },
   { key: 'delivery_acknowledgement', label: 'Delivery Acknowledgement', entity: 'workorder' },
   { key: 'da_photo',                 label: 'Delivery Photo Evidence', entity: 'workorder' },
+  /* Doc 3 PD-ENG-02: a photo as proof at each WIP step, and the QC evidence the Head
+     reviews at PD-HD-07. Distinct doc types so the Head's QC screen can show the QC
+     photos without every enclosure shot from step 4. */
+  { key: 'wip_photo',                label: 'WIP Step Photo',          entity: 'workorder' },
+  { key: 'qc_evidence',              label: 'QC Evidence',             entity: 'workorder' },
   { key: 'installation_checklist',   label: 'Installation Checklist',  entity: 'installation' },
   { key: 'commissioning_report',     label: 'Commissioning Test Report', entity: 'installation' },
   { key: 'handover_certificate',     label: 'Handover Certificate',    entity: 'installation' },
@@ -512,7 +517,7 @@ const DELIVERY_STAGES = [
     ],
   },
   {
-    key: 'preparation_packing', order: 3, shortCode: 'D3', label: 'Preparation & Packing',
+    key: 'preparation_packing', order: 3, shortCode: 'D3', label: 'Production & Packing',
     color: 'var(--violet)', borderClass: 'violet-border', ownerRole: 'production_engineer',
     definition: 'Pick, inspect, pack and label. Generate dispatch documents.',
     entryRequires: [
@@ -524,6 +529,15 @@ const DELIVERY_STAGES = [
     color: 'var(--amber)', borderClass: 'amber-border', ownerRole: 'production_head',
     definition: 'Confirm the delivery window, assign transport, dispatch.',
     entryRequires: [
+      /* THE QC GATE (doc 3, PD-HD-07). "Engineers cannot mark an order as dispatch ready
+         — only the Production Head can do that after reviewing QC results. This is
+         enforced at the backend level."
+
+         Enforced twice, deliberately and independently: an engineer holds no
+         `workorder.dispatch` permission, AND this gate refuses the stage without a Head's
+         approval timestamp. Either alone would be a single point of failure for the one
+         rule doc 3 states most emphatically. */
+      { field: 'qc.approvedAt',   test: 'anyDate',              message: 'QC must be approved by the Production Head before dispatch' },
       { field: 'attachments',     test: 'hasDoc:packing_list',  message: 'Packing list must be attached' },
       { field: 'attachments',     test: 'hasDoc:delivery_note', message: 'Delivery note must be attached' },
       { field: 'attachments',     test: 'hasDoc:invoice',       message: 'Tax invoice must be attached' },

@@ -130,7 +130,40 @@ describe('GET /api/meta/me', () => {
     expect(res.body.data.scope.canSeeFinancials).toBe(false);
     expect(res.body.data.scope.mode).toBe('own');
     expect(res.body.data.portal.screens).not.toContain('lead.board');
-    expect(res.body.data.portal.landing).toBe('/prod-eng/orders');
+
+    /* Assert the PROPERTY, not the string. A landing route moves whenever the module it
+       points at is built out — doc 3 gives the engineer a dashboard where Phase 0 could
+       only offer a list — and a test that pins the path fails for a change that is
+       entirely correct. What must stay true is that the landing is somewhere this role
+       can actually reach. */
+    const { landing, routes } = res.body.data.portal;
+    expect(landing.startsWith('/prod-eng/')).toBe(true);
+    expect(routes.map((r) => r.path)).toContain(landing);
+  });
+
+  it('gives every role a landing route inside its own portal', async () => {
+    /* The generalisation of the above. A landing outside the role's own route list sends
+       them to the catch-all, which redirects to the landing — a loop that renders nothing
+       and is invisible until someone signs in as that role. */
+    const { ALL_ROLES } = require('../src/config/permissions');
+    const { portalFor } = require('../src/config/portals');
+
+    /* `referrer` is the one deliberate exception: an external, temporary expo account
+       with no internal portal at all. It lands on /login because its capture path is not
+       part of this application. Named here rather than skipped silently, so removing the
+       exemption is a decision rather than an omission. */
+    const NO_PORTAL = new Set(['referrer']);
+
+    for (const role of ALL_ROLES) {
+      const portal = portalFor(role);
+      if (!portal) continue;
+      if (NO_PORTAL.has(role)) {
+        expect({ role, routes: portal.routes.length }).toEqual({ role, routes: 0 });
+        continue;
+      }
+      expect({ role, ok: portal.routes.some((r) => r.path === portal.landing) })
+        .toEqual({ role, ok: true });
+    }
   });
 
   it('is never cached', async () => {

@@ -62,6 +62,14 @@ const SCREEN = {
   SA_FORECAST:      'sa.forecast',      // SA-DIR-08
   SA_CAPTURE:       'sa.capture',       // SA-DIR-04 / SA-EX-05
   SA_MY_DASHBOARD:  'sa.myDashboard',   // SA-EX-01 / SA-MGR-01
+
+  /* ── Phase 3: Production & Delivery (ERP Bible V3, document 3) ───────────── */
+  PD_DASHBOARD:     'pd.dashboard',     // PD-HD-01 / PD-ENG-01
+  PD_ORDER:         'pd.order',         // PD-HD-03/06 / PD-ENG-02/03/04/05
+  PD_WORKLOAD:      'pd.workload',      // PD-HD-02
+  PD_QC:            'pd.qc',            // PD-HD-07
+  PD_DISPATCH:      'pd.dispatch',      // PD-HD-08 / PD-HD-09
+  PD_GANTT:         'pd.gantt',         // PD-HD-05
 };
 
 /* Route entries that appear in no sidebar — detail pages reached by clicking a row. */
@@ -97,7 +105,7 @@ const PORTALS = {
         { label: 'Customer 360', to: '/director/customers', screen: SCREEN.CUSTOMERS },
       ] },
       { section: 'Other Modules', items: [
-        { label: 'Production',   to: '/director/production', screen: SCREEN.DELIVERY_BOARD },
+        { label: 'Production',   to: '/director/production', screen: SCREEN.PD_DASHBOARD },
         { label: 'Installation', to: '/director/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
       { section: 'Account', items: [
@@ -110,7 +118,9 @@ const PORTALS = {
       /* SA-DIR-03: click any executive on the command dashboard. */
       detail('/director/sales/exec/:id', SCREEN.SA_TEAM),
       detail('/director/sales/deals/:id', SCREEN.SA_DEAL),
-      detail('/director/production/:id', SCREEN.DELIVERY_DETAIL),
+      detail('/director/production/:id', SCREEN.PD_ORDER),
+      detail('/director/delivery', SCREEN.DELIVERY_BOARD),
+      detail('/director/delivery/:id', SCREEN.DELIVERY_DETAIL),
       detail('/director/installation/:id', SCREEN.INSTALL_DETAIL),
       /* IS-DIR-02 — click any exec row on the command dashboard. */
       detail('/director/inside-sales/exec/:id', SCREEN.IS_EXEC_DRILL),
@@ -247,36 +257,47 @@ const PORTALS = {
     landing: '/prod-head/dashboard',
     nav: [
       { section: 'Production', items: [
-        { label: 'Dashboard',  to: '/prod-head/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'All Orders', to: '/prod-head/orders', screen: SCREEN.DELIVERY_BOARD },
+        { label: 'Dashboard',    to: '/prod-head/dashboard', screen: SCREEN.PD_DASHBOARD },
+        { label: 'All Orders',   to: '/prod-head/orders', screen: SCREEN.PD_DASHBOARD },
+        { label: 'Engineers',    to: '/prod-head/engineers', screen: SCREEN.PD_WORKLOAD },
+        { label: 'Gantt',        to: '/prod-head/gantt', screen: SCREEN.PD_GANTT },
+        { label: 'QC Approvals', to: '/prod-head/qc', screen: SCREEN.PD_QC, badge: 'qc' },
       ] },
-      { section: 'Downstream', items: [
-        { label: 'Installation', to: '/prod-head/installation', screen: SCREEN.INSTALL_BOARD },
+      { section: 'Dispatch', items: [
+        { label: 'Dispatch & POD', to: '/prod-head/dispatch', screen: SCREEN.PD_DISPATCH, badge: 'dispatch' },
+        { label: 'Delivery Board', to: '/prod-head/delivery', screen: SCREEN.DELIVERY_BOARD },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/prod-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Reports', to: '/prod-head/reports', screen: SCREEN.DASHBOARD },
+        { label: 'Alerts',  to: '/prod-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
     routes: [
-      detail('/prod-head/orders/:id', SCREEN.DELIVERY_DETAIL),
-      detail('/prod-head/installation/:id', SCREEN.INSTALL_DETAIL),
+      detail('/prod-head/orders/:id', SCREEN.PD_ORDER),
+      detail('/prod-head/delivery/:id', SCREEN.DELIVERY_DETAIL),
     ],
   },
+
 
   /* Doc 3: "no financial values, no other engineers' orders, no revenue data." */
   production_engineer: {
     key: 'prod-eng',
-    landing: '/prod-eng/orders',
+    landing: '/prod-eng/my-dashboard',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Orders', to: '/prod-eng/orders', screen: SCREEN.DELIVERY_BOARD },
+        { label: 'My Dashboard', to: '/prod-eng/my-dashboard', screen: SCREEN.PD_DASHBOARD },
+        { label: 'My Orders',    to: '/prod-eng/orders', screen: SCREEN.PD_DASHBOARD },
+        { label: 'My Tasks',     to: '/prod-eng/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
       ] },
       { section: 'Account', items: [
         { label: 'Alerts', to: '/prod-eng/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
-    routes: [detail('/prod-eng/orders/:id', SCREEN.DELIVERY_DETAIL)],
+    /* No engineer workload, no QC approvals, no dispatch, no Gantt, no delivery board.
+       Doc 3: "Cannot see order value, revenue, or other engineers' work." */
+    routes: [detail('/prod-eng/orders/:id', SCREEN.PD_ORDER)],
   },
+
 
   /* ── Doc 4 ───────────────────────────────────────────────────────────────── */
   install_head: {

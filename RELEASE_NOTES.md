@@ -12,6 +12,43 @@ Lead, Agent & Expo Management Platform → three-process ERP (Sales · Delivery 
 
 ---
 
+## v3.3.0 — Production & Delivery (ERP Bible V3, document 3)
+
+Branch `release/erp-three-process`. Fifteen screens across Production Head and Engineer,
+built by **extending `WorkOrder`** rather than adding a parallel `ProductionOrder` — the
+existing chain already models this flow and already has an idempotent Handoff 1.
+
+**The QC gate is enforced twice, independently.** An engineer holds no
+`workorder.dispatch`, AND `qc.approvedAt` is an `entryRequires` on the dispatch stage.
+Doc 3 calls this mandatory twice; a single mechanism would be a single point of failure.
+Both layers have their own test.
+
+**Engineers receive no financial values at all** — now three layers, closing the gap the
+Phase 0 plan deferred to this phase: the query projection means the value never leaves
+Mongo, `redact()` strips it at the response chokepoint, and the Excel export carries its
+own flag.
+
+`marginal` is a first-class QC outcome. Doc 3's own worked example turns on it — 1°C over
+spec but inside the customer's tolerance band — and a binary pass/fail makes the engineer
+choose between lying and failing a good unit.
+
+### Fixed while verifying
+
+- **`wipPercent` was absent from every read path.** The schema defines it as a virtual, but
+  `.lean()` does not evaluate virtuals and `lean({virtuals:true})` needs a plugin that is
+  not installed, so the option was silently ignored. The test passed because it asserted
+  on a PATCH response, which returns a real document; the list and the detail page — where
+  anyone actually sees the number — had no percentage at all. Now computed explicitly, and
+  asserted on the read paths.
+- **A portal test pinned a landing route as a string**, and failed when doc 3 gave the
+  engineer a dashboard where Phase 0 could only offer a list. Replaced with the property
+  that matters — every role's landing must be a route that role can mount — which then
+  found `referrer` landing outside its own portal. That one is deliberate and is now a
+  named exemption rather than a silent pass.
+
+Backend: 51 suites, 1,775 passing, 28 skipped, 0 failing. Frontend typechecks and builds.
+
+
 ## v3.2.0 — Sales / SPENCO (ERP Bible V3, document 2)
 
 Branch `release/erp-three-process`. Twenty-five screens across Director, Manager and

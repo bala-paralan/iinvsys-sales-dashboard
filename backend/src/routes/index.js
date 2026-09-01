@@ -18,6 +18,7 @@ router.use('/settings',  require('./settings'));
 router.use('/reports',   require('./reports'));
 router.use('/notifications', require('./notifications'));
 router.use('/workorders', require('./workorders'));
+router.use('/production', require('./production'));
 router.use('/installations', require('./installations'));
 router.use('/kpis',       require('./kpis'));
 router.use('/customers',    require('./customers'));

@@ -111,6 +111,32 @@ The COO co-signature above 10% (doc 2's "Director + COO") is **not** a role: no 
 screen anywhere in the specification. `Approval.coApprovedBy` is reserved so adding the
 second signature later is a write, not a migration.
 
+## ERP Bible V3 — Phase 3 (Production & Delivery, document 3)
+
+Fifteen screens across two roles. Built by **extending `WorkOrder`**, not by adding a
+parallel `ProductionOrder`: the order_review → … → delivery_handover chain already models
+this flow and `processHandoffService` already mints it, so a second model would duplicate
+Handoff 1 and its idempotency, and then the two would disagree about what exists.
+
+| # | Requirement (doc 3) | Status | Implementation | Verified by |
+|---|---|---|---|---|
+| PD-1 | **The QC gate is mandatory and cannot be bypassed** | ✅ | Enforced as **two independent layers**: an engineer holds no `workorder.dispatch`, AND `qc.approvedAt` is an `entryRequires` on the dispatch stage. Doc 3 states this twice as something that must not be bypassable, and a single mechanism is a single point of failure | `tests/39-production.test.js` (one test per layer) |
+| PD-2 | The engineer submits QC; only the Head approves | ✅ | `POST /orders/:id/qc` behind `workorder.advance`; `/qc/decide` behind `workorder.dispatch`. A rejection **requires a reason** and clears `submittedAt`, so the work goes back rather than sitting in both queues | `tests/39-production.test.js` |
+| PD-3 | `marginal` is a QC outcome, not a fudged pass | ✅ | `QcTestSchema.status` is pass\|fail\|marginal. Doc 3's worked example turns on it — 1°C over spec but inside the customer's tolerance band — and forcing that binary makes the engineer choose between lying and failing a good unit | `tests/39-production.test.js` |
+| PD-4 | **Engineers receive no financial values at all** | ✅ | Three layers: the query projection in `productionController.visibleFields()` (the value never leaves Mongo), `utils/redact.js` at the response chokepoint, and the export flag in `excelReport`. This closes the Phase 0 gap — the projection backstop the plan deferred to this phase | `tests/39-production.test.js`, `tests/31-financial-redaction.test.js` |
+| PD-5 | BOM quantities and part names visible; pricing hidden | ✅ | `bom.unitPrice` is projected away for a finance-blind caller while `part`, `quantity`, `unit` and `spec` remain — doc 3 is explicit that it is the pricing that is hidden, not the bill of materials | `tests/39-production.test.js` |
+| PD-6 | Engineers see only their assigned orders | ✅ | `attachScope` pointed at `assignedEngineer`; an out-of-scope id answers **404, not 403** | `tests/39-production.test.js` |
+| PD-7 | Engineer assignment and WIP checklist (PD-HD-02 / PD-ENG-02) | ✅ | `POST /orders/:id/assign` sets both, because doc 3 shows the engineer following steps "defined by the Production Head". Assigning without steps leaves an engineer with nothing to tick | `tests/39-production.test.js` |
+| PD-8 | Step progress with photo proof | ✅ | `PATCH /orders/:id/steps/:stepId` and a photo upload through the shared `fileStore` — magic-byte validated, GridFS by default, the same vault as every other document | `tests/39-production.test.js` |
+| PD-9 | Dispatch authorisation is Head-only (PD-HD-08) | ✅ | `POST /orders/:id/dispatch-auth` records mode, AWB, cartons and weight, and refuses without QC approval even for the Head. Keeps `dispatchedAt` / `dispatchDetails` in step, so the delivery KPIs and the D5 gate are unaffected | `tests/39-production.test.js` |
+| PD-10 | Engineers can flag an issue they cannot fix (PD-ENG-05) | ✅ | `POST /orders/:id/issues`, notifying holders of `workorder.dispatch` | `tests/39-production.test.js` |
+| PD-11 | Gantt schedule (PD-HD-05) | ✅ | A frontend view over `currentCommittedDate` and the WIP step counts. No backend work and no charting library — one bar per order against a shared range | — (renders existing data) |
+| PD-12 | POD triggers Installation | ✅ | Unchanged: the **existing** Handoff 2 on `POST /workorders/:id/deliver` | `tests/24-installation.test.js` |
+
+**Not modelled.** Doc 3 mentions splitting one order across several engineers.
+`assignedEngineer` is singular; splitting needs a per-step assignee and a rule for whose
+QC counts, which is a design question rather than an omission.
+
 ## Sales Module
 
 | # | Requirement (verbatim intent) | Status | Implementation / gap | Verified by |

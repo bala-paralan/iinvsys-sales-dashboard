@@ -63,6 +63,59 @@ const DelayEventSchema = new mongoose.Schema({
   at:          { type: Date, default: Date.now },
 }, { _id: true });
 
+/* ── Production, ERP Bible V3 document 3 ─────────────────────────────────────
+   These extend the EXISTING Work Order rather than arriving as a parallel
+   `ProductionOrder`. The order_review → … → delivery_handover chain already models this
+   flow and processHandoffService already mints it; a second model would duplicate
+   Handoff 1 and its idempotency, and then the two would disagree. */
+
+/* PD-HD-04 / PD-ENG-03. Quantities and part names are visible to the engineer;
+   `unitCost` is stripped from their payload by utils/redact.js. */
+const BomLineSchema = new mongoose.Schema({
+  part:     { type: String, required: true, trim: true },
+  quantity: { type: Number, required: true, min: 0 },
+  unit:     { type: String, trim: true, default: 'nos' },
+  spec:     { type: String, trim: true, default: '' },
+  unitPrice:{ type: Number, min: 0, default: 0 },
+  procured: { type: Boolean, default: false },
+  note:     { type: String, trim: true, default: '' },
+}, { _id: true });
+
+/* PD-ENG-02: the step-by-step WIP checklist the Head defines and the engineer works
+   through, with a photo as proof at each stage. */
+const WipStepSchema = new mongoose.Schema({
+  order:       { type: Number, required: true, min: 1 },
+  label:       { type: String, required: true, trim: true },
+  instruction: { type: String, trim: true, default: '' },
+  status:      { type: String, enum: ['pending', 'in_progress', 'done', 'blocked'], default: 'pending' },
+  completedAt: { type: Date, default: null },
+  completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  /* The attachment id of the proof photo, held in GridFS like every other upload. */
+  photo:       { type: String, trim: true, default: '' },
+  note:        { type: String, trim: true, default: '' },
+}, { _id: true });
+
+/* PD-HD-07: one row per test parameter, exactly as doc 3 draws the QC table.
+   `marginal` exists because doc 3's worked example turns on it — a temperature 1°C over
+   spec but inside the customer's own tolerance band. Forcing that to pass/fail would
+   make the engineer choose between lying and failing a good unit. */
+const QcTestSchema = new mongoose.Schema({
+  parameter: { type: String, required: true, trim: true },
+  standard:  { type: String, trim: true, default: '' },
+  result:    { type: String, trim: true, default: '' },
+  status:    { type: String, enum: ['pass', 'fail', 'marginal'], required: true },
+}, { _id: true });
+
+/* PD-ENG-05: an engineer cannot fix a late part or a wrong drawing themselves. */
+const ProductionIssueSchema = new mongoose.Schema({
+  description: { type: String, required: true, trim: true },
+  severity:    { type: String, enum: ['low', 'medium', 'high', 'blocker'], default: 'medium' },
+  raisedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  raisedAt:    { type: Date, default: Date.now },
+  resolvedAt:  { type: Date, default: null },
+  resolution:  { type: String, trim: true, default: '' },
+}, { _id: true });
+
 const WorkOrderSchema = new mongoose.Schema({
   woNumber: { type: String, required: true, unique: true },
 
@@ -93,6 +146,43 @@ const WorkOrderSchema = new mongoose.Schema({
   },
 
   delayEvents: { type: [DelayEventSchema], default: [] },
+
+  /* ── Production (doc 3) ──────────────────────────────────────────────────── */
+  /* PD-HD-02. One engineer per order; doc 3 mentions splitting an order across
+     engineers, which is a Phase 3+ refinement and not modelled here. */
+  assignedEngineer:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  assignedAt:         { type: Date, default: null },
+  bom:                { type: [BomLineSchema], default: [] },
+  wipSteps:           { type: [WipStepSchema], default: [] },
+  productionIssues:   { type: [ProductionIssueSchema], default: [] },
+
+  /* PD-HD-07 — the mandatory gate. `approvedAt` is what unlocks dispatch, and only the
+     Production Head can set it: an engineer holds no `workorder.dispatch`, AND the
+     dispatch stage gate requires this field. Two independent layers, because doc 3 calls
+     this out twice as something that must not be bypassable. */
+  qc: {
+    tests:          { type: [QcTestSchema], default: [] },
+    notes:          { type: String, trim: true, default: '' },
+    submittedAt:    { type: Date, default: null },
+    submittedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    approvedAt:     { type: Date, default: null },
+    approvedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    rejectedAt:     { type: Date, default: null },
+    rejectedReason: { type: String, trim: true, default: '' },
+  },
+
+  /* PD-HD-08 — the Head authorises the physical dispatch and records how it went. */
+  dispatchAuth: {
+    mode:             { type: String, trim: true, default: '' },
+    awb:              { type: String, trim: true, default: '' },
+    dispatchDate:     { type: Date, default: null },
+    expectedDelivery: { type: Date, default: null },
+    cartons:          { type: Number, min: 0, default: null },
+    grossWeightKg:    { type: Number, min: 0, default: null },
+    notes:            { type: String, trim: true, default: '' },
+    authorisedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    authorisedAt:     { type: Date, default: null },
+  },
 
   stockConfirmedAt: { type: Date, default: null },
   packingCheckedBy: { type: String, trim: true, default: '' },
@@ -127,6 +217,10 @@ WorkOrderSchema.index({ stage: 1, status: 1 });
 WorkOrderSchema.index({ createdAt: -1 });
 WorkOrderSchema.index({ currentCommittedDate: 1 });
 WorkOrderSchema.index({ acceptedAt: 1 });
+/* PD-ENG-01: "my assigned orders" is the engineer's whole world, and the hottest query
+   in the production module. */
+WorkOrderSchema.index({ assignedEngineer: 1, stage: 1 });
+WorkOrderSchema.index({ 'qc.submittedAt': 1, 'qc.approvedAt': 1 });
 
 /* Write-once enforcement for the delay-clock reference point (A12).
    The persisted value is read back rather than inferred from document state —
@@ -149,5 +243,15 @@ WorkOrderSchema.methods.toJSON = function () {
   delete obj.__v;
   return obj;
 };
+
+/** Percentage of WIP steps completed — PD-HD-01's "% Complete" column. */
+WorkOrderSchema.virtual('wipPercent').get(function wipPercent() {
+  if (!this.wipSteps || !this.wipSteps.length) return null;
+  const done = this.wipSteps.filter((s) => s.status === 'done').length;
+  return Math.round((done / this.wipSteps.length) * 100);
+});
+
+WorkOrderSchema.set('toJSON', { virtuals: true });
+WorkOrderSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('WorkOrder', WorkOrderSchema);

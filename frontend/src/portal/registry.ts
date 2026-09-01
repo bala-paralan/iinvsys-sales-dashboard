@@ -46,6 +46,14 @@ import { SalesDashboardPage } from '../features/sales/SalesDashboardPage';
 import { ForecastPage } from '../features/sales/ForecastPage';
 import { DealCapturePage } from '../features/sales/DealCapturePage';
 
+/* Phase 3 — Production & Delivery (ERP Bible V3, document 3) */
+import { ProductionDashboardPage } from '../features/production/ProductionDashboardPage';
+import { ProductionOrderPage } from '../features/production/ProductionOrderPage';
+import { WorkloadPage } from '../features/production/WorkloadPage';
+import { QcQueuePage } from '../features/production/QcQueuePage';
+import { DispatchPage } from '../features/production/DispatchPage';
+import { GanttPage } from '../features/production/GanttPage';
+
 export const SCREENS: Record<string, ComponentType> = {
   'kpi.dashboard':      DashboardPage,
   'lead.board':         LeadsPage,
@@ -80,6 +88,14 @@ export const SCREENS: Record<string, ComponentType> = {
   'sa.forecast':        ForecastPage,         // SA-DIR-08
   'sa.capture':         DealCapturePage,      // SA-DIR-04 / SA-EX-05
   'sa.myDashboard':     SalesDashboardPage,   // SA-EX-01 / SA-MGR-04
+
+  /* Phase 3 — Production & Delivery */
+  'pd.dashboard':       ProductionDashboardPage,  // PD-HD-01 / PD-ENG-01
+  'pd.order':           ProductionOrderPage,      // PD-HD-03/06 / PD-ENG-02/03/04/05
+  'pd.workload':        WorkloadPage,             // PD-HD-02
+  'pd.qc':              QcQueuePage,              // PD-HD-07
+  'pd.dispatch':        DispatchPage,             // PD-HD-08 / PD-HD-09
+  'pd.gantt':           GanttPage,                // PD-HD-05
 };
 
 export function componentFor(screen: string): ComponentType | null {
