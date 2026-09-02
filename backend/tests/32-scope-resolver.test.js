@@ -228,4 +228,41 @@ describe('scope resolver', () => {
       expect(pipelineValue.actual).toBe(1000);
     });
   });
+
+  describe('through HTTP — own performance', () => {
+    /*
+     * Doc 1 IS-EX and doc 2 SA-EX both put "My Performance" in the executive's own
+     * sidebar, and both forbid peer comparison. Those are two different rules and the
+     * route has to satisfy both: gating GET /users/:id/stats on `user.read` — which no
+     * executive holds — satisfied the second by breaking the first, and the screen could
+     * not load its own numbers. The gate is `kpi.read`; scopeAllows decides whose.
+     */
+    it('lets an executive read their own numbers', async () => {
+      const team = await roles.salesTeam('railways');
+
+      const res = await request(app).get(`/api/users/${team.execA.id}/stats`)
+        .set('Authorization', `Bearer ${team.execA.token}`);
+
+      expect(res.status).toBe(200);
+      expect(String(res.body.data.user._id)).toBe(String(team.execA.id));
+    });
+
+    it('refuses an executive their peer\'s numbers', async () => {
+      const team = await roles.salesTeam('railways');
+
+      const res = await request(app).get(`/api/users/${team.execB.id}/stats`)
+        .set('Authorization', `Bearer ${team.execA.token}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('lets the manager read either executive\'s numbers', async () => {
+      const team = await roles.salesTeam('railways');
+
+      const res = await request(app).get(`/api/users/${team.execB.id}/stats`)
+        .set('Authorization', `Bearer ${team.manager.token}`);
+
+      expect(res.status).toBe(200);
+    });
+  });
 });

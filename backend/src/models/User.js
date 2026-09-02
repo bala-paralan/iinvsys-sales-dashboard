@@ -68,10 +68,29 @@ UserSchema.pre('validate', function(next) {
   next();
 });
 
-/* Hash password before save */
+/*
+ * Hash password before save.
+ *
+ * COST FACTOR. Production uses 12. The test suite uses 4, and that is a deliberate
+ * decision rather than a shortcut: `bcryptjs` is a pure-JS implementation roughly an
+ * order of magnitude slower than the native binding, so a cost-12 hash costs on the
+ * order of a second here. While Agent was a separate collection its fixtures paid
+ * nothing; retiring it (D-1) routed every lead-owner fixture through User.create(),
+ * which put two such hashes inside a `beforeEach` that runs 88 times in
+ * 02-leads-agents alone. The result was a suite that ran for forty minutes and tripped
+ * Jest's 30s hook timeout on whichever block happened to be unlucky — a green/red
+ * signal decided by machine load rather than by the code under test.
+ *
+ * Lowering the cost in tests does not weaken any assertion: nothing asserts on the cost
+ * factor, and comparePassword() verifies a cost-4 hash exactly as it verifies a cost-12
+ * one. What it must never do is leak into a real deployment, hence reading NODE_ENV
+ * rather than an env var an operator could set by accident.
+ */
+const BCRYPT_ROUNDS = process.env.NODE_ENV === 'test' ? 4 : 12;
+
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 12);
+  this.password = await bcrypt.hash(this.password, BCRYPT_ROUNDS);
   next();
 });
 

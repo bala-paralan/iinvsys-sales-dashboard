@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { isApi } from './api';
 import { useMe } from '../../portal/useMe';
@@ -38,8 +38,12 @@ const PRIORITY_COLOR: Record<string, string> = {
 export function IsLeadsPage() {
   const nav = useNavigate();
   const { data: me } = useMe();
-  const [stage, setStage] = useState('');
-  const [unassigned, setUnassigned] = useState(false);
+  /* Seeded from the URL so a sidebar link can point at a filtered view — doc 1 lists
+     "Request Handoff" as an action, and what that means in practice is "show me the
+     leads that are ready for one". */
+  const [params] = useSearchParams();
+  const [stage, setStage] = useState(params.get('isStage') ?? '');
+  const [unassigned, setUnassigned] = useState(params.get('unassigned') === 'true');
 
   const query = [
     stage ? `isStage=${stage}` : '',

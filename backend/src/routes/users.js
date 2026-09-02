@@ -34,7 +34,12 @@ router.post('/', authenticate, requirePermission('user.write'), userValidation, 
 
 router.get('/:id',         authenticate, requirePermission('directory.read'), ctrl.getUser);
 router.get('/:id/reports',  authenticate, requirePermission('directory.read'), ctrl.getReports);
-router.get('/:id/stats',    authenticate, requirePermission('user.read'), attachScope, ctrl.getUserStats);
+/* `kpi.read` — held by every internal role — not `user.read`, which only heads and above
+   hold. The permission answers "may you read performance figures at all"; WHOSE is decided
+   by scopeAllows() in the controller, and an executive's scope is exactly themselves.
+   Gating on user.read meant an executive could not open their own My Performance screen,
+   which doc 1 IS-EX and doc 2 SA-EX both list in the sidebar. */
+router.get('/:id/stats',    authenticate, requirePermission('kpi.read'), attachScope, ctrl.getUserStats);
 router.put('/:id',          authenticate, requirePermission('user.write'), userUpdateValidation, ctrl.updateUser);
 router.patch('/:id/manager', authenticate, requirePermission('user.assign_reports'), ctrl.setManager);
 router.delete('/:id',       authenticate, requirePermission('user.write'), ctrl.deactivateUser);

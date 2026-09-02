@@ -50,9 +50,26 @@ describe('portal registry', () => {
       const reachable = new Set(p.routes.map((r) => r.path));
       for (const section of p.nav) {
         for (const item of section.items) {
-          expect({ role, link: item.to, reachable: reachable.has(item.to) })
-            .toEqual({ role, link: item.to, reachable: true });
+          /* Compare the PATH, not the whole link. A nav item may carry a query string —
+             "Request Handoff" is the lead list pre-filtered to what is ready for one —
+             and a query is a filter on a screen, not a different route. The check that
+             matters is unchanged: the path a link navigates to must be mountable. */
+          const path = item.to.split('?')[0];
+          expect({ role, link: item.to, path, reachable: reachable.has(path) })
+            .toEqual({ role, link: item.to, path, reachable: true });
         }
+      }
+    }
+  });
+
+  it('registers no route path containing a query string', () => {
+    /* The other half of the rule above. React Router matches on path, so a "?" that
+       reached the route table would mean a screen that can never mount — which is how
+       the loosening above could hide the very bug the test exists for. */
+    for (const role of ALL_ROLES) {
+      for (const r of portalFor(role).routes) {
+        expect({ role, path: r.path, clean: !r.path.includes('?') })
+          .toEqual({ role, path: r.path, clean: true });
       }
     }
   });

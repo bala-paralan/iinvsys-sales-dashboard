@@ -277,6 +277,17 @@ async function requestHandoff(req, res, next) {
 
     await salesEntry.attachCustomer(lead, req.user);
 
+    /* Doc 1 IS-HD-04 shows the activity breakdown beside the BANT lines: the Head is
+       weighing effort as well as answers. Snapshotted into the payload rather than
+       resolved when the card renders, so the queue shows what was true when the request
+       was raised — the same reason the BANT block is copied in. */
+    const activity = await activityService.summaryFor({
+      customer: lead.customer, deal: lead._id,
+    });
+    const daysInIs = Math.max(0, Math.round(
+      (Date.now() - new Date(lead.createdAt).getTime()) / 86400000,
+    ));
+
     const approval = await approvalService.request({
       kind: 'is_handoff',
       subject: { model: 'Lead', id: lead._id },
@@ -284,6 +295,8 @@ async function requestHandoff(req, res, next) {
         refId: lead.refId, name: lead.name, company: lead.company,
         bant: lead.bant, note: req.body.note || '',
         suggestedAssignee: req.body.suggestedAssignee || null,
+        activity, daysInIs,
+        owner: req.user.name,
       },
     }, req.user);
 

@@ -78,6 +78,11 @@ const SCREEN = {
   IC_TICKET:        'ic.ticket',        // IC-AG-02
   IC_AGENTS:        'ic.agents',        // IC-CSM-01 / IC-CSM-03
   IC_CONTRACTS:     'ic.contracts',     // IC-CSM-04 / IC-AG-03
+
+  /* Screens both executive tracks list in their sidebars — doc 1 IS-EX-01 and
+     doc 2 SA-EX-01 name all three. */
+  LOG_ACTIVITY:     'activity.log',     // IS-EX-04 / SA-EX-04
+  MY_PERFORMANCE:   'me.performance',   // IS-EX "My Performance" / SA-EX "My Performance"
 };
 
 /* Route entries that appear in no sidebar — detail pages reached by clicking a row. */
@@ -147,6 +152,7 @@ const PORTALS = {
         { label: 'Team Dashboard',  to: '/is-head/dashboard', screen: SCREEN.IS_TEAM },
         { label: 'All Team Leads',  to: '/is-head/leads', screen: SCREEN.IS_LEADS },
         { label: 'Lead Assignment', to: '/is-head/assignment', screen: SCREEN.IS_LEADS },
+        { label: 'Log Activity',    to: '/is-head/log-activity', screen: SCREEN.LOG_ACTIVITY },
         { label: 'Handoff Queue',   to: '/is-head/handoff-queue', screen: SCREEN.IS_HANDOFFS, badge: 'handoffs' },
       ] },
       { section: 'Reports', items: [
@@ -174,9 +180,14 @@ const PORTALS = {
         { label: 'My Dashboard', to: '/is-exec/my-dashboard', screen: SCREEN.IS_MY_DASHBOARD },
         { label: 'My Leads',     to: '/is-exec/leads', screen: SCREEN.IS_LEADS },
         { label: 'My Tasks',     to: '/is-exec/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+        { label: 'Log Activity', to: '/is-exec/log-activity', screen: SCREEN.LOG_ACTIVITY },
       ] },
       { section: 'Actions', items: [
-        { label: 'Capture Lead', to: '/is-exec/leads/new', screen: SCREEN.IS_CAPTURE },
+        { label: 'Capture Lead',    to: '/is-exec/leads/new', screen: SCREEN.IS_CAPTURE },
+        /* Doc 1 lists "Request Handoff" as an action. The request itself is raised on a
+           lead, so this is the shortlist of leads that are ready for one. */
+        { label: 'Request Handoff', to: '/is-exec/leads?isStage=is_qualified', screen: SCREEN.IS_LEADS },
+        { label: 'My Performance',  to: '/is-exec/performance', screen: SCREEN.MY_PERFORMANCE },
       ] },
       { section: 'Account', items: [
         { label: 'Alerts', to: '/is-exec/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
@@ -202,7 +213,8 @@ const PORTALS = {
       ] },
       { section: 'Actions', items: [
         { label: 'Discount Approvals', to: '/sales-mgr/approvals', screen: SCREEN.SA_APPROVALS, badge: 'approvals' },
-        { label: 'New Deal',   to: '/sales-mgr/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'New Deal',     to: '/sales-mgr/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'Log Activity', to: '/sales-mgr/log-activity', screen: SCREEN.LOG_ACTIVITY },
         { label: 'Customers',  to: '/sales-mgr/customers', screen: SCREEN.CUSTOMERS },
         { label: 'My Tasks',   to: '/sales-mgr/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
       ] },
@@ -238,7 +250,9 @@ const PORTALS = {
         { label: 'My Accounts',     to: '/sales-exec/customers', screen: SCREEN.CUSTOMERS },
       ] },
       { section: 'Actions', items: [
-        { label: 'New Deal', to: '/sales-exec/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'New Deal',       to: '/sales-exec/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'Log Activity',   to: '/sales-exec/log-activity', screen: SCREEN.LOG_ACTIVITY },
+        { label: 'My Performance', to: '/sales-exec/performance', screen: SCREEN.MY_PERFORMANCE },
       ] },
       { section: 'Downstream', items: [
         { label: 'Delivery',     to: '/sales-exec/delivery', screen: SCREEN.DELIVERY_BOARD },
@@ -443,10 +457,21 @@ function portalFor(role) {
   const p = PORTALS[role];
   if (!p) return null;
 
+  /* A nav item may carry a query string — "Request Handoff" is the lead list pre-filtered
+     to what is ready for one. The LINK keeps it; the ROUTE must not, or React Router
+     tries to match a path containing "?" and the screen never mounts. */
   const navRoutes = p.nav.flatMap((section) => section.items.map(
-    (item) => ({ path: item.to, screen: item.screen, nav: true }),
+    (item) => ({ path: item.to.split('?')[0], screen: item.screen, nav: true }),
   ));
-  const routes = [...navRoutes, ...p.routes];
+
+  /* Two nav entries may point at one screen on different filters, which would register
+     the same path twice. Keep the first. */
+  const seen = new Set();
+  const routes = [...navRoutes, ...p.routes].filter((r) => {
+    if (seen.has(r.path)) return false;
+    seen.add(r.path);
+    return true;
+  });
 
   return {
     key: p.key,

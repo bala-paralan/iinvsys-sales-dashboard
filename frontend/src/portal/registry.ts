@@ -62,6 +62,10 @@ import { TicketDetailPage } from '../features/support/TicketDetailPage';
 import { AgentPerformancePage } from '../features/support/AgentPerformancePage';
 import { ContractsPage } from '../features/support/ContractsPage';
 
+/* Screens both executive tracks list in their sidebars (doc 1 IS-EX, doc 2 SA-EX) */
+import { LogActivityPage } from '../features/insideSales/LogActivityPage';
+import { MyPerformancePage } from '../features/insideSales/MyPerformancePage';
+
 export const SCREENS: Record<string, ComponentType> = {
   'kpi.dashboard':      DashboardPage,
   'lead.board':         LeadsPage,
@@ -112,6 +116,10 @@ export const SCREENS: Record<string, ComponentType> = {
   'ic.ticket':          TicketDetailPage,         // IC-AG-02
   'ic.agents':          AgentPerformancePage,     // IC-CSM-01 / IC-CSM-03
   'ic.contracts':       ContractsPage,            // IC-CSM-04 / IC-AG-03
+
+  /* Cross-module */
+  'activity.log':       LogActivityPage,          // IS-EX-04 / SA-EX-04
+  'me.performance':     MyPerformancePage,        // IS-EX / SA-EX "My Performance"
 };
 
 export function componentFor(screen: string): ComponentType | null {

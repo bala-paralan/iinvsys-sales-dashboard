@@ -108,7 +108,43 @@ async function dailyCount(userId, date = new Date()) {
   return Activity.countDocuments({ by: userId, occurredAt: { $gte: from, $lt: to } });
 }
 
+/**
+ * A breakdown of what has actually been done on an account.
+ *
+ * Doc 1 IS-HD-04 puts this beside the BANT lines on the handoff card — "Total Interactions
+ * 6, Calls 3 (avg 14 min), Emails 2, Site Visit 1" — because the IS Head is weighing
+ * effort as well as answers. Four confirmed BANT ticks off two phone calls is a different
+ * proposition from four off six interactions including a site visit.
+ */
+async function summaryFor({ customer, deal }) {
+  const match = {};
+  if (deal) match.deal = deal;
+  else if (customer) match.customer = customer;
+  else return { total: 0, byType: {}, avgCallMinutes: null, firstAt: null, lastAt: null };
+
+  const rows = await Activity.find(match)
+    .select('type durationMinutes occurredAt').lean();
+
+  const byType = {};
+  for (const r of rows) byType[r.type] = (byType[r.type] || 0) + 1;
+
+  const callMins = rows
+    .filter((r) => r.type === 'call' && typeof r.durationMinutes === 'number')
+    .map((r) => r.durationMinutes);
+  const times = rows.map((r) => new Date(r.occurredAt).getTime()).sort((a, b) => a - b);
+
+  return {
+    total: rows.length,
+    byType,
+    avgCallMinutes: callMins.length
+      ? Math.round(callMins.reduce((a, b) => a + b, 0) / callMins.length)
+      : null,
+    firstAt: times.length ? new Date(times[0]) : null,
+    lastAt: times.length ? new Date(times[times.length - 1]) : null,
+  };
+}
+
 module.exports = {
-  logActivity, lastActivityFor, dailyCount,
+  logActivity, lastActivityFor, dailyCount, summaryFor,
   DAILY_ACTIVITY_TARGET, ACTIVITY_WARN_HOURS, ACTIVITY_ALERT_HOURS,
 };

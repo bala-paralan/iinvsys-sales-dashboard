@@ -15,6 +15,15 @@ import type { BantKey } from './types';
  */
 const BANT_KEYS: BantKey[] = ['budget', 'authority', 'need', 'timeline'];
 
+function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div style={{ border: '1px solid #000', padding: 8 }}>
+      <div style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 15, color: tone }}>{value}</div>
+    </div>
+  );
+}
+
 export function HandoffQueuePage() {
   const qc = useQueryClient();
   const [assignees, setAssignees] = useState<Record<string, string>>({});
@@ -68,7 +77,10 @@ export function HandoffQueuePage() {
                   {a.payload?.name} — {a.payload?.company}
                 </h3>
                 <div style={{ color: 'var(--text-3)', fontSize: 12 }}>
-                  {a.payload?.refId} · raised by {a.requestedBy?.name} · {relTime(a.createdAt)}
+                  {a.payload?.refId} · handled by {a.requestedBy?.name}
+                  {typeof a.payload?.daysInIs === 'number'
+                    ? ` · ${a.payload.daysInIs} day${a.payload.daysInIs === 1 ? '' : 's'} in IS` : ''}
+                  {' · '}{relTime(a.createdAt)}
                 </div>
               </div>
             </div>
@@ -90,6 +102,27 @@ export function HandoffQueuePage() {
                 );
               })}
             </div>
+
+            {/* Doc 1 IS-HD-04 puts this beside BANT: four confirmed ticks off two phone
+                calls is a different proposition from four off six interactions including
+                a site visit. The Head is weighing effort as well as answers. */}
+            {a.payload?.activity && (
+              <>
+                <h4 style={{ marginBottom: 6 }}>Activity summary</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                  <Figure label="Total interactions"
+                    value={String(a.payload.activity.total ?? 0)}
+                    tone={(a.payload.activity.total ?? 0) === 0 ? 'var(--coral)' : undefined} />
+                  <Figure label="Calls"
+                    value={`${a.payload.activity.byType?.call ?? 0}${a.payload.activity.avgCallMinutes
+                      ? ` (avg ${a.payload.activity.avgCallMinutes} min)` : ''}`} />
+                  <Figure label="Emails" value={String(a.payload.activity.byType?.email ?? 0)} />
+                  <Figure label="Site visits"
+                    value={`${a.payload.activity.byType?.visit ?? 0}${(a.payload.activity.byType?.visit ?? 0) > 0 ? ' ✓' : ''}`}
+                    tone={(a.payload.activity.byType?.visit ?? 0) > 0 ? 'var(--emerald)' : undefined} />
+                </div>
+              </>
+            )}
 
             {a.payload?.note && (
               <>

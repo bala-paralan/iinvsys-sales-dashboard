@@ -220,6 +220,37 @@ describe('Inside Sales', () => {
       expect(res.body.missing).toHaveLength(4);
     });
 
+    it('carries the activity summary the IS Head decides on', async () => {
+      /* Doc 1 IS-HD-04 puts "Total Interactions 6, Calls 3 (avg 14 min), Emails 2,
+         Site Visit 1" beside the BANT block. Four confirmed ticks off two phone calls is
+         a different proposition from four off six interactions including a site visit,
+         and the Head cannot see the difference without this. */
+      const t = await isTeam();
+      const lead = await qualifiedLead(t);
+
+      await request(app).post('/api/activities').set(auth(t.execA.token)).send({
+        customer: lead.customer, deal: lead._id, type: 'call',
+        durationMinutes: 12, summary: 'Discovery',
+      });
+      await request(app).post('/api/activities').set(auth(t.execA.token)).send({
+        customer: lead.customer, deal: lead._id, type: 'call',
+        durationMinutes: 16, summary: 'Follow-up',
+      });
+      await request(app).post('/api/activities').set(auth(t.execA.token)).send({
+        customer: lead.customer, deal: lead._id, type: 'visit', summary: 'Site visit',
+      });
+
+      const res = await request(app).post(`/api/is/leads/${lead._id}/request-handoff`)
+        .set(auth(t.execA.token)).send({});
+
+      const a = res.body.data.payload.activity;
+      expect(a.total).toBe(3);
+      expect(a.byType.call).toBe(2);
+      expect(a.byType.visit).toBe(1);
+      expect(a.avgCallMinutes).toBe(14);          // (12 + 16) / 2
+      expect(typeof res.body.data.payload.daysInIs).toBe('number');
+    });
+
     it('raises a request addressed to the executive\'s own IS Head', async () => {
       const t = await isTeam();
       const lead = await qualifiedLead(t);

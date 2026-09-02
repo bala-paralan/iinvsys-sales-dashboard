@@ -100,5 +100,12 @@ export interface Approval {
     company?: string;
     note?: string;
     bant?: Record<BantKey, BantDimension>;
+    /* Snapshotted when the request was raised — doc 1 IS-HD-04. */
+    daysInIs?: number;
+    activity?: {
+      total: number;
+      byType: Partial<Record<string, number>>;
+      avgCallMinutes: number | null;
+    };
   };
 }
