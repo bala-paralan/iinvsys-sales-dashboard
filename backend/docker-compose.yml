@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     command: ['--auth']
     environment:
-      MONGO_INITDB_DATABASE: iinvsys
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-iinvsys}
       # No defaults. `docker compose up` fails fast if these are unset.
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?MONGO_ROOT_USER is required}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:?MONGO_ROOT_PASS is required}
@@ -62,7 +62,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5050                          # Nginx proxies to this port
-      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongo:27017/iinvsys?authSource=admin
+      # The DATABASE NAME IS A VARIABLE, and that is load-bearing.
+      #
+      # Compose overrides whatever `.env` says about MONGO_URI, so the database a
+      # deployment talks to is decided here and nowhere else. It was hardcoded to
+      # `iinvsys` while the running server had been hand-edited to `iinvsys_v2` — so a
+      # `git pull` followed by `docker compose up` would silently move production back
+      # onto the pre-v2 database. Greenfield cutovers are done by changing MONGO_DB.
+      #
+      #   v1  iinvsys        v2  iinvsys_v2        v3  iinvsys_v3
+      #
+      # Nothing is ever deleted: an old database stays in the same volume, which is what
+      # makes a rollback one variable rather than a restore.
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongo:27017/${MONGO_DB:-iinvsys}?authSource=admin
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       # Frontend is served from the same Nginx host, so the browser Origin
@@ -75,7 +87,13 @@ services:
       # Bound to loopback only — Nginx on the host is the public entrypoint.
       - '127.0.0.1:5050:5050'
     healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:5050/api/health']
+      # /api/ready, NOT /api/health.
+      #
+      # `health` answers without touching the database. When the mongo container exited
+      # on 2026-07-23 the API kept reporting healthy against a hostname that no longer
+      # resolved, so Docker never restarted it and Prometheus stayed green — production
+      # could not log anyone in for 25 days and nothing said so. `ready` pings Mongo.
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:5050/api/ready']
       interval: 30s
       timeout: 10s
       retries: 3

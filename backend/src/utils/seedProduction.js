@@ -29,7 +29,33 @@ const connectDB = require('../config/db');
 
 async function seedProduction() {
   await connectDB();
-  console.log('\n🗑️   Wiping all collections …');
+
+  /*
+   * REFUSE TO WIPE A DATABASE THAT HAS ANYTHING IN IT.
+   *
+   * This script destroys every collection. On a fresh greenfield database that is a
+   * no-op, which is the only case it is meant for. Run with MONGO_DB still pointing at
+   * the previous version — the exact mistake a cutover invites — and it silently
+   * destroys production instead.
+   *
+   * Note that a greenfield cutover does not need this script at all: utils/initAdmin.js
+   * bootstraps the superadmin on any empty database at boot. This guard exists because
+   * the command is here and someone will reach for it.
+   */
+  const mongoose = require('mongoose');
+  const dbName = mongoose.connection.name;
+  const existingUsers = await User.countDocuments();
+
+  if (existingUsers > 0 && process.env.SEED_CONFIRM_WIPE !== dbName) {
+    throw new Error(
+      `Refusing to wipe "${dbName}": it already holds ${existingUsers} user(s).\n`
+      + `If you genuinely mean to destroy it, re-run with SEED_CONFIRM_WIPE=${dbName}.\n`
+      + 'For a greenfield cutover, point MONGO_DB at a NEW database instead — the API '
+      + 'bootstraps its own superadmin on an empty one.',
+    );
+  }
+
+  console.log(`\n🗑️   Wiping all collections in "${dbName}" …`);
 
   await Promise.all([
     User.deleteMany({}),

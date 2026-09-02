@@ -31,3 +31,7 @@ Thumbs.db
 qa-output/
 playwright-report/
 test-results/
+
+# Operator runbook — names internal hosts and unrotated credentials.
+# This repo is PUBLIC; the runbook is handed over out of band.
+DEPLOY_V3.md
