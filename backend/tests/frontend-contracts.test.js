@@ -710,6 +710,88 @@ describe('GET /api/agents — shape consumed by loadAllData()', () => {
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+describe('POST /api/agents — contract behind the admin "New Agent" form', () => {
+  /*
+   * The form gained an "Initial password" field because omitting it produced an
+   * account nobody could ever sign into: createUser mints a random password and
+   * discards it, and Invite.mint() is reachable only from the expo referrer flow,
+   * so no invite is ever issued for an ordinary user. These tests pin the two
+   * halves the form now depends on — that a supplied password works, and that it
+   * is not quietly ignored on the edit path.
+   */
+  it('an account created with a password can immediately sign in', async () => {
+    const admin = await makeAdmin();
+
+    const created = await request(app)
+      .post('/api/agents')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({
+        name: 'Form Created', initials: 'FC', email: 'form.created@test.com',
+        phone: '9000000456', territory: 'Coimbatore', target: 400000,
+        password: 'FormPass#2026',
+      });
+    expect(created.status).toBe(201);
+    /* The hash must never come back out on the create response either. */
+    expect(created.body.data).not.toHaveProperty('password');
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'form.created@test.com', password: 'FormPass#2026' });
+    expect(login.status).toBe(200);
+    expect(login.body.data.token).toBeTruthy();
+  });
+
+  it('stores a hash, never the plaintext', async () => {
+    const admin = await makeAdmin();
+    await request(app)
+      .post('/api/agents')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ name: 'Hash Check', email: 'hash.check@test.com', password: 'HashPass#2026' });
+
+    /* `password` is select:false, so it takes an explicit +password to read it.
+       Asserted directly rather than inferred from a successful login: a login
+       proves comparePassword worked, not that the column holds a hash. */
+    const row = await User.findOne({ email: 'hash.check@test.com' }).select('+password').lean();
+    expect(row.password).not.toBe('HashPass#2026');
+    expect(row.password.startsWith('$2')).toBe(true);
+  });
+
+  it('rejects a password under 8 characters, matching the form\'s own minLength', async () => {
+    const admin = await makeAdmin();
+    const res = await request(app)
+      .post('/api/agents')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ name: 'Too Short', email: 'too.short@test.com', password: 'abc' });
+    expect(res.status).toBe(422);
+  });
+
+  it('PUT ignores a password, which is why the form hides the field when editing', async () => {
+    const admin = await makeAdmin();
+    const created = await request(app)
+      .post('/api/agents')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ name: 'Edit Me', email: 'edit.me@test.com', password: 'FirstPass#2026' });
+
+    await request(app)
+      .put(`/api/agents/${created.body.data._id}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ territory: 'Salem', password: 'SecondPass#2026' });
+
+    /* The new password did NOT take. If this ever starts passing with the second
+       password, updateUser has begun accepting the field and the form must grow a
+       real reset control instead of the "not changed here" note. */
+    const second = await request(app).post('/api/auth/login')
+      .send({ email: 'edit.me@test.com', password: 'SecondPass#2026' });
+    expect(second.status).toBe(401);
+
+    const first = await request(app).post('/api/auth/login')
+      .send({ email: 'edit.me@test.com', password: 'FirstPass#2026' });
+    expect(first.status).toBe(200);
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 describe('GET /api/products — shape consumed by loadAllData()', () => {
 
   it('res.data is an array — .map(normalizeProduct) must not throw', async () => {

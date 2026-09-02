@@ -15,7 +15,7 @@ import { api, ApiError } from '../../api/client';
 import { useMe } from '../../portal/useMe';
 import { Modal } from '../../components/Modal';
 
-type FieldType = 'text' | 'number' | 'date' | 'email' | 'select';
+type FieldType = 'text' | 'number' | 'date' | 'email' | 'select' | 'password';
 
 interface Field {
   key: string;
@@ -27,6 +27,16 @@ interface Field {
   format?: (v: unknown, row: Row) => string;
   /** type: 'select' only — the permitted values. */
   options?: Array<{ value: string; label: string }>;
+  /**
+   * Shown when adding, hidden when editing. `password` is the only one: PUT
+   * /api/users/:id strips the field (see userController.updateUser — reassignment
+   * goes through PATCH /:id/manager so subtree repair cannot be skipped), so an
+   * admin who typed a new password into the edit form would be told "saved" and
+   * change nothing. A field that silently does nothing is worse than no field.
+   */
+  createOnly?: boolean;
+  /** Rendered under the input, for a rule the input cannot express on its own. */
+  help?: string;
 }
 
 interface Row { _id: string; [k: string]: unknown }
@@ -36,8 +46,6 @@ interface EntitySpec {
   title: string;
   path: string;
   fields: Field[];
-  /** Roles below this see the table but no add/edit controls. */
-  writeRole: 'manager' | 'superadmin';
 }
 
 const money = (v: unknown) => (v == null || v === '' ? '—' : `₹${Number(v).toLocaleString('en-IN')}`);
@@ -45,7 +53,7 @@ const day = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString('en-IN')
 
 const ENTITIES: EntitySpec[] = [
   {
-    key: 'agents', title: 'Agents', path: '/agents', writeRole: 'manager',
+    key: 'agents', title: 'Agents', path: '/agents',
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
       { key: 'initials', label: 'Initials', required: true, inTable: true },
@@ -54,10 +62,22 @@ const ENTITIES: EntitySpec[] = [
       { key: 'territory', label: 'Territory', inTable: true },
       { key: 'designation', label: 'Designation' },
       { key: 'target', label: 'Monthly target (₹)', type: 'number', inTable: true, format: money },
+      /*
+       * Required, though POST /api/users treats it as optional. Omitting it there mints
+       * a random password that is immediately discarded, so the account lands in the org
+       * chart and nobody — including the admin who created it — can ever sign into it.
+       * That is only sound once invites are wired for ordinary users, and today
+       * Invite.mint() is reachable from the expo referrer flow alone. Until then the
+       * form insists, so that creating a person produces a person who can log in.
+       */
+      { key: 'password', label: 'Initial password', type: 'password', required: true,
+        createOnly: true,
+        help: 'At least 8 characters. Share it with them directly and have them change it '
+            + 'under Account → Password on first sign-in.' },
     ],
   },
   {
-    key: 'products', title: 'Products', path: '/products', writeRole: 'superadmin',
+    key: 'products', title: 'Products', path: '/products',
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
       { key: 'sku', label: 'SKU', required: true, inTable: true },
@@ -80,7 +100,7 @@ const ENTITIES: EntitySpec[] = [
     ],
   },
   {
-    key: 'expos', title: 'Expos', path: '/expos', writeRole: 'manager',
+    key: 'expos', title: 'Expos', path: '/expos',
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
       { key: 'venue', label: 'Venue', inTable: true },
@@ -91,14 +111,27 @@ const ENTITIES: EntitySpec[] = [
   },
 ];
 
-const ROLE_RANK: Record<string, number> = { superadmin: 3, manager: 2, agent: 1 };
+/*
+ * Write access is the permission the SERVER gates the route on, not a role rank.
+ *
+ * This used to be `ROLE_RANK = {superadmin:3, manager:2, agent:1}` — the v2 ladder,
+ * still standing here after the backend deleted it in Phase 0. `manager` and `agent`
+ * are not roles any more, so every V3 role scored `?? 0` and lost the add/edit
+ * controls; only superadmin still cleared the bar, by accident rather than by rule.
+ * Ranking incomparable roles is what the ladder's removal was about, and the client
+ * had quietly kept a copy.
+ */
+const WRITE_PERMISSION: Record<string, string> = {
+  agents: 'user.write',
+  products: 'catalog.write',
+  expos: 'expo.manage',
+};
 
 export function AdminPage() {
   const { data: me } = useMe();
   const [active, setActive] = useState(ENTITIES[0].key);
   const spec = ENTITIES.find((e) => e.key === active)!;
-  const role = me?.role ?? '';
-  const canWrite = (ROLE_RANK[role] ?? 0) >= ROLE_RANK[spec.writeRole];
+  const canWrite = (me?.permissions ?? []).includes(WRITE_PERMISSION[spec.key] ?? '\u0000');
 
   return (
     <>
@@ -249,9 +282,15 @@ function EntityForm({
   onCancel: () => void;
   onSubmit: (body: Record<string, unknown>) => void;
 }) {
+  /* Editing shows every field the server will actually accept, and no others. */
+  const fields = spec.fields.filter((f) => !(row && f.createOnly));
+
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(spec.fields.map((f) => {
-      const v = row ? row[f.key] : '';
+    Object.fromEntries(fields.map((f) => {
+      /* A secret is never seeded into the form, even on a create where `row` is
+         null and `row[f.key]` could not have produced one anyway. Stated as a rule
+         so that adding a second create-only secret later cannot get it wrong. */
+      const v = row && f.type !== 'password' ? row[f.key] : '';
       /* A date input needs YYYY-MM-DD; the API returns a full ISO string. */
       if (f.type === 'date' && v) return [f.key, String(v).slice(0, 10)];
       return [f.key, v == null ? '' : String(v)];
@@ -260,7 +299,7 @@ function EntityForm({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const body: Record<string, unknown> = {};
-    for (const f of spec.fields) {
+    for (const f of fields) {
       const raw = values[f.key];
       if (raw === '' && !f.required) continue;      // don't send blanks
       body[f.key] = f.type === 'number' ? Number(raw) : raw;
@@ -279,8 +318,16 @@ function EntityForm({
           </div>
         )}
 
+        {/* Say why the password box vanished, rather than letting an admin hunt for it. */}
+        {row && spec.fields.some((f) => f.type === 'password') && (
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-3)' }}>
+            // PASSWORDS ARE NOT CHANGED HERE — the account holder sets their own under
+            Account → Password
+          </div>
+        )}
+
         <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-          {spec.fields.map((f) => (
+          {fields.map((f) => (
             <div key={f.key}>
               <label className="form-label" htmlFor={`f-${f.key}`}>
                 {f.label}{f.required && <span style={{ color: 'var(--coral)' }}> *</span>}
@@ -302,11 +349,22 @@ function EntityForm({
                 <input
                   id={`f-${f.key}`}
                   className="form-input"
-                  type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : 'text'}
+                  type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : f.type === 'password' ? 'password' : 'text'}
                   required={f.required}
+                  /* Matches the server's own rule (body('password').isLength({min:8})),
+                     so a short password is refused here rather than as a 422. */
+                  minLength={f.type === 'password' ? 8 : undefined}
+                  /* 'new-password' stops the browser offering the ADMIN's saved
+                     credentials for the account they are creating for someone else. */
+                  autoComplete={f.type === 'password' ? 'new-password' : undefined}
                   value={values[f.key] ?? ''}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                 />
+              )}
+              {f.help && (
+                <div className="form-help" style={{ marginTop: 4, fontSize: 11, color: 'var(--text-3)' }}>
+                  {f.help}
+                </div>
               )}
             </div>
           ))}
