@@ -77,9 +77,21 @@ services:
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongo:27017/${MONGO_DB:-iinvsys}?authSource=admin
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      # Frontend is served from the same Nginx host, so the browser Origin
-      # matches the server and no cross-origin allowance is needed.
+      # ALL THREE OF THESE LIVED ONLY IN THE SERVER'S COPY OF THIS FILE until the V3
+      # cutover, having been hand-edited during the v2 deploy and never committed. A pull
+      # would have silently dropped them, so they are passthroughs now and the values
+      # belong in .env where the rest of the deployment config already is.
+      #
+      # config/env.js REQUIRES CORS_ORIGINS in production and refuses to boot without it —
+      # blank makes app.js reflect every origin WITH credentials:true, which is worse than
+      # not starting.
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Referrer invite links are built from this. Unset, expoController falls back to the
+      # Host header, which the client controls.
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
+      # Defaults to 'true' in app.js when unset, which loosens the CSP to allow the legacy
+      # app's CDN scripts. v2 stopped serving that app; V3 does not serve it either.
+      SERVE_LEGACY_APP: ${SERVE_LEGACY_APP:-false}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@iinvsys.com}
       # No default. initAdmin refuses to bootstrap in production without it.
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required to bootstrap the first superadmin}
