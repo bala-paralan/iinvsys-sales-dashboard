@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Nginx vhost for the IINVSYS SPA — the parts that are easy to get wrong.
+#
+# Placeholders: replace APP_HOST, APP_PORT, CERT_DIR and API_PORT.
+#
+# This file exists because the real config lives only on the server, and config
+# that lives only on a server is config a routine change silently deletes — the
+# same way three production settings vanished from docker-compose.yml between the
+# v2 and V3 cutovers. Keep this in step with the deployed file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+server {
+    listen APP_PORT ssl http2;
+    server_name APP_HOST;
+
+    ssl_certificate     /etc/letsencrypt/live/CERT_DIR/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/CERT_DIR/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    root /var/www/iinvsys;
+    index index.html;
+
+    # ── THE SPA CACHING CONTRACT ────────────────────────────────────────────
+    #
+    # Without it, browsers heuristically cache index.html. index.html names
+    # CONTENT-HASHED bundles, so a stale copy keeps requesting asset filenames
+    # that no longer exist and the user sees the PREVIOUS RELEASE indefinitely —
+    # while curl against the same URL shows the new one, because curl does not
+    # cache. That is what happened after the V3 deploy.
+    #
+    # index.html revalidates every time. It is under a kilobyte.
+    location = /index.html {
+        # WARNING: add_header inside a location REPLACES every inherited
+        # add_header. Omit these four and the security headers above are
+        # silently dropped for the two paths every visitor actually loads.
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control "no-cache, must-revalidate" always;
+        try_files $uri =404;
+    }
+
+    # Hashed assets: the filename changes whenever the content does, so these are
+    # safe to cache forever. A deploy produces new names and is picked up at once.
+    location /assets/ {
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # SPA fallback — every client route resolves to index.html.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:API_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+
+    client_max_body_size 25M;
+}
