@@ -87,6 +87,13 @@ const InstallationJobSchema = new mongoose.Schema({
   workOrder: { type: mongoose.Schema.Types.ObjectId, ref: 'WorkOrder', required: true, unique: true },
   lead:      { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', default: null },
 
+  /* The account this job is for.
+     `customerSnapshot` above is the denormalised copy taken at handoff (A24) and stays —
+     delivery and installation staff read it without touching a Lead. This is the link to
+     the Customer ENTITY, which the AMC created at sign-off hangs off and which lets an
+     installation appear in Customer 360. Nullable: jobs created before Phase 4 have none,
+     and supportService resolves it through the lead when it is missing. */
+  customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
   customerSnapshot: { type: CustomerSnapshotSchema, required: true },
 
   stage:  { type: String, enum: pipeline.INSTALL_STAGE_KEYS, default: 'planning' },
@@ -104,6 +111,28 @@ const InstallationJobSchema = new mongoose.Schema({
 
   checklists: { type: [ChecklistSchema], default: [] },
   snags:      { type: [SnagSchema], default: [] },
+
+  /* ── On-site customer sign-off (doc 4, IC-FE-04 → IC-HD-04) ────────────────
+     DISTINCT from `feedback.csat` below, which is the form dispatched 14 days after
+     handover (I-3/I-5). This is what the customer taps on the engineer's tablet as they
+     hand over — a different question at a different moment, and doc 4 shows the Install
+     Head reading THIS one when approving the sign-off. Collapsing the two would make the
+     14-day collection-rate KPI meaningless, since every job would already have a score. */
+  signOff: {
+    signatoryName:  { type: String, trim: true, default: '' },
+    signatoryTitle: { type: String, trim: true, default: '' },
+    /* The attachment storageKey of the captured signature image. */
+    signatureRef:   { type: String, trim: true, default: '' },
+    signedAt:       { type: Date, default: null },
+    csat:           { type: Number, min: 0, max: pipeline.CSAT_MAX, default: null },
+    completionReport: { type: String, trim: true, default: '' },
+    collectedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    /* The Head's decision. Approving is what creates the Contract. */
+    approval:       { type: mongoose.Schema.Types.ObjectId, ref: 'Approval', default: null },
+    approvedAt:     { type: Date, default: null },
+    approvedBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    contract:       { type: mongoose.Schema.Types.ObjectId, ref: 'Contract', default: null },
+  },
 
   /* I3 — commissioning. The DUAL signature is explicit in the framework:
      "signed by the technician and countersigned by the customer
@@ -160,6 +189,7 @@ const InstallationJobSchema = new mongoose.Schema({
 
 InstallationJobSchema.index({ stage: 1, status: 1 });
 InstallationJobSchema.index({ technician: 1 });
+InstallationJobSchema.index({ customer: 1 });
 InstallationJobSchema.index({ 'feedback.receivedAt': 1 });
 InstallationJobSchema.index({ 'correctiveAction.dueAt': 1 });
 InstallationJobSchema.index({ createdAt: -1 });

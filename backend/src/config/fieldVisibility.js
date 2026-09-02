@@ -37,7 +37,8 @@ const FIELD_PERMISSIONS = {
   /* Account rollups */
   lifetimeRevenue:  'finance.read',
   pipelineValue:    'finance.read',
-  /* Contracts (Phase 4) — doc 4: agents "cannot see AMC contract values" */
+  /* Contracts — doc 4 IC-AG-03: a CS Agent sees the AMC but not what it is worth.
+     `value` above already covers Contract.value, since matching is by leaf name. */
   contractValue:    'finance.read',
   renewalValue:     'finance.read',
   /* Staff commercial data — a target is someone's number, not an engineer's business */

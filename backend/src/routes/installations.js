@@ -13,6 +13,7 @@ const ctrl = require('../controllers/installationController');
 const { authenticate } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/rbac');
 const { attachScope } = require('../middleware/scope');
+const support = require('../controllers/supportController');
 
 /* Static before /:id */
 router.get('/csat', authenticate, requirePermission('kpi.read'), attachScope, ctrl.csatDashboard);
@@ -40,5 +41,13 @@ router.post('/:id/close', authenticate, requirePermission('feedback.log'), attac
 
 router.post('/:id/upload',
   authenticate, requirePermission('install.upload'), attachScope, ctrl.uploadMiddleware, ctrl.uploadAttachment);
+
+
+/* ── Customer sign-off (ERP Bible V3 doc 4, IC-FE-04 → IC-HD-04) ───────────
+   The engineer captures signature and CSAT on site; the Install Head approves, and that
+   approval is what creates the AMC. `install.execute` for the capture (the engineer's own
+   job), `install.handover` for the decision (the Head's). */
+router.post('/:id/sign-off', authenticate, requirePermission('install.execute'), attachScope, support.submitSignOff);
+router.post('/sign-offs/:id/decide', authenticate, requirePermission('install.handover'), attachScope, support.decideSignOff);
 
 module.exports = router;

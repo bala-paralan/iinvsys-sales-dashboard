@@ -70,6 +70,14 @@ const SCREEN = {
   PD_QC:            'pd.qc',            // PD-HD-07
   PD_DISPATCH:      'pd.dispatch',      // PD-HD-08 / PD-HD-09
   PD_GANTT:         'pd.gantt',         // PD-HD-05
+
+  /* ── Phase 4: Installation & Customer Support (document 4) ───────────────── */
+  IC_JOBS:          'ic.jobs',          // IC-HD-01 / IC-FE-01
+  IC_SIGNOFFS:      'ic.signoffs',      // IC-HD-04
+  IC_TICKETS:       'ic.tickets',       // IC-CSM-02 / IC-AG-01
+  IC_TICKET:        'ic.ticket',        // IC-AG-02
+  IC_AGENTS:        'ic.agents',        // IC-CSM-01 / IC-CSM-03
+  IC_CONTRACTS:     'ic.contracts',     // IC-CSM-04 / IC-AG-03
 };
 
 /* Route entries that appear in no sidebar — detail pages reached by clicking a row. */
@@ -305,65 +313,96 @@ const PORTALS = {
     landing: '/install-head/dashboard',
     nav: [
       { section: 'Installation', items: [
-        { label: 'Dashboard', to: '/install-head/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'All Jobs',  to: '/install-head/jobs', screen: SCREEN.INSTALL_BOARD },
+        { label: 'Dashboard',     to: '/install-head/dashboard', screen: SCREEN.IC_JOBS },
+        { label: 'All Jobs',      to: '/install-head/jobs', screen: SCREEN.INSTALL_BOARD },
+        { label: 'Sign-Off Queue', to: '/install-head/sign-offs', screen: SCREEN.IC_SIGNOFFS, badge: 'signoffs' },
       ] },
-      { section: 'Upstream', items: [
-        { label: 'Deliveries', to: '/install-head/deliveries', screen: SCREEN.DELIVERY_BOARD },
+      { section: 'CS Overview', items: [
+        /* Doc 4 IC-HD-01: the Head gets a READ-ONLY view of CS SLA health, "so they know
+           if a customer is having support issues on a newly installed product." */
+        { label: 'CS SLA Status', to: '/install-head/cs-sla', screen: SCREEN.IC_AGENTS },
+        { label: 'Contracts',     to: '/install-head/contracts', screen: SCREEN.IC_CONTRACTS },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/install-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Reports', to: '/install-head/reports', screen: SCREEN.DASHBOARD },
+        { label: 'Alerts',  to: '/install-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
     routes: [
       detail('/install-head/jobs/:id', SCREEN.INSTALL_DETAIL),
-      detail('/install-head/deliveries/:id', SCREEN.DELIVERY_DETAIL),
+      detail('/install-head/customers/:id', SCREEN.CUSTOMER_360),
     ],
   },
+
 
   cs_manager: {
     key: 'cs-mgr',
     landing: '/cs-mgr/dashboard',
     nav: [
       { section: 'Support', items: [
-        { label: 'Dashboard', to: '/cs-mgr/dashboard', screen: SCREEN.DASHBOARD },
-        { label: 'All Jobs',  to: '/cs-mgr/jobs', screen: SCREEN.INSTALL_BOARD },
+        { label: 'Dashboard',   to: '/cs-mgr/dashboard', screen: SCREEN.IC_AGENTS },
+        { label: 'All Tickets', to: '/cs-mgr/tickets', screen: SCREEN.IC_TICKETS, badge: 'tickets' },
+        { label: 'Agents',      to: '/cs-mgr/agents', screen: SCREEN.IC_AGENTS },
+      ] },
+      { section: 'Contracts', items: [
+        { label: 'AMC Tracker',      to: '/cs-mgr/contracts', screen: SCREEN.IC_CONTRACTS },
+        { label: 'Renewal Pipeline', to: '/cs-mgr/renewals', screen: SCREEN.IC_CONTRACTS, badge: 'renewals' },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/cs-mgr/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Customers', to: '/cs-mgr/customers', screen: SCREEN.CUSTOMERS },
+        { label: 'Reports',   to: '/cs-mgr/reports', screen: SCREEN.DASHBOARD },
+        { label: 'Alerts',    to: '/cs-mgr/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
-    routes: [detail('/cs-mgr/jobs/:id', SCREEN.INSTALL_DETAIL)],
+    routes: [
+      detail('/cs-mgr/tickets/:id', SCREEN.IC_TICKET),
+      detail('/cs-mgr/customers/:id', SCREEN.CUSTOMER_360),
+      detail('/cs-mgr/installation/:id', SCREEN.INSTALL_DETAIL),
+    ],
   },
+
 
   field_engineer: {
     key: 'field-eng',
-    landing: '/field-eng/jobs',
+    landing: '/field-eng/my-jobs',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Jobs', to: '/field-eng/jobs', screen: SCREEN.INSTALL_BOARD },
+        { label: 'My Jobs',  to: '/field-eng/my-jobs', screen: SCREEN.IC_JOBS },
+        { label: 'My Tasks', to: '/field-eng/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
       ] },
       { section: 'Account', items: [
         { label: 'Alerts', to: '/field-eng/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
+    /* No CS tickets, no contracts, no other engineer's jobs. */
     routes: [detail('/field-eng/jobs/:id', SCREEN.INSTALL_DETAIL)],
   },
+
 
   /* Doc 4: "You are viewing only your own tickets." */
   cs_agent: {
     key: 'cs-agent',
-    landing: '/cs-agent/jobs',
+    landing: '/cs-agent/my-tickets',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Jobs', to: '/cs-agent/jobs', screen: SCREEN.INSTALL_BOARD },
+        { label: 'My Tickets', to: '/cs-agent/my-tickets', screen: SCREEN.IC_TICKETS, badge: 'tickets' },
+        { label: 'My Tasks',   to: '/cs-agent/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+      ] },
+      { section: 'Reference', items: [
+        /* IC-AG-03: read-only, and the values are stripped server-side. */
+        { label: 'AMC Reference', to: '/cs-agent/contracts', screen: SCREEN.IC_CONTRACTS },
       ] },
       { section: 'Account', items: [
         { label: 'Alerts', to: '/cs-agent/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
-    routes: [detail('/cs-agent/jobs/:id', SCREEN.INSTALL_DETAIL)],
+    /* No agent comparison, no team SLA, no renewal pipeline. Doc 4 IC-AG-01. */
+    routes: [
+      detail('/cs-agent/tickets/:id', SCREEN.IC_TICKET),
+      detail('/cs-agent/customers/:id', SCREEN.CUSTOMER_360),
+    ],
   },
+
 
   /* ── Platform ────────────────────────────────────────────────────────────── */
   superadmin: {

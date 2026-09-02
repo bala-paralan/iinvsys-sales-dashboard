@@ -12,6 +12,40 @@ Lead, Agent & Expo Management Platform → three-process ERP (Sales · Delivery 
 
 ---
 
+## v3.4.0 — Installation & Customer Support (ERP Bible V3, document 4)
+
+Branch `release/erp-three-process`. Seventeen screens across Install Head, CS Manager,
+Field Engineer and CS Agent. **The V3 programme is complete**: all four modules built.
+
+**The loop closes here.** An expiring AMC becomes a Suspect-stage deal through
+`salesEntryService.mintSalesLead()` — the same entry point Inside Sales and direct creation
+use — assigned to the executive who closed the ORIGINAL deal rather than whoever owns the
+account today. Installed → AMC → renewal → back into SPENCO.
+
+**Doc 4 lists four things a CS Agent must not see, and each is refused by a different
+mechanism**: other agents' tickets by the scope resolver, SLA comparisons and team
+statistics by `kpi.read_team`, and AMC values by the response chokepoint. All four are
+asserted separately, because one test that "an agent sees less" would pass with three of
+them broken.
+
+**SLA targets are stamped at creation and frozen.** A countdown against a target that
+moves when policy changes is worse than no countdown. A breach, once recorded, is never
+cleared by a later resolution.
+
+`Ticket` is deliberately NOT `InstallationJob.postSupport.issues[]`. Those gate one job's
+Feedback stage; a ticket belongs to the customer and outlives the job.
+
+### Fixed while building
+
+- **`InstallationJob` had no link to the `Customer` entity.** Phase 0 added `Lead.customer`
+  but the job created by Handoff 2 never carried one, so the AMC created at sign-off had
+  nothing to attach to and the installation could not appear in Customer 360. Handoff 2 now
+  propagates it, and `supportService` resolves it through the lead or the customer snapshot
+  for jobs that predate the field.
+
+Backend: 52 suites, 1,803 passing, 28 skipped, 0 failing. Frontend typechecks and builds.
+
+
 ## v3.3.0 — Production & Delivery (ERP Bible V3, document 3)
 
 Branch `release/erp-three-process`. Fifteen screens across Production Head and Engineer,

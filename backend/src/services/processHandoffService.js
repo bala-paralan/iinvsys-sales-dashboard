@@ -215,10 +215,21 @@ async function createInstallationJobForWorkOrder(workOrder, req) {
       return await InstallationJob.findById(workOrder.installationJob);
     }
 
+    /* The Work Order deliberately never populates its lead (A24), so read just the one
+       field the installation needs. A missing lead is not fatal — the job is still valid,
+       and supportService resolves the customer again at sign-off. */
+    const Lead = require('../models/Lead');
+    const upstreamLead = workOrder.lead
+      ? await Lead.findById(workOrder.lead).select('customer').lean()
+      : null;
+
     const payload = () => ({
       jobNumber: nextJobNumber(),
       workOrder: workOrder._id,
       lead: workOrder.lead,
+      /* Carry the Customer link down the chain. Without it the AMC created at sign-off
+         has nothing to attach to, and the installation never appears in Customer 360. */
+      customer: upstreamLead ? upstreamLead.customer : null,
       customerSnapshot: workOrder.customerSnapshot,
       checklists: checklistsFromTemplates(),
       createdBy: req && req.user ? req.user._id : null,

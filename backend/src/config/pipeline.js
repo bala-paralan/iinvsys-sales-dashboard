@@ -214,6 +214,52 @@ const SPENCO_MIN_TOTAL = 18;
 const SPENCO_SUB_GATES = { evidenceOfNeed: 3, size: 2 };
 
 /* ══════════════════════════════════════════════════════════════════════════
+   CUSTOMER SUPPORT  (ERP Bible V3, document 4)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Ticket priority drives the SLA clock. Doc 4 IC-AG-02 shows "SLA Target 4h (Critical)"
+ * against a ticket that has breached, and IC-CSM-02 renders a live countdown per row —
+ * so the hours are per priority, not one global figure.
+ *
+ * Held as data for the same reason the discount bands are: an SLA is a commercial
+ * commitment that changes without the software changing.
+ */
+const TICKET_PRIORITIES = [
+  { key: 'critical', label: 'Critical', slaHours: 4,  color: 'var(--coral)' },
+  { key: 'high',     label: 'High',     slaHours: 8,  color: 'var(--amber)' },
+  { key: 'medium',   label: 'Medium',   slaHours: 24, color: 'var(--azure)' },
+  { key: 'low',      label: 'Low',      slaHours: 48, color: 'var(--text-3)' },
+];
+const TICKET_PRIORITY_KEYS = TICKET_PRIORITIES.map((p) => p.key);
+
+const TICKET_STATUSES = ['open', 'in_progress', 'awaiting_customer', 'resolved', 'closed'];
+
+/* Doc 4 IC-AG-02's "Issue Type" — what broke, not how urgent it is. */
+const TICKET_ISSUE_TYPES = [
+  { key: 'hardware_fault',   label: 'Hardware fault' },
+  { key: 'sensor_offline',   label: 'Sensor / device offline' },
+  { key: 'firmware',         label: 'Firmware' },
+  { key: 'integration_api',  label: 'Integration / API' },
+  { key: 'dashboard_data',   label: 'Dashboard / data' },
+  { key: 'training_query',   label: 'Training or how-to' },
+  { key: 'other',            label: 'Other' },
+];
+
+/** SLA hours for a priority; falls back to the slowest band rather than to zero. */
+function ticketSlaHours(priority, rules) {
+  const list = R(rules).ticketPriorities || TICKET_PRIORITIES;
+  const p = list.find((x) => x.key === priority);
+  return p ? p.slaHours : list[list.length - 1].slaHours;
+}
+
+/* Doc 4: "AMC Created ... 1-year standard" on sign-off, and renewal is chased from 30
+   days out (IC-CSM-04 "AMC Renewals Due in 30 Days"). */
+const CONTRACT_TYPES = ['amc', 'warranty'];
+const CONTRACT_DEFAULT_MONTHS = 12;
+const CONTRACT_RENEWAL_WINDOW_DAYS = 30;
+
+/* ══════════════════════════════════════════════════════════════════════════
    DISCOUNT AUTHORITY  (ERP Bible V3, document 2)
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -855,6 +901,9 @@ const DEFAULT_RULES = Object.freeze({
      law of the system — the band edges are the sort of thing a Sales Director moves. */
   discountTiers: Object.freeze(DISCOUNT_TIERS.map((t) => Object.freeze({ ...t }))),
 
+  /* Doc 4's support SLA. A commercial commitment, so it is tunable without a deploy. */
+  ticketPriorities: Object.freeze(TICKET_PRIORITIES.map((t) => Object.freeze({ ...t }))),
+
   /* A5 — percentage points, not relative percent. */
   probabilityOverrideMaxPoints: PROBABILITY_OVERRIDE_MAX_POINTS,
 
@@ -1423,6 +1472,8 @@ function serialize(rules) {
       docTypes: DOC_TYPES, delayReasonCodes: DELAY_REASON_CODES, snagSeverities: SNAG_SEVERITIES,
       bantDimensions: BANT_DIMENSIONS, leadPriorities: LEAD_PRIORITIES,
       discountTiers: r.discountTiers,
+      ticketPriorities: r.ticketPriorities, ticketStatuses: TICKET_STATUSES,
+      ticketIssueTypes: TICKET_ISSUE_TYPES, contractTypes: CONTRACT_TYPES,
       isAssignmentModes: IS_ASSIGNMENT_MODES,
     },
     spenco: {
@@ -1456,6 +1507,8 @@ module.exports = {
   /* stage tables */
   IS_STAGES, SALES_STAGES, DELIVERY_STAGES, INSTALL_STAGES,
   DISCOUNT_TIERS, discountTierFor, discountSelfApproved,
+  TICKET_PRIORITIES, TICKET_PRIORITY_KEYS, TICKET_STATUSES, TICKET_ISSUE_TYPES,
+  ticketSlaHours, CONTRACT_TYPES, CONTRACT_DEFAULT_MONTHS, CONTRACT_RENEWAL_WINDOW_DAYS,
   SALES_STAGE_KEYS, DELIVERY_STAGE_KEYS, INSTALL_STAGE_KEYS,
   TERMINAL_SALES_STAGES, OPEN_SALES_STAGES, WON_STAGE, LOST_STAGE,
   IS_STAGE_KEYS, IS_TERMINAL_STAGES, IS_OPEN_STAGES,

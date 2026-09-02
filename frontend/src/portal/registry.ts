@@ -54,6 +54,14 @@ import { QcQueuePage } from '../features/production/QcQueuePage';
 import { DispatchPage } from '../features/production/DispatchPage';
 import { GanttPage } from '../features/production/GanttPage';
 
+/* Phase 4 — Installation & Customer Support (ERP Bible V3, document 4) */
+import { InstallJobsPage } from '../features/support/InstallJobsPage';
+import { SignOffQueuePage } from '../features/support/SignOffQueuePage';
+import { TicketQueuePage } from '../features/support/TicketQueuePage';
+import { TicketDetailPage } from '../features/support/TicketDetailPage';
+import { AgentPerformancePage } from '../features/support/AgentPerformancePage';
+import { ContractsPage } from '../features/support/ContractsPage';
+
 export const SCREENS: Record<string, ComponentType> = {
   'kpi.dashboard':      DashboardPage,
   'lead.board':         LeadsPage,
@@ -96,6 +104,14 @@ export const SCREENS: Record<string, ComponentType> = {
   'pd.qc':              QcQueuePage,              // PD-HD-07
   'pd.dispatch':        DispatchPage,             // PD-HD-08 / PD-HD-09
   'pd.gantt':           GanttPage,                // PD-HD-05
+
+  /* Phase 4 — Installation & Customer Support */
+  'ic.jobs':            InstallJobsPage,          // IC-HD-01 / IC-FE-01
+  'ic.signoffs':        SignOffQueuePage,         // IC-HD-04
+  'ic.tickets':         TicketQueuePage,          // IC-CSM-02 / IC-AG-01
+  'ic.ticket':          TicketDetailPage,         // IC-AG-02
+  'ic.agents':          AgentPerformancePage,     // IC-CSM-01 / IC-CSM-03
+  'ic.contracts':       ContractsPage,            // IC-CSM-04 / IC-AG-03
 };
 
 export function componentFor(screen: string): ComponentType | null {

@@ -20,6 +20,7 @@ router.use('/notifications', require('./notifications'));
 router.use('/workorders', require('./workorders'));
 router.use('/production', require('./production'));
 router.use('/installations', require('./installations'));
+router.use('/',          require('./support'));
 router.use('/kpis',       require('./kpis'));
 router.use('/customers',    require('./customers'));
 router.use('/activities',   require('./activities'));

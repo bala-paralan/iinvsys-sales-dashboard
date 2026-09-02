@@ -137,6 +137,39 @@ Handoff 1 and its idempotency, and then the two would disagree about what exists
 `assignedEngineer` is singular; splitting needs a per-step assignee and a rule for whose
 QC counts, which is a design question rather than an omission.
 
+## ERP Bible V3 — Phase 4 (Installation & Customer Support, document 4)
+
+Seventeen screens across four roles, and the phase that closes the specification's loop:
+an expiring AMC becomes a Suspect-stage deal, rejoining document 2.
+
+| # | Requirement (doc 4) | Status | Implementation | Verified by |
+|---|---|---|---|---|
+| IC-1 | Ticket SLA by priority — Critical 4h, High 8h, Medium 24h, Low 48h | ✅ | `TICKET_PRIORITIES` in `config/pipeline.js`, runtime-tunable. The due time is **stamped at creation and frozen**: a countdown against a target that silently moves when policy changes is worse than no countdown | `tests/40-support.test.js` |
+| IC-2 | Escalation re-derives the clock | ✅ | `Ticket.pre('validate')` recomputes on a priority change — an escalation to Critical that kept a 48-hour target would mean nothing | `tests/40-support.test.js` |
+| IC-3 | A breach is permanent | ✅ | `slaBreached` is set when the clock runs out and is **not** cleared by a later resolution. A breach that disappears once someone fixes the ticket is a breach nobody reports | `tests/40-support.test.js` |
+| IC-4 | CS Agents see only their own tickets | ✅ | `attachScope` on `assignedTo`; another agent's ticket answers **404, not 403** | `tests/40-support.test.js` |
+| IC-5 | No SLA comparison or team statistics for agents | ✅ | `GET /tickets/sla` behind `kpi.read_team`. Refused outright rather than filtered — a leaderboard of one is still a leaderboard | `tests/40-support.test.js` |
+| IC-6 | Agents cannot see AMC contract values | ✅ | `config/fieldVisibility.js` strips `value`/`renewalValue` at the response chokepoint. **The rows are still visible** — doc 4 IC-AG-03 is a read-only AMC reference, not a hidden one | `tests/40-support.test.js` |
+| IC-7 | Reassignment is the CS Manager's | ✅ | `POST /tickets/:id/assign` behind `kpi.read_team`; an agent raising a ticket gets it on their own queue regardless of what they ask for | `tests/40-support.test.js` |
+| IC-8 | Resolution requires saying how | ✅ | 400 without one. The next agent to open the ticket needs it, and "fixed" is not a handover | `tests/40-support.test.js` |
+| IC-9 | On-site sign-off: signature + CSAT on a tablet (IC-FE-04) | ✅ | `POST /installations/:id/sign-off`. `signOff.csat` is **distinct from `feedback.csat`**, which is the form dispatched 14 days later — collapsing them would make the collection-rate KPI (I-3/K-6) meaningless since every job would already have a score | `tests/40-support.test.js` |
+| IC-10 | The Install Head approves, and the AMC is created (IC-HD-04) | ✅ | `POST /installations/sign-offs/:id/decide`. Idempotent through `signOff.contract`; a field engineer cannot approve their own | `tests/40-support.test.js` |
+| IC-11 | AMC renewal → Sales as Suspect (IC-CSM-04) | ✅ | `POST /contracts/:id/push-to-sales` through `salesEntryService.mintSalesLead()` — the same entry point Inside Sales and direct creation use. Assigned to **the executive who closed the original deal** (`Contract.originDeal`), not whoever owns the account today. Idempotent via `renewalLead` | `tests/40-support.test.js` |
+| IC-12 | Field engineers see only their own jobs | ✅ | `attachScope` on `technician`, unchanged from v2 | `tests/40-support.test.js` |
+| IC-13 | The Install Head gets a read-only CS SLA panel (IC-HD-01) | ✅ | `install_head` holds `kpi.read_team` and `support.manage`; doc 4 gives the reason — "so they know if a customer is having support issues on a newly installed product" | — (rendered from IC-5's endpoint) |
+
+**A gap this phase closed.** `InstallationJob` had no link to the `Customer` entity —
+Phase 0 added `Lead.customer` but the job created by Handoff 2 never carried one, so an
+AMC had nothing to attach to. Handoff 2 now propagates it, and `supportService` resolves
+it through the lead or the snapshot for jobs that predate the field.
+
+**Deliberately kept separate.** `Ticket` is NOT `InstallationJob.postSupport.issues[]`.
+Those are issues inside one job's seven-day support window and they gate that job's
+Feedback stage (I-11). A Ticket belongs to the customer and outlives the job — doc 4's own
+example is a sensor failing under a live AMC months after the install closed. Merging them
+would give either a job that cannot close because a ticket is open, or a ticket that
+vanishes when it does.
+
 ## Sales Module
 
 | # | Requirement (verbatim intent) | Status | Implementation / gap | Verified by |
