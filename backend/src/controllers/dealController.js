@@ -73,10 +73,14 @@ async function board(req, res, next) {
 /** Per-person performance, scoped. An executive holds no kpi.read_team, so cannot ask. */
 async function teamPerformance(req, res, next) {
   try {
-    const ids = req.scope.userIds === null
+    /* The caller's team, not the caller. Doc 2 SA-MGR-01 keeps them apart on purpose:
+       "My Executives" is one panel and "My Own Deals" is a separate one, so a manager's
+       own pipeline never inflates their team's numbers. */
+    const ids = (req.scope.userIds === null
       ? (await User.find({ role: { $in: ['sales_manager', 'sales_executive'] }, isActive: true })
         .select('_id').lean()).map((u) => u._id)
-      : req.scope.userIds;
+      : req.scope.userIds
+    ).filter((id) => String(id) !== String(req.user._id));
 
     const [rows, activity] = await Promise.all([
       Lead.aggregate([

@@ -58,6 +58,20 @@ export function ProductionOrderPage() {
     onError: onErr,
   });
 
+  /* Doc 3 PD-ENG-02 puts a photo against each completed step as proof. The endpoint and
+     the API wrapper existed from the start; there was no control to reach them, which is
+     the same defect class as v2.0.1 — a backend that enforces something the UI offers no
+     way to satisfy. */
+  const photo = useMutation({
+    mutationFn: ({ stepId, file }: { stepId: string; file: File }) => {
+      const form = new FormData();
+      form.append('file', file);
+      return prodApi.stepPhoto(id, stepId, form);
+    },
+    onSuccess: () => after('Photo attached'),
+    onError: onErr,
+  });
+
   const flag = useMutation({
     mutationFn: () => prodApi.flagIssue(id, { description: issue, severity: 'high' }),
     onSuccess: () => { setIssue(''); after('Issue flagged to the Production Head'); },
@@ -160,11 +174,33 @@ export function ProductionOrderPage() {
                     </div>
                   )}
                 </div>
-                {!isHead && s.status !== 'done' && (
-                  <button className="neo-btn" disabled={step.isPending}
-                    onClick={() => step.mutate({ stepId: s._id, status: 'done' })}>
-                    ✓ Mark complete
-                  </button>
+                {!isHead && (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* A label wrapping a hidden input: the file picker styled as a button,
+                        without losing the keyboard and screen-reader behaviour of a real
+                        <input type="file">. */}
+                    <label className="neo-btn" style={{ cursor: 'pointer', margin: 0 }}>
+                      {s.photo ? '📷 Replace photo' : '📷 Upload photo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        aria-label={`Photo for step ${s.order}: ${s.label}`}
+                        disabled={photo.isPending}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) photo.mutate({ stepId: s._id, file });
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {s.status !== 'done' && (
+                      <button className="neo-btn" disabled={step.isPending}
+                        onClick={() => step.mutate({ stepId: s._id, status: 'done' })}>
+                        ✓ Mark complete
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

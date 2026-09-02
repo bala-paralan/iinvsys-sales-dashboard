@@ -39,6 +39,27 @@ export function MyDashboardPage() {
   });
 
   const mine = compliance?.users?.[0];
+
+  /* The monthly target panel. `me.target` is the executive's own figure from the org
+     chart; 10 is the doc's worked example and the fallback when nobody has set one. */
+  const monthlyTarget = (me as any)?.target || 10;
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const qualifiedThisMonth = leads.filter((l) =>
+    ['is_qualified', 'is_handoff_requested', 'is_converted'].includes(l.isStage)
+    && new Date(l.createdAt) >= monthStart).length;
+  const pctToTarget = monthlyTarget
+    ? Math.round((qualifiedThisMonth / monthlyTarget) * 100) : 0;
+  const shortfall = Math.max(0, monthlyTarget - qualifiedThisMonth);
+  const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  /* Mon-Fri remaining in this month, today included. */
+  const workingDaysLeft = (() => {
+    const d = new Date(); const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    let n = 0;
+    for (const c = new Date(d); c <= end; c.setDate(c.getDate() + 1)) {
+      if (c.getDay() !== 0 && c.getDay() !== 6) n += 1;
+    }
+    return n;
+  })();
   const open = leads.filter((l) => !['is_converted', 'is_lost'].includes(l.isStage));
   const qualified = leads.filter((l) => ['is_qualified', 'is_handoff_requested', 'is_converted'].includes(l.isStage));
   const noContact = open.filter((l) => !l.lastActivityAt);
@@ -60,6 +81,36 @@ export function MyDashboardPage() {
         <Tile label="Logged today" value={String(mine?.loggedToday ?? 0)}
           hint={`Daily target: ${compliance?.dailyTarget ?? 5}`}
           tone={(mine?.loggedToday ?? 0) === 0 ? 'var(--amber)' : undefined} />
+      </div>
+
+      {/* Doc 1 IS-EX-01 draws this as its own panel: "My Monthly Target — Qualified Leads:
+          6 of 10, 60%, 11 working days left in August." The point is the gap and the time
+          left to close it, which four flat tiles do not convey. */}
+      <div className="card" style={{ padding: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+          <h3 style={{ margin: 0 }}>My monthly target</h3>
+          <span style={{ color: 'var(--text-3)', fontSize: 12 }}>
+            {monthLabel} · {workingDaysLeft} working day{workingDaysLeft === 1 ? '' : 's'} left
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 }}>
+          <span>Qualified leads: <strong>{qualifiedThisMonth}</strong> of {monthlyTarget}</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 22,
+            color: pctToTarget >= 100 ? 'var(--emerald)' : pctToTarget >= 60 ? 'var(--gold)' : 'var(--coral)' }}>
+            {pctToTarget}%
+          </span>
+        </div>
+        <div style={{ height: 10, background: 'var(--surface-3)', marginTop: 8 }}>
+          <div style={{
+            height: '100%', width: `${Math.min(100, pctToTarget)}%`,
+            background: pctToTarget >= 100 ? 'var(--emerald)' : 'var(--gold)',
+          }} />
+        </div>
+        {shortfall > 0 && (
+          <div style={{ color: 'var(--text-3)', fontSize: 12, marginTop: 6 }}>
+            {shortfall} more qualification{shortfall === 1 ? '' : 's'} needed to hit target.
+          </div>
+        )}
       </div>
 
       <h3>Today's tasks</h3>

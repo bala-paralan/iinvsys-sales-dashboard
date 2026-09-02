@@ -55,7 +55,7 @@ export function IsTeamPage() {
               <thead>
                 <tr>
                   {['IS Executive', 'Assigned', 'Contacted', 'Qualified', 'Lost',
-                    'Qual. rate', 'Last activity', ''].map((h) => (
+                    'Qual. rate', 'Activity today', 'vs target', 'Last activity', ''].map((h) => (
                     <th key={h} className="table-th">{h}</th>
                   ))}
                 </tr>
@@ -76,6 +76,24 @@ export function IsTeamPage() {
                     <td style={{ padding: '10px 8px' }}>{row.lost}</td>
                     <td style={{ padding: '10px 8px' }}>
                       {row.qualificationRate === null ? '—' : `${row.qualificationRate}%`}
+                    </td>
+                    {/* Doc 1: an executive with nothing logged today is the thing the
+                        Head is meant to notice before end of day. */}
+                    {/* Guarded against a field the server did not send. During a rolling
+                        deploy the two halves are briefly different versions, and a column
+                        that renders the string "undefined" is worse than one showing a
+                        dash. */}
+                    <td style={{ padding: '10px 8px',
+                      color: row.loggedToday ? 'var(--emerald)' : 'var(--amber)' }}>
+                      {row.loggedToday === undefined || row.loggedToday === null
+                        ? '—'
+                        : row.loggedToday === 0
+                          ? '⚠ 0 today'
+                          : `✓ ${row.loggedToday}${data.dailyActivityTarget ? ` / ${data.dailyActivityTarget}` : ''}`}
+                    </td>
+                    <td style={{ padding: '10px 8px',
+                      color: typeof row.vsTarget === 'number' && row.vsTarget < 60 ? 'var(--coral)' : undefined }}>
+                      {typeof row.vsTarget === 'number' ? `${row.vsTarget}%` : '—'}
                     </td>
                     <td style={{ padding: '10px 8px', color: SEVERITY_COLOR[row.lastActivity?.severity ?? 'ok'] }}>
                       {row.lastActivity?.lastAt ? relTime(row.lastActivity.lastAt) : '⚠ never'}

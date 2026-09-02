@@ -362,11 +362,16 @@ async function decideHandoff(req, res, next) {
 
 async function teamPerformance(req, res, next) {
   try {
-    const ids = req.scope.userIds === null
+    /* The people BELOW the caller, never the caller. Doc 1 IS-HD-01 draws this as
+       "Exec Performance — My Team": a list of the executives, with the Head's own numbers
+       nowhere in it. `req.scope.userIds` deliberately includes self — it answers "whose
+       rows may I read" — so a performance table has to drop it explicitly. */
+    const ids = (req.scope.userIds === null
       ? (await User.find({ role: 'is_executive', isActive: true }).select('_id').lean()).map((u) => u._id)
-      : req.scope.userIds;
+      : req.scope.userIds
+    ).filter((id) => String(id) !== String(req.user._id));
 
-    const [rows, lastActivity] = await Promise.all([
+    const [rows, lastActivity, todayCounts] = await Promise.all([
       Lead.aggregate([
         { $match: { ...IS_TRACK, owner: { $in: ids } } },
         { $group: {
@@ -378,12 +383,17 @@ async function teamPerformance(req, res, next) {
         } },
       ]),
       activityService.lastActivityFor(ids),
+      /* Doc 1 IS-HD-01 shows "✓ 4 activities" / "⚠ 0 activities today" per executive —
+         today's count, not the last timestamp. They answer different questions: one is
+         "are they working now", the other "when did they last touch anything". */
+      Promise.all(ids.map(async (id) => ({ id, n: await activityService.dailyCount(id) }))),
     ]);
 
     const users = await User.find({ _id: { $in: ids } })
       .select('name role initials color target').lean();
     const stats = new Map(rows.map((r) => [String(r._id), r]));
     const activity = new Map(lastActivity.map((a) => [String(a.user), a]));
+    const today = new Map(todayCounts.map((t) => [String(t.id), t.n]));
 
     return ok(res, {
       execs: users.map((u) => {
@@ -396,10 +406,16 @@ async function teamPerformance(req, res, next) {
           /* The orange-at-24h / red-at-48h cell that "replaces the need for the Director
              to ask what did you do today". */
           lastActivity: activity.get(String(u._id)) || null,
+          loggedToday: today.get(String(u._id)) || 0,
+          /* Doc 1's "vs Target" column: qualifications against the executive's own
+             monthly figure from the org chart. Null when nobody has set one — an
+             invented denominator would make the column lie. */
+          vsTarget: u.target ? Math.round((s.qualified / u.target) * 100) : null,
         };
       }),
       unassigned: await Lead.countDocuments({ ...IS_TRACK, owner: null }),
       handoffsPending: await Approval.countDocuments({ kind: 'is_handoff', status: 'pending' }),
+      dailyActivityTarget: activityService.DAILY_ACTIVITY_TARGET,
     });
   } catch (err) { next(err); }
 }

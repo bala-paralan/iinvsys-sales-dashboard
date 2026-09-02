@@ -363,6 +363,32 @@ describe('Inside Sales', () => {
       expect(row.qualificationRate).toBe(50);
     });
 
+    it('does not list the IS Head as one of their own executives', async () => {
+      /* Doc 1 IS-HD-01 is "Exec Performance — My Team": the executives, with the Head's
+         own numbers nowhere in it. `scope.userIds` includes self because it answers
+         "whose rows may I read", so a performance table has to drop it explicitly — and
+         it did not, so the Head appeared as a row in their own table. */
+      const t = await isTeam();
+      const res = await request(app).get('/api/is/team').set(auth(t.head.token));
+
+      const ids = res.body.data.execs.map((e) => String(e.user._id));
+      expect(ids).not.toContain(String(t.head.id));
+      expect(ids).toEqual(expect.arrayContaining([String(t.execA.id), String(t.execB.id)]));
+    });
+
+    it('reports activity today and progress against target per executive', async () => {
+      /* The two columns doc 1 draws and the first version omitted. */
+      const t = await isTeam();
+      const res = await request(app).get('/api/is/team').set(auth(t.head.token));
+      const row = res.body.data.execs.find((e) => String(e.user._id) === String(t.execA.id));
+
+      expect(row).toHaveProperty('loggedToday');
+      expect(row).toHaveProperty('vsTarget');
+      expect(res.body.data.dailyActivityTarget).toBe(5);
+      /* Null, not 0 — an invented denominator would make the column lie. */
+      expect(row.vsTarget).toBeNull();
+    });
+
     it('is refused to an executive — no peer comparison', async () => {
       const t = await isTeam();
       const res = await request(app).get('/api/is/team').set(auth(t.execA.token));

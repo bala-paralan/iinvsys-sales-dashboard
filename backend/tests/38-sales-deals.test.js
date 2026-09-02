@@ -317,6 +317,17 @@ describe('Sales — discounts and commercial orders', () => {
       expect((await request(app).get('/api/deals/team').set(auth(o.execA.token))).status).toBe(403);
     });
 
+    it('does not list the manager as one of their own executives', async () => {
+      /* Doc 2 SA-MGR-01 keeps "My Executives" and "My Own Deals" apart on purpose, so a
+         manager's own pipeline never inflates their team's numbers. */
+      const o = await salesOrg();
+      const res = await request(app).get('/api/deals/team').set(auth(o.mgr1.token));
+
+      const ids = res.body.data.people.map((p) => String(p.user._id));
+      expect(ids).not.toContain(String(o.mgr1.id));
+      expect(ids).toEqual(expect.arrayContaining([String(o.execA.id)]));
+    });
+
     it('shows a manager their own two executives', async () => {
       const o = await salesOrg();
       await dealFor(o.execA.id);

@@ -75,12 +75,17 @@ export interface ExecRow {
     hoursSince: number | null;
     severity: 'ok' | 'warn' | 'alert';
   } | null;
+  /* Doc 1 IS-DIR-01 / IS-HD-01 show both against each executive. */
+  /* Optional: a client can be a version ahead of the API during a rolling deploy. */
+  loggedToday?: number;
+  vsTarget?: number | null;
 }
 
 export interface TeamPerformance {
   execs: ExecRow[];
   unassigned: number;
   handoffsPending: number;
+  dailyActivityTarget?: number;
 }
 
 export interface Approval {

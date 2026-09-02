@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi, money } from './api';
-import { ApiError } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { usePipeline } from '../../meta/usePipeline';
 import { relTime } from '../insideSales/ActivityTimeline';
 
@@ -43,6 +43,12 @@ export function SalesApprovalsPage() {
       }),
     onSuccess: (r) => { setError(null); setDone(r.message ?? 'Recorded'); refresh(); },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not record the decision'),
+  });
+
+  const escalate = useMutation({
+    mutationFn: (id: string) => api('POST', `/approvals/${id}/escalate`, { note: notes[id] || '' }),
+    onSuccess: () => { setError(null); setDone('Escalated to the Director'); refresh(); },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not escalate'),
   });
 
   const confirmCo = useMutation({
@@ -137,6 +143,13 @@ export function SalesApprovalsPage() {
                 <button className="neo-btn" disabled={decideDiscount.isPending}
                   onClick={() => decideDiscount.mutate({ id: a._id, status: 'returned' })}>
                   ↩ Send back
+                </button>
+                {/* Doc 2 SA-MGR-08: a Manager who will not grant a discount inside their
+                    own band passes it up rather than refusing it — the request moves to
+                    the Director with its justification intact. */}
+                <button className="neo-btn" disabled={escalate.isPending}
+                  onClick={() => escalate.mutate(a._id)}>
+                  ⬆ Escalate to Director
                 </button>
               </div>
             </div>
