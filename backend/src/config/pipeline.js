@@ -31,6 +31,18 @@ const LEAD_SOURCES = [
   { key: 'inside_sales_outbound', label: 'Inside Sales Outbound' },
   { key: 'inbound_enquiry',       label: 'Inbound Enquiry' },
   { key: 'social_media',          label: 'Social Media' },
+  /* Director origination — ERP Bible V3 doc 1 IS-DIR-03 and doc 2 SA-DIR-04 both draw
+     these as their own Source options, and both keep them separate from the generic list
+     above. They are not decoration: doc 1 IS-DIR-05's source report is what tells the
+     Director whether their own board-room and ministry contacts convert better than the
+     outbound programme, and folding them into `referral` makes that unanswerable.
+     `LinkedIn` is deliberately NOT among them — doc 1 lists it as a generic source, so
+     it stays `social_media` rather than existing twice under two names. */
+  { key: 'director_board_meeting',   label: 'Director Origination — Board Meeting' },
+  { key: 'director_trade_show',      label: 'Director Origination — Trade Show / Expo' },
+  { key: 'director_ministry',        label: 'Director Origination — Ministry Contact' },
+  { key: 'director_cxo',             label: 'Director Origination — CXO Relationship' },
+  { key: 'director_referral',        label: 'Director Origination — Strategic Referral' },
 ];
 
 const COMPANY_TYPES = [

@@ -18,7 +18,7 @@ const BantDimensionSchema = new mongoose.Schema({
 }, { _id: false });
 
 const {
-  COMPANY_TYPE_KEYS, INDUSTRY_SEGMENT_KEYS, ZONE_KEYS,
+  COMPANY_TYPE_KEYS, INDUSTRY_SEGMENT_KEYS, ZONE_KEYS, DOMAIN_KEYS,
   COMPETITOR_KEYS, LOST_TO_KEYS, SUBSCRIPTION_KEYS, AMC_KEYS,
 } = pipeline;
 
@@ -172,6 +172,13 @@ const LeadSchema = new mongoose.Schema({
      fields, and enrichment may suggest a segment but never writes one. */
   industrySegment: { type: String, enum: opt(INDUSTRY_SEGMENT_KEYS), default: '' },
   zone:            { type: String, enum: opt(ZONE_KEYS), default: '' },
+  /* Doc 2 SA-DIR-04 makes "Domain *" a required field on the Director's origination
+     form, and doc 2's org chart is organised along it — one Sales Manager per domain.
+     SEPARATE from `industrySegment` for the reason config/pipeline.js gives: a customer
+     can be `electronics` by segment and `defence` by sales domain. Denormalised onto the
+     lead as well as the Customer because the routing decision is made at capture, before
+     an account necessarily exists. */
+  domain:          { type: String, enum: DOMAIN_KEYS, default: 'none' },
 
   /* Opportunity */
   opportunityName:  { type: String, trim: true, default: '' },
@@ -288,6 +295,8 @@ LeadSchema.index({ expectedCloseDate: 1 });
 LeadSchema.index({ stageEnteredAt: 1 });
 LeadSchema.index({ zone: 1 });
 LeadSchema.index({ companyType: 1 });
+/* SA-DIR-01's manager tabs filter the board by domain. */
+LeadSchema.index({ track: 1, domain: 1 });
 LeadSchema.index({ 'stageHistory.to': 1, 'stageHistory.at': 1 });
 
 /* ── Derivations ──────────────────────────────────────────────────────────

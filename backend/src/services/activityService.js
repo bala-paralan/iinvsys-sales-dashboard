@@ -109,6 +109,33 @@ async function dailyCount(userId, date = new Date()) {
 }
 
 /**
+ * What one person has logged today, split by type.
+ *
+ * Doc 2 SA-EX-04 draws this beside the form — "📞 Calls 2 logged · 📧 Emails 1 logged ·
+ * 🤝 Visits 0 · Total today 3 + this one = 4 · Daily target: 5 activities. 1 more needed
+ * after this." The total alone does not tell an executive they have made no visits all
+ * day, which is the behaviour the panel exists to change.
+ */
+async function dailyBreakdown(userId, date = new Date()) {
+  const from = new Date(date); from.setHours(0, 0, 0, 0);
+  const to = new Date(from); to.setDate(to.getDate() + 1);
+  const rows = await Activity.aggregate([
+    { $match: { by: userId, occurredAt: { $gte: from, $lt: to } } },
+    { $group: { _id: '$type', n: { $sum: 1 } } },
+  ]);
+  const byType = Object.fromEntries(rows.map((r) => [r._id, r.n]));
+  return {
+    total: rows.reduce((t, r) => t + r.n, 0),
+    call: byType.call || 0,
+    email: byType.email || 0,
+    visit: byType.visit || 0,
+    whatsapp: byType.whatsapp || 0,
+    meeting: byType.meeting || 0,
+    note: byType.note || 0,
+  };
+}
+
+/**
  * A breakdown of what has actually been done on an account.
  *
  * Doc 1 IS-HD-04 puts this beside the BANT lines on the handoff card — "Total Interactions
@@ -145,6 +172,7 @@ async function summaryFor({ customer, deal }) {
 }
 
 module.exports = {
-  logActivity, lastActivityFor, dailyCount, summaryFor,
+  logActivity,
+  dailyBreakdown, lastActivityFor, dailyCount, summaryFor,
   DAILY_ACTIVITY_TARGET, ACTIVITY_WARN_HOURS, ACTIVITY_ALERT_HOURS,
 };

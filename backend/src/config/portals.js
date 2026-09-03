@@ -57,7 +57,8 @@ const SCREEN = {
   /* ── Phase 2: Sales / SPENCO (ERP Bible V3, document 2) ──────────────────── */
   SA_BOARD:         'sa.board',         // SA-DIR-05 / SA-MGR-05 / SA-EX-02
   SA_DEAL:          'sa.deal',          // SA-DIR-03 / SA-MGR-06 / SA-EX-03/04/06/07
-  SA_TEAM:          'sa.team',          // SA-DIR-01/02 / SA-MGR-09
+  SA_TEAM:          'sa.team',          // SA-DIR-01 / SA-MGR-01 / SA-MGR-09
+  SA_EXEC_DRILL:    'sa.exec',          // SA-DIR-02 / SA-DIR-03 / SA-MGR-03
   SA_APPROVALS:     'sa.approvals',     // SA-DIR-07 / SA-MGR-08 / SA-DIR-09
   SA_FORECAST:      'sa.forecast',      // SA-DIR-08
   SA_CAPTURE:       'sa.capture',       // SA-DIR-04 / SA-EX-05
@@ -116,6 +117,10 @@ const PORTALS = {
       ] },
       { section: 'Accounts', items: [
         { label: 'Customer 360', to: '/director/customers', screen: SCREEN.CUSTOMERS },
+        /* Doc 2 SA-DIR-06 has a "Log Director Activity" control, and its own timeline
+           carries "Director Call: Initial relationship — 35 min · Sales Director (You)".
+           The Director logs against accounts like everyone else. */
+        { label: 'Log Activity', to: '/director/log-activity', screen: SCREEN.LOG_ACTIVITY },
       ] },
       { section: 'Other Modules', items: [
         { label: 'Production',   to: '/director/production', screen: SCREEN.PD_DASHBOARD },
@@ -128,8 +133,10 @@ const PORTALS = {
     routes: [
       detail('/director/pipeline', SCREEN.LEADS_BOARD),
       detail('/director/pipeline/:id', SCREEN.LEAD_DETAIL),
-      /* SA-DIR-03: click any executive on the command dashboard. */
-      detail('/director/sales/exec/:id', SCREEN.SA_TEAM),
+      /* SA-DIR-02 and SA-DIR-03: click any manager or executive on the command
+         dashboard. One screen — drilling into a manager shows their two executives as
+         well as their own book, which is the only difference between the two. */
+      detail('/director/sales/exec/:id', SCREEN.SA_EXEC_DRILL),
       detail('/director/sales/deals/:id', SCREEN.SA_DEAL),
       detail('/director/production/:id', SCREEN.PD_ORDER),
       detail('/director/delivery', SCREEN.DELIVERY_BOARD),
@@ -230,7 +237,8 @@ const PORTALS = {
        "For company-wide figures, the Sales Director's dashboard is the right source." */
     routes: [
       detail('/sales-mgr/deals/:id', SCREEN.SA_DEAL),
-      detail('/sales-mgr/exec/:id', SCREEN.SA_TEAM),
+      /* SA-MGR-03 — the per-customer activity log the Manager coaches from. */
+      detail('/sales-mgr/exec/:id', SCREEN.SA_EXEC_DRILL),
       detail('/sales-mgr/customers/:id', SCREEN.CUSTOMER_360),
       detail('/sales-mgr/delivery/:id', SCREEN.DELIVERY_DETAIL),
       detail('/sales-mgr/installation/:id', SCREEN.INSTALL_DETAIL),

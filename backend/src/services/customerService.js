@@ -1,4 +1,5 @@
 'use strict';
+const mongoose = require('mongoose');
 
 const Customer = require('../models/Customer');
 const Lead     = require('../models/Lead');
@@ -116,7 +117,12 @@ async function customer360(customerId) {
     .populate('accountManager', 'name role domain');
   if (!customer) return null;
 
-  const [leads, activities, activityCount, lastActivity] = await Promise.all([
+  /* Required lazily: doc 4's models load doc 4's config, and customerService is required
+     by the Phase 0 handoff path. A top-level require here makes the two circular. */
+  const Ticket = require('../models/Ticket');
+  const Contract = require('../models/Contract');
+
+  const [leads, activities, byType, lastActivity, tickets, contracts] = await Promise.all([
     Lead.find({ customer: customerId })
       .select('refId track stage value opportunityName owner createdAt expectedCloseDate')
       .populate('owner', 'name role')
@@ -127,12 +133,37 @@ async function customer360(customerId) {
       .sort({ occurredAt: -1 })
       .limit(100)
       .lean(),
-    Activity.countDocuments({ customer: customerId }),
+    /* Doc 2 SA-DIR-06 labels its filter tabs with counts — "Calls (8) Emails (10)
+       Visits (4)" — and those are over ALL activity on the account, not the 100 most
+       recent the timeline holds. Counting the returned page would understate a busy
+       account exactly when the number matters most. */
+    Activity.aggregate([
+      { $match: { customer: new mongoose.Types.ObjectId(String(customerId)) } },
+      { $group: { _id: '$type', n: { $sum: 1 } } },
+    ]),
     Activity.findOne({ customer: customerId }).sort({ occurredAt: -1 }).select('occurredAt').lean(),
+    /* SA-DIR-06's "Open CS Tickets 2" tile and its CS Tickets tab. */
+    Ticket.find({ customer: customerId })
+      .select('ref subject status priority raisedAt slaDueAt resolvedAt assignedTo')
+      .populate('assignedTo', 'name role')
+      .sort({ raisedAt: -1 })
+      .limit(50)
+      .lean(),
+    /* "AMC Status — Active till Sep 26". */
+    Contract.find({ customer: customerId })
+      .select('ref type status startsAt expiresAt value renewalValue product')
+      .sort({ expiresAt: -1 })
+      .lean(),
   ]);
 
   const openLeads = leads.filter((l) => !['commercial_order', 'order_lost'].includes(l.stage));
   const won = leads.filter((l) => l.stage === 'commercial_order');
+  const counts = new Map(byType.map((r) => [r._id, r.n]));
+  const openTickets = tickets.filter((t) => !['resolved', 'closed'].includes(t.status));
+  /* The one that expires LAST is the account's AMC status — an expired 2024 contract
+     beside a live 2026 one does not make the account uncovered. */
+  const amc = contracts.find((c) => c.status === 'active' || c.status === 'expiring')
+    || contracts[0] || null;
 
   return {
     customer,
@@ -141,11 +172,29 @@ async function customer360(customerId) {
       activeDeals: openLeads.filter((l) => l.track === 'sales').length,
       activeInsideSalesLeads: openLeads.filter((l) => l.track === 'inside_sales').length,
       lifetimeRevenue: won.reduce((sum, l) => sum + (l.value || 0), 0),
-      totalInteractions: activityCount,
+      totalInteractions: byType.reduce((sum, r) => sum + r.n, 0),
       lastContact: lastActivity ? lastActivity.occurredAt : null,
+      openTickets: openTickets.length,
+      /* Per SA-DIR-06's tabs. `meeting`, `whatsapp` and `note` are counted too even
+         though the mockup draws three, because omitting a type would make the tab counts
+         disagree with the timeline the reader is looking at. */
+      byType: {
+        call: counts.get('call') || 0,
+        email: counts.get('email') || 0,
+        visit: counts.get('visit') || 0,
+        whatsapp: counts.get('whatsapp') || 0,
+        meeting: counts.get('meeting') || 0,
+        note: counts.get('note') || 0,
+      },
+      amc: amc ? {
+        ref: amc.ref, type: amc.type, status: amc.status,
+        expiresAt: amc.expiresAt, value: amc.value,
+      } : null,
     },
     leads,
     timeline: activities,
+    tickets,
+    contracts,
   };
 }
 

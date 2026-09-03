@@ -339,4 +339,112 @@ describe('Sales — discounts and commercial orders', () => {
       expect(ids).not.toContain(String(o.execC.id));
     });
   });
+  /*
+   * SA-DIR-01's tiles and columns, SA-DIR-02's drill-down, and SA-DIR-04's field set.
+   *
+   * The origination form is the interesting one to test: `mintSalesLead` writes its seed
+   * straight into the document, so what the endpoint ACCEPTS is a security question, not
+   * a form-validation one.
+   */
+  describe('the command dashboard and origination form — doc 2', () => {
+    it('carries every SA-DIR-04 field onto the deal', async () => {
+      const o = await salesOrg();
+
+      const res = await request(app).post('/api/deals').set(auth(o.director.token))
+        .send({
+          name: 'A. Kumar', phone: '9100000055', company: 'DMRC Delhi',
+          jobTitle: 'GM Operations', city: 'Delhi', source: 'referral',
+          domain: 'railways', value: 48000000, priority: 'hot',
+          targetFirstContactAt: '2026-09-10',
+          notes: 'Met GM at Rail India Tech Expo. Budget 3-6Cr allocated.',
+          stage: 'prospect', assignTo: o.execA.id,
+          assigneeNote: 'Get the CFO contact before the next call.',
+        });
+
+      expect(res.status).toBe(201);
+      const deal = await Lead.findById(res.body.data._id).lean();
+      expect(deal.domain).toBe('railways');
+      expect(deal.value).toBe(48000000);
+      expect(deal.priority).toBe('hot');
+      expect(deal.notes).toMatch(/Rail India Tech Expo/);
+      expect(new Date(deal.targetFirstContactAt).getUTCFullYear()).toBe(2026);
+      expect(String(deal.owner)).toBe(String(o.execA.id));
+      /* The domain reaches the account too — SA-DIR-06 shows it on Customer 360. */
+      const account = await Customer.findById(deal.customer).lean();
+      expect(account.domain).toBe('railways');
+    });
+
+    it('IGNORES a discount posted through the origination form', async () => {
+      const o = await salesOrg();
+
+      /* Without an allowlist the seed spread wrote this straight onto the document, and
+         a 40% discount marked approved by its own creator walks past the entire ladder
+         the rest of this file is about. */
+      const res = await request(app).post('/api/deals').set(auth(o.execA.token))
+        .send({
+          name: 'Injected', phone: '9100000056', company: 'Nowhere Ltd', source: 'referral',
+          discount: { percent: 40, status: 'approved', tier: 1 },
+          spenco: { total: 30, qualified: true },
+          co: { confirmedAt: new Date().toISOString() },
+        });
+
+      expect(res.status).toBe(201);
+      const deal = await Lead.findById(res.body.data._id).lean();
+      expect(deal.discount.percent).toBe(0);
+      expect(deal.discount.status).toBe('none');
+      expect(deal.co.confirmedAt).toBeFalsy();
+      expect(deal.spenco?.total ?? 0).toBe(0);
+    });
+
+    it('returns the SA-DIR-01 roll-up and the columns beside each person', async () => {
+      const o = await salesOrg();
+      /* One fresh deal and one nobody has touched in three weeks. */
+      await dealFor(o.execA.id, { refId: 'SA-2026-090', lastActivityAt: new Date() });
+      await dealFor(o.execA.id, {
+        refId: 'SA-2026-091',
+        lastActivityAt: new Date(Date.now() - 30 * 86400000),
+      });
+
+      const res = await request(app).get('/api/deals/team').set(auth(o.director.token));
+      expect(res.status).toBe(200);
+
+      const s = res.body.data.summary;
+      expect(s.openDeals).toBe(2);
+      expect(s.pipelineValue).toBe(9600000);
+      expect(s.atRisk).toBe(1);
+      expect(s.staleDays).toBe(21);
+      /* Nothing has closed either way, so a win rate would be an invented denominator. */
+      expect(s.winRate).toBeNull();
+
+      const mgrRow = res.body.data.people.find((p) => String(p.user._id) === String(o.mgr1.id));
+      expect(mgrRow.teamSize).toBe(1);
+      const execRow = res.body.data.people.find((p) => String(p.user._id) === String(o.execA.id));
+      expect(execRow.teamSize).toBe(0);
+      expect(execRow.atRisk).toBe(1);
+      expect(execRow.activitiesToday).toBe(0);
+    });
+
+    it('drills into a manager and returns THEIR reports — SA-DIR-02', async () => {
+      const o = await salesOrg();
+
+      const res = await request(app).get(`/api/deals/team?user=${o.mgr1.id}`)
+        .set(auth(o.director.token));
+
+      expect(res.status).toBe(200);
+      const ids = res.body.data.people.map((p) => String(p.user._id));
+      expect(ids).toEqual([String(o.execA.id)]);
+      /* The roll-up is the CALLER's scope, which is the wrong denominator under someone
+         else's heading — better absent than quietly the reader's own number. */
+      expect(res.body.data.summary).toBeNull();
+    });
+
+    it('refuses to drill into someone outside the caller\'s team', async () => {
+      const o = await salesOrg();
+
+      const res = await request(app).get(`/api/deals/team?user=${o.execC.id}`)
+        .set(auth(o.mgr1.token));
+
+      expect(res.status).toBe(403);
+    });
+  });
 });

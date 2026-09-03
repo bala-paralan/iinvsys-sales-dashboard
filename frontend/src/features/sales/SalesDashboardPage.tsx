@@ -32,8 +32,21 @@ export function SalesDashboardPage() {
     queryKey: ['activities', 'compliance'],
     queryFn: async () => (await api<{
       dailyTarget: number;
+      today: { total: number; call: number; email: number; visit: number };
       users: Array<{ user: string; loggedToday: number; lastAt: string | null; severity: string }>;
     }>('GET', '/activities/compliance')).data,
+  });
+
+  /* Doc 2 SA-EX-01 draws "Won (Q2 Target) — ₹48L — 96% of ₹50L target ✓" as a figure
+     against a denominator, not a bare number. `kpi.read` plus scopeAllows(self) is what
+     lets an executive read their own. */
+  const { data: stats } = useQuery({
+    queryKey: ['users', me?.userId, 'stats'],
+    queryFn: async () => (await api<{
+      user: { target?: number };
+      summary: { wonValue: number; targetAchievement: number };
+    }>('GET', `/users/${me!.userId}/stats`)).data,
+    enabled: !!me?.userId,
   });
 
   const complete = useMutation({
@@ -47,8 +60,10 @@ export function SalesDashboardPage() {
   const openValue = open.every((c) => c.value !== null)
     ? open.reduce((t, c) => t + (c.value ?? 0), 0) : null;
   const won = cols.find((c) => c.key === 'commercial_order');
-  const mine = compliance?.users?.[0];
+  const today = compliance?.today;
   const overdue = tasks.filter((t) => new Date(t.dueAt) < new Date());
+  const target = stats?.user?.target ?? 0;
+  const dailyTarget = compliance?.dailyTarget ?? 5;
 
   const base = `/${me?.portal?.key ?? ''}`;
 
@@ -60,15 +75,31 @@ export function SalesDashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, margin: '16px 0' }}>
         <Tile label="My active deals" value={String(openCount)}
           hint={openValue !== null ? money(openValue) : undefined} />
-        <Tile label="Closed (CO)" value={String(won?.deals.length ?? 0)}
-          hint={won?.value !== null && won?.value !== undefined ? money(won.value) : undefined} />
-        <Tile label="Tasks due" value={String(tasks.length)}
-          hint={overdue.length ? `${overdue.length} overdue` : undefined}
+        <Tile label="Won (target)"
+          value={won?.value !== null && won?.value !== undefined ? money(won.value)
+            : String(won?.deals.length ?? 0)}
+          /* No target set means no percentage — an invented denominator makes the tile
+             lie, so it falls back to the count of orders. */
+          hint={target
+            ? `${stats?.summary.targetAchievement ?? 0}% of ${money(target)}${(stats?.summary.targetAchievement ?? 0) >= 100 ? ' ✓' : ''}`
+            : `${won?.deals.length ?? 0} CO${(won?.deals.length ?? 0) === 1 ? '' : 's'} · no target set`}
+          tone={target && (stats?.summary.targetAchievement ?? 0) >= 100 ? 'var(--emerald)' : undefined} />
+        <Tile label="Tasks today" value={String(tasks.length)}
+          hint={overdue.length ? `${overdue.length} overdue` : 'None overdue'}
           tone={overdue.length ? 'var(--coral)' : undefined} />
-        <Tile label="Logged today" value={String(mine?.loggedToday ?? 0)}
-          hint={`Daily target: ${compliance?.dailyTarget ?? 5}`}
-          tone={(mine?.loggedToday ?? 0) === 0 ? 'var(--amber)' : undefined} />
+        <Tile label="Logged today" value={String(today?.total ?? 0)}
+          hint={`Calls ${today?.call ?? 0} · Emails ${today?.email ?? 0} · Visits ${today?.visit ?? 0}`}
+          tone={(today?.total ?? 0) < dailyTarget ? 'var(--amber)' : 'var(--emerald)'} />
       </div>
+
+      {(today?.total ?? 0) < dailyTarget && (
+        <div className="card" style={{ padding: 12, borderLeft: '4px solid var(--amber)' }}>
+          Daily minimum is {dailyTarget} activities. You have logged {today?.total ?? 0} —{' '}
+          {dailyTarget - (today?.total ?? 0)} more needed today.{' '}
+          <button className="neo-btn" style={{ marginLeft: 8 }}
+            onClick={() => nav(`${base}/log-activity`)}>📞 Log activity</button>
+        </div>
+      )}
 
       <h3>My SPENCO pipeline</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>

@@ -48,6 +48,11 @@ async function board(req, res, next) {
       .select('refId name company stage value probability owner customer expectedCloseDate '
             + 'discount lastActivityAt stageEnteredAt spenco co')
       .populate('owner', 'name initials color domain')
+      /* The client's `Deal` type has always declared `customer: {_id, name} | null`, and
+         the field was selected but never populated — so every screen that read a name off
+         it (the account picker on Log Activity, the drill-down's per-account filter) got a
+         bare id and silently found nothing. */
+      .populate('customer', 'name city')
       .sort({ stageEnteredAt: -1 })
       .lean();
 
@@ -68,19 +73,43 @@ async function board(req, res, next) {
   } catch (err) { next(err); }
 }
 
-/* ── GET /api/deals/team ─ SA-DIR-01 / SA-MGR-09 ─────────────────────────── */
+/* ── GET /api/deals/team ─ SA-DIR-01 / SA-DIR-02 / SA-MGR-01 / SA-MGR-09 ─── */
 
-/** Per-person performance, scoped. An executive holds no kpi.read_team, so cannot ask. */
+/* Doc 2 SA-DIR-01: "At Risk (>21d stale) — 5 — Needs intervention". */
+const STALE_DAYS = 21;
+
+/**
+ * Per-person performance plus the roll-up SA-DIR-01 puts above it, scoped.
+ *
+ * `?user=` is SA-DIR-02, "Manager Drill-Down — select any manager, see their team": the
+ * rows become that person's direct reports instead of the caller's. It is a NARROWING
+ * only — the requested person must already be inside the caller's scope, so a Manager
+ * cannot reach a peer's team by guessing an id.
+ *
+ * An executive holds no `kpi.read_team`, so cannot ask at all.
+ */
 async function teamPerformance(req, res, next) {
   try {
     /* The caller's team, not the caller. Doc 2 SA-MGR-01 keeps them apart on purpose:
        "My Executives" is one panel and "My Own Deals" is a separate one, so a manager's
        own pipeline never inflates their team's numbers. */
-    const ids = (req.scope.userIds === null
-      ? (await User.find({ role: { $in: ['sales_manager', 'sales_executive'] }, isActive: true })
-        .select('_id').lean()).map((u) => u._id)
-      : req.scope.userIds
-    ).filter((id) => String(id) !== String(req.user._id));
+    let rootId = req.user._id;
+    if (req.query.user) {
+      if (!scopeAllows(req.scope, req.query.user)) {
+        return forbidden(res, 'That person is outside your team');
+      }
+      rootId = req.query.user;
+    }
+
+    const ids = (req.query.user
+      /* SA-DIR-02: whoever reports to the person being drilled into. */
+      ? (await User.find({ reportsTo: rootId, isActive: true }).select('_id').lean())
+        .map((u) => u._id)
+      : (req.scope.userIds === null
+        ? (await User.find({ role: { $in: ['sales_manager', 'sales_executive'] }, isActive: true })
+          .select('_id').lean()).map((u) => u._id)
+        : req.scope.userIds)
+    ).filter((id) => String(id) !== String(rootId));
 
     const [rows, activity] = await Promise.all([
       Lead.aggregate([
@@ -93,6 +122,17 @@ async function teamPerformance(req, res, next) {
           lost: { $sum: { $cond: [{ $eq: ['$stage', pipeline.LOST_STAGE] }, 1, 0] } },
           pipelineValue: { $sum: { $cond: [{ $in: ['$stage', pipeline.OPEN_SALES_STAGES] }, { $ifNull: ['$value', 0] }, 0] } },
           wonValue: { $sum: { $cond: [{ $eq: ['$stage', pipeline.WON_STAGE] }, { $ifNull: ['$value', 0] }, 0] } },
+          /* Doc 2 SA-DIR-01's "At Risk" column: an OPEN deal nobody has touched in three
+             weeks. A deal with no activity at all counts — that is the worse case, not
+             the excluded one. */
+          atRisk: { $sum: { $cond: [
+            { $and: [
+              { $in: ['$stage', pipeline.OPEN_SALES_STAGES] },
+              { $or: [
+                { $eq: [{ $ifNull: ['$lastActivityAt', null] }, null] },
+                { $lt: ['$lastActivityAt', staleBefore()] },
+              ] },
+            ] }, 1, 0] } },
         } },
       ]),
       activityService.lastActivityFor(ids),
@@ -100,23 +140,122 @@ async function teamPerformance(req, res, next) {
 
     const users = await User.find({ _id: { $in: ids } })
       .select('name role domain initials color target reportsTo').lean();
+
+    /* SA-DIR-01 shows "2 execs" against each Manager row, and the Director's own table
+       mixes Managers and Executives — so this is per-row rather than one figure. */
+    const reportCounts = await User.aggregate([
+      { $match: { reportsTo: { $in: users.map((u) => u._id) }, isActive: true } },
+      { $group: { _id: '$reportsTo', n: { $sum: 1 } } },
+    ]);
+    const teamSizes = new Map(reportCounts.map((r) => [String(r._id), r.n]));
+
+    /* SA-MGR-01's "Activities Today ✓ 3 logged today / ⚠ 1 logged today" column. */
+    const todayCounts = await Promise.all(
+      users.map(async (u) => [String(u._id), await activityService.dailyCount(u._id)]),
+    );
+    const today = new Map(todayCounts);
+
     const stats = new Map(rows.map((r) => [String(r._id), r]));
     const acts = new Map(activity.map((a) => [String(a.user), a]));
+    const blank = { deals: 0, open: 0, won: 0, lost: 0, pipelineValue: 0, wonValue: 0, atRisk: 0 };
 
     return ok(res, {
       people: users.map((u) => {
-        const s = stats.get(String(u._id))
-          || { deals: 0, open: 0, won: 0, lost: 0, pipelineValue: 0, wonValue: 0 };
+        const s = stats.get(String(u._id)) || blank;
         return {
           user: u,
           ...s,
+          teamSize: teamSizes.get(String(u._id)) || 0,
+          activitiesToday: today.get(String(u._id)) ?? 0,
           winRate: (s.won + s.lost) ? Math.round((s.won / (s.won + s.lost)) * 100) : null,
           targetAchieved: u.target ? Math.round((s.wonValue / u.target) * 100) : null,
           lastActivity: acts.get(String(u._id)) || null,
         };
       }),
+      /* Only for the caller's OWN command view. `commandSummary` rolls up the caller's
+         whole scope, which is the wrong denominator for someone else's team — better
+         absent than quietly the reader's own number under a drilled-in heading. */
+      summary: req.query.user ? null : await commandSummary(req),
     });
   } catch (err) { next(err); }
+}
+
+/** The cut-off `atRisk` is measured against — three weeks before now. */
+function staleBefore() {
+  return new Date(Date.now() - STALE_DAYS * 86400000);
+}
+
+/**
+ * The five tiles across the top of SA-DIR-01, and the four across SA-MGR-01.
+ *
+ * Computed over the caller's WHOLE scope — including their own deals — because the tiles
+ * answer "how is the function doing", which the person's own book is part of. The table
+ * below them answers a different question and excludes the caller, which is the
+ * distinction doc 2 draws between "Total Pipeline" and "My Executives".
+ *
+ * Money is `null`, not zero, for a caller without `finance.read`: redact.js would strip
+ * the parts, so a total computed from them would be a figure nobody may see.
+ */
+async function commandSummary(req) {
+  const filter = { ...SALES_TRACK, ...scopeFilter(req.scope, 'owner') };
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [open, own, closedMonth, wonLost, atRisk, pending] = await Promise.all([
+    Lead.aggregate([
+      { $match: { ...filter, stage: { $in: pipeline.OPEN_SALES_STAGES } } },
+      { $group: { _id: null, count: { $sum: 1 }, value: { $sum: { $ifNull: ['$value', 0] } } } },
+    ]),
+    /* Doc 2 SA-MGR-01 draws "Team Pipeline ₹3.8Cr" and "My Own Deals ₹1.1Cr" as two
+       tiles, because a manager carrying a large personal book and a team carrying nothing
+       is a different situation from the reverse, and one combined figure hides which. */
+    Lead.aggregate([
+      { $match: { ...SALES_TRACK, owner: req.user._id, stage: { $in: pipeline.OPEN_SALES_STAGES } } },
+      { $group: { _id: null, count: { $sum: 1 }, value: { $sum: { $ifNull: ['$value', 0] } } } },
+    ]),
+    Lead.aggregate([
+      { $match: { ...filter, stage: pipeline.WON_STAGE, 'co.confirmedAt': { $gte: monthStart } } },
+      { $group: { _id: null, count: { $sum: 1 }, value: { $sum: { $ifNull: ['$value', 0] } } } },
+    ]),
+    Lead.aggregate([
+      { $match: { ...filter, stage: { $in: [pipeline.WON_STAGE, pipeline.LOST_STAGE] } } },
+      { $group: { _id: '$stage', count: { $sum: 1 } } },
+    ]),
+    Lead.countDocuments({
+      ...filter,
+      stage: { $in: pipeline.OPEN_SALES_STAGES },
+      $or: [{ lastActivityAt: null }, { lastActivityAt: { $lt: staleBefore() } }],
+    }),
+    Approval.countDocuments({
+      assignedTo: req.user._id,
+      status: { $in: ['pending', 'escalated'] },
+      kind: { $in: ['discount', 'co_confirm'] },
+    }),
+  ]);
+
+  const money = can(req.user, 'finance.read');
+  const won = wonLost.find((r) => r._id === pipeline.WON_STAGE)?.count || 0;
+  const lost = wonLost.find((r) => r._id === pipeline.LOST_STAGE)?.count || 0;
+
+  return {
+    openDeals: open[0]?.count || 0,
+    pipelineValue: money ? (open[0]?.value || 0) : null,
+    ownDeals: {
+      count: own[0]?.count || 0,
+      value: money ? (own[0]?.value || 0) : null,
+    },
+    closedThisMonth: {
+      count: closedMonth[0]?.count || 0,
+      value: money ? (closedMonth[0]?.value || 0) : null,
+    },
+    pendingApprovals: pending,
+    atRisk,
+    staleDays: STALE_DAYS,
+    /* null, not 0%, when nothing has closed either way — an invented denominator makes
+       the tile lie, the same reasoning as `targetAchieved`. */
+    winRate: (won + lost) ? Math.round((won / (won + lost)) * 100) : null,
+  };
 }
 
 /* ── GET /api/deals/forecast ─ SA-DIR-08 ─────────────────────────────────── */
@@ -160,11 +299,36 @@ async function forecast(req, res, next) {
 
 /* ── POST /api/deals ─ SA-DIR-04 / SA-EX-05 ──────────────────────────────── */
 
+/**
+ * What the origination form may set, and nothing else.
+ *
+ * An ALLOWLIST rather than a rest-spread. `mintSalesLead` writes `seed` straight into the
+ * document, so an unfiltered body let the creator post `discount: {percent: 40, status:
+ * 'approved'}` or a pre-filled `spenco` block and walk past the ladder that
+ * requestDiscount and the stage gates exist to enforce. Every field below is one doc 2
+ * SA-DIR-04 or SA-EX-05 actually draws.
+ */
+const DEAL_SEED_FIELDS = [
+  /* Contact & company — SA-DIR-04 "Contact & Company Information". */
+  'name', 'phone', 'email', 'company', 'jobTitle', 'city', 'state',
+  'companyType', 'industrySegment', 'zone', 'website',
+  /* Routing and qualification. */
+  'domain', 'source', 'productPackage', 'opportunityName',
+  /* SA-DIR-04 "Est. Opportunity Size", "Priority", "Target First Contact Date" and
+     "Director Intelligence / Context". */
+  'value', 'priority', 'targetFirstContactAt', 'expectedCloseDate', 'notes',
+];
+
 /** Create a deal directly in SPENCO, through the one entry point. */
 async function createDeal(req, res, next) {
   try {
-    const { assignTo, stage = 'suspect', ...body } = req.body;
-    if (!body.name || !body.phone) return badRequest(res, 'name and phone are required');
+    const { assignTo, stage = 'suspect', assigneeNote = '' } = req.body;
+    if (!req.body.name || !req.body.phone) return badRequest(res, 'name and phone are required');
+
+    const seed = {};
+    for (const f of DEAL_SEED_FIELDS) {
+      if (req.body[f] !== undefined && req.body[f] !== '') seed[f] = req.body[f];
+    }
 
     /* An own-scoped executive creates their own deals; anyone with wider scope must say
        whose it is, so a Director cannot create an unowned deal by omission. */
@@ -177,7 +341,10 @@ async function createDeal(req, res, next) {
       assignee: owner,
       actor: req.user,
       reason: 'was created directly in the Sales pipeline',
-      seed: body,
+      seed,
+      /* SA-DIR-04's "Director's Private Note to Assignee" — carried on the notification,
+         not onto the deal, because it is addressed to one person. */
+      assigneeNote,
     });
     await salesEntry.attachCustomer(lead, req.user);
     await lead.save();

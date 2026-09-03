@@ -48,6 +48,7 @@ async function mintSalesLead(originLead, opts = {}) {
     actor,
     reason = 'entered the Sales pipeline',
     seed = {},
+    assigneeNote = '',
   } = opts;
 
   if (!assignee) {
@@ -71,6 +72,7 @@ async function mintSalesLead(originLead, opts = {}) {
     company: base.company || '', city: base.city || '', state: base.state || '',
     jobTitle: base.jobTitle || '', companyType: base.companyType || '',
     industrySegment: base.industrySegment || '', customer: base.customer || null,
+    domain: base.domain || 'none',
     source: base.source || 'inside_sales_outbound',
     ...seed,
 
@@ -105,7 +107,12 @@ async function mintSalesLead(originLead, opts = {}) {
     event: 'lead.assigned',
     severity: 'warn',
     title: `New deal assigned: ${lead.name}${lead.company ? ` — ${lead.company}` : ''}`,
-    body: `${lead.refId} ${reason}. Stage: ${stage.replace(/_/g, ' ')}.`,
+    /* Doc 2 SA-DIR-04: "Assignee gets instant notification WITH DIRECTOR NOTE." The
+       note is the point of the field — a lead handed over without the context that made
+       it worth handing over is just a row. */
+    body: assigneeNote
+      ? `${assigneeNote}\n\n${lead.refId} ${reason}. Stage: ${stage.replace(/_/g, ' ')}.`
+      : `${lead.refId} ${reason}. Stage: ${stage.replace(/_/g, ' ')}.`,
     reason: 'It was assigned to you.',
     entityType: 'lead',
     entityId: lead._id,
@@ -142,6 +149,7 @@ async function attachCustomer(lead, actor) {
     city: lead.city,
     state: lead.state,
     zone: lead.zone,
+    domain: lead.domain && lead.domain !== 'none' ? lead.domain : undefined,
     accountOwner: lead.owner,
   }, { interactive: false, actorId: actor ? actor._id : null });
 

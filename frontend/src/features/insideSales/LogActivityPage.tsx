@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { isApi } from './api';
+import { api } from '../../api/client';
 import { LogActivityForm } from './LogActivityForm';
 import { ActivityTimeline } from './ActivityTimeline';
 import { useMe } from '../../portal/useMe';
@@ -43,6 +44,16 @@ export function LogActivityPage() {
   const forCustomer = (records as any[]).filter(
     (r) => String(r.customer?._id ?? r.customer) === String(customerId),
   );
+
+  /* Doc 2 SA-EX-04's counter panel — "Daily target: 5 activities. 1 more needed after
+     this." A flat number nobody is measured against does not change behaviour. */
+  const { data: compliance } = useQuery({
+    queryKey: ['activities', 'compliance'],
+    queryFn: async () => (await api<{
+      dailyTarget: number;
+      today: { total: number; call: number; email: number; visit: number };
+    }>('GET', '/activities/compliance')).data,
+  });
 
   const { data: timeline = [] } = useQuery({
     queryKey: ['activities', 'customer', customerId],
@@ -93,6 +104,25 @@ export function LogActivityPage() {
         )}
       </div>
 
+      {compliance?.today && (
+        <div className="card" style={{ padding: 14, marginTop: 16 }}>
+          <h3 style={{ margin: '0 0 10px' }}>Today's activity count</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+            <Count label="📞 Calls" n={compliance.today.call} />
+            <Count label="📧 Emails" n={compliance.today.email} />
+            <Count label="🤝 Visits" n={compliance.today.visit} />
+            <Count label="Total today" n={compliance.today.total} />
+          </div>
+          <div style={{ marginTop: 10, fontSize: 12,
+            color: compliance.today.total >= compliance.dailyTarget ? 'var(--emerald)' : 'var(--amber)' }}>
+            Daily target: {compliance.dailyTarget} activities.{' '}
+            {compliance.today.total >= compliance.dailyTarget
+              ? 'Target met ✓'
+              : `${compliance.dailyTarget - compliance.today.total} more needed.`}
+          </div>
+        </div>
+      )}
+
       {customerId && (
         <>
           <div style={{ marginTop: 16 }}>
@@ -102,6 +132,15 @@ export function LogActivityPage() {
           <ActivityTimeline activities={timeline} />
         </>
       )}
+    </div>
+  );
+}
+
+function Count({ label, n }: { label: string; n: number }) {
+  return (
+    <div>
+      <div style={{ color: 'var(--text-3)', fontSize: 12 }}>{label}</div>
+      <div style={{ fontSize: 20, fontFamily: 'var(--font-display)' }}>{n}</div>
     </div>
   );
 }

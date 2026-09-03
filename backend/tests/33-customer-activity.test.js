@@ -12,6 +12,8 @@ const Customer = require('../src/models/Customer');
 const Activity = require('../src/models/Activity');
 const Task = require('../src/models/Task');
 const Lead = require('../src/models/Lead');
+const Ticket = require('../src/models/Ticket');
+const Contract = require('../src/models/Contract');
 const customerService = require('../src/services/customerService');
 const { connect, disconnect, clearCollections } = require('./helpers/db');
 const roles = require('./helpers/roles');
@@ -143,6 +145,55 @@ describe('customers', () => {
       expect(res.body.data.metrics.lifetimeRevenue).toBe(1000);
       expect(res.body.data.metrics.activeDeals).toBe(1);
     });
+
+    /* Doc 2 SA-DIR-06 draws tiles and filter tabs the sales modules alone cannot answer:
+       "Open CS Tickets 2", "AMC Status Active till Sep 26", "Calls (8) Emails (10)
+       Visits (4)". Customer 360 is the one screen that reaches across all four modules,
+       so those figures have to come from it. */
+    it('carries the CS tickets, the AMC and the per-type counts — SA-DIR-06', async () => {
+      const director = await roles.asDirector();
+      const exec = await roles.asSalesExecutive();
+      const cust = await Customer.create({
+        name: 'DMRC Delhi', normalizedKey: 'dmrc delhi|delhi', city: 'Delhi', domain: 'railways',
+      });
+
+      await Activity.create({ customer: cust._id, type: 'call', summary: 'c1', by: exec.id });
+      await Activity.create({ customer: cust._id, type: 'call', summary: 'c2', by: exec.id });
+      await Activity.create({ customer: cust._id, type: 'email', summary: 'e1', by: exec.id });
+      await Activity.create({ customer: cust._id, type: 'visit', summary: 'v1', by: exec.id });
+
+      await Ticket.create({ ref: 'TK-2026-001', customer: cust._id, subject: 'Sensor offline',
+        status: 'open', raisedAt: new Date() });
+      await Ticket.create({ ref: 'TK-2026-002', customer: cust._id, subject: 'Old one',
+        status: 'closed', raisedAt: new Date() });
+
+      const expiresAt = new Date('2026-09-30');
+      await Contract.create({ ref: 'AMC-2026-001', customer: cust._id, type: 'amc',
+        status: 'active', startsAt: new Date('2025-10-01'), expiresAt, value: 250000 });
+
+      const res = await request(app).get(`/api/customers/${cust._id}/360`).set(auth(director.token));
+
+      expect(res.status).toBe(200);
+      const m = res.body.data.metrics;
+      expect(m.byType).toMatchObject({ call: 2, email: 1, visit: 1 });
+      expect(m.totalInteractions).toBe(4);
+      /* The tile counts OPEN tickets; the tab lists all of them. */
+      expect(m.openTickets).toBe(1);
+      expect(res.body.data.tickets).toHaveLength(2);
+      expect(m.amc).toMatchObject({ status: 'active' });
+      expect(new Date(m.amc.expiresAt).getTime()).toBe(expiresAt.getTime());
+    });
+
+    it('reports no AMC rather than an empty object when the account has none', async () => {
+      const director = await roles.asDirector();
+      const cust = await Customer.create({ name: 'Nobody', normalizedKey: 'nobody|pune', city: 'Pune' });
+
+      const res = await request(app).get(`/api/customers/${cust._id}/360`).set(auth(director.token));
+
+      expect(res.body.data.metrics.amc).toBeNull();
+      expect(res.body.data.metrics.openTickets).toBe(0);
+      expect(res.body.data.metrics.byType).toMatchObject({ call: 0, email: 0, visit: 0 });
+    });
   });
 });
 
@@ -247,6 +298,26 @@ describe('activities and tasks', () => {
       /* A manager who has logged nothing at all is the case IS-DIR-01 is really for. */
       expect(byId[String(manager.id)].severity).toBe('alert');
       expect(byId[String(manager.id)].lastAt).toBeNull();
+    });
+
+    /* Doc 2 SA-EX-04's counter panel: "📞 Calls 2 · 📧 Emails 1 · 🤝 Visits 0 · Total
+       today 3 · Daily target: 5 activities. 1 more needed." The split is the point — a
+       total alone never tells an executive they have made no visits all day. */
+    it('breaks the CALLER\'s own day down by type — SA-EX-04', async () => {
+      const { manager, execA, cust } = await fixture();
+      const now = new Date();
+      await Activity.create({ customer: cust._id, type: 'call', summary: 'c1', by: execA.id, occurredAt: now });
+      await Activity.create({ customer: cust._id, type: 'call', summary: 'c2', by: execA.id, occurredAt: now });
+      await Activity.create({ customer: cust._id, type: 'email', summary: 'e1', by: execA.id, occurredAt: now });
+      await Activity.create({ customer: cust._id, type: 'call', summary: 'yesterday', by: execA.id,
+        occurredAt: new Date(Date.now() - 26 * 3600000) });
+      /* The manager's own entry must not land in the executive's count. */
+      await Activity.create({ customer: cust._id, type: 'visit', summary: 'mgr', by: manager.id, occurredAt: now });
+
+      const res = await request(app).get('/api/activities/compliance').set(auth(execA.token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.today).toMatchObject({ total: 3, call: 2, email: 1, visit: 0 });
     });
   });
 });

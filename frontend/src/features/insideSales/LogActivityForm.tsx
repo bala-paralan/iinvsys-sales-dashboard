@@ -33,6 +33,17 @@ const OUTCOMES = [
   { key: 'no_show', label: 'No-show' },
 ];
 
+/* Doc 2 SA-EX-04 "SPENCO Stage Update". RECORDED, never applied: the stage itself only
+   ever moves through the advance endpoint and its gate, so this is the executive saying
+   what the call means, not a second door into the pipeline. */
+const STAGE_NOTES = [
+  { key: '', label: 'No stage change' },
+  { key: 'move_engagement', label: 'Should move to Engagement' },
+  { key: 'move_negotiation', label: 'Should move to Negotiation' },
+  { key: 'move_commercial_order', label: 'Ready for Commercial Order' },
+  { key: 'mark_lost', label: 'Mark as lost' },
+];
+
 const BANT = [
   { key: 'none', label: 'No BANT update' },
   { key: 'budget', label: 'Budget confirmed' },
@@ -40,6 +51,13 @@ const BANT = [
   { key: 'need', label: 'Need confirmed' },
   { key: 'timeline', label: 'Timeline confirmed' },
 ];
+
+/** `datetime-local` wants local wall-clock, not an ISO instant. */
+function localNow(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 
 export function LogActivityForm({
   customerId, dealId, onLogged,
@@ -49,6 +67,12 @@ export function LogActivityForm({
   const [duration, setDuration] = useState('');
   const [outcome, setOutcome] = useState('');
   const [summary, setSummary] = useState('');
+  const [contactName, setContactName] = useState('');
+  /* Doc 2 SA-EX-04 makes "Date & Time *" a field rather than an implicit now(): the
+     screen is most often used AFTER the call, and a log that always says "now" makes the
+     Director's timeline a record of when people did their paperwork. */
+  const [occurredAt, setOccurredAt] = useState(localNow);
+  const [stageUpdate, setStageUpdate] = useState('');
   const [bantUpdate, setBantUpdate] = useState('none');
   const [nextLabel, setNextLabel] = useState('');
   const [nextDue, setNextDue] = useState('');
@@ -62,12 +86,16 @@ export function LogActivityForm({
       durationMinutes: duration ? Number(duration) : null,
       outcome: outcome || '',
       summary,
+      contact: contactName ? { name: contactName } : undefined,
+      occurredAt: occurredAt ? new Date(occurredAt).toISOString() : undefined,
+      stageUpdate,
       bantUpdate,
       nextAction: nextLabel ? { label: nextLabel, dueAt: nextDue || null } : undefined,
     }),
     onSuccess: () => {
       setSummary(''); setDuration(''); setNextLabel(''); setNextDue('');
-      setOutcome(''); setBantUpdate('none'); setError(null);
+      setOutcome(''); setBantUpdate('none'); setContactName('');
+      setStageUpdate(''); setOccurredAt(localNow()); setError(null);
       qc.invalidateQueries({ queryKey: ['activities'] });
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['customer360'] });
@@ -96,6 +124,16 @@ export function LogActivityForm({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+        <div>
+          <label className="form-label" htmlFor="act-contact">Contact person</label>
+          <input id="act-contact" className="form-input" placeholder="Who you spoke to"
+            value={contactName} onChange={(e) => setContactName(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label" htmlFor="act-when">Date &amp; time *</label>
+          <input id="act-when" className="form-input" type="datetime-local"
+            value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} />
+        </div>
         {type === 'call' && (
           <div>
             <label className="form-label" htmlFor="act-duration">Duration (minutes)</label>
@@ -117,6 +155,15 @@ export function LogActivityForm({
             {BANT.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
           </select>
         </div>
+        {!!dealId && (
+          <div>
+            <label className="form-label" htmlFor="act-stage">SPENCO stage update</label>
+            <select id="act-stage" className="form-input"
+              value={stageUpdate} onChange={(e) => setStageUpdate(e.target.value)}>
+              {STAGE_NOTES.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 10 }}>
@@ -143,7 +190,7 @@ export function LogActivityForm({
       {error && <div className="offline-banner" style={{ borderColor: 'var(--coral)', marginTop: 10 }} role="alert">{error}</div>}
 
       <button className="neo-btn gold" style={{ marginTop: 12 }}
-        disabled={!summary.trim() || save.isPending}
+        disabled={!summary.trim() || !occurredAt || save.isPending}
         onClick={() => save.mutate()}>
         {save.isPending ? 'Saving…' : '💾 Save activity'}
       </button>

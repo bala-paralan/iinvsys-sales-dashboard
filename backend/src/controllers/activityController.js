@@ -86,17 +86,23 @@ async function compliance(req, res, next) {
       ? req.scope.userIds
       : [req.user._id];
 
-    const [lastActivity, today] = await Promise.all([
+    const [lastActivity, today, mine] = await Promise.all([
       activityService.lastActivityFor(ids),
       Promise.all(ids.map(async (id) => ({
         user: id,
         count: await activityService.dailyCount(id),
       }))),
+      /* Doc 2 SA-EX-04's counter panel is about the CALLER, whatever their scope: a
+         Manager looking at it wants their own five, not their team's ten. Separate from
+         `users` for that reason, rather than asking the client to find itself in a list
+         it is not always in. */
+      activityService.dailyBreakdown(req.user._id),
     ]);
 
     const counts = new Map(today.map((t) => [String(t.user), t.count]));
     return ok(res, {
       dailyTarget: activityService.DAILY_ACTIVITY_TARGET,
+      today: mine,
       users: lastActivity.map((r) => ({
         ...r,
         loggedToday: counts.get(String(r.user)) || 0,

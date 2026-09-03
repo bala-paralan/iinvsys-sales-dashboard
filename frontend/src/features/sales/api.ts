@@ -38,13 +38,34 @@ export interface TeamRow {
   deals: number; open: number; won: number; lost: number;
   pipelineValue: number | null; wonValue: number | null;
   winRate: number | null; targetAchieved: number | null;
+  /** SA-DIR-01 "Team Size" — how many people report to this row. 0 for an executive. */
+  teamSize: number;
+  /** SA-DIR-01 "At Risk" — their open deals untouched for `summary.staleDays`. */
+  atRisk: number;
+  /** SA-MGR-01 "Activities Today". */
+  activitiesToday: number;
   lastActivity: { lastAt: string | null; hoursSince: number | null; severity: string } | null;
+}
+
+/** The tiles across the top of SA-DIR-01 and SA-MGR-01. Money is null without finance.read. */
+export interface CommandSummary {
+  openDeals: number;
+  pipelineValue: number | null;
+  /** The caller's OWN book, carved out of the roll-up — SA-MGR-01 "My Own Deals". */
+  ownDeals: { count: number; value: number | null };
+  closedThisMonth: { count: number; value: number | null };
+  pendingApprovals: number;
+  atRisk: number;
+  staleDays: number;
+  winRate: number | null;
 }
 
 export const salesApi = {
   board: (q = '') => api<{ stages: BoardColumn[]; total: number }>('GET', `/deals/board${q}`)
     .then((r) => r.data),
-  team: () => api<{ people: TeamRow[] }>('GET', '/deals/team').then((r) => r.data),
+  /** `user` is SA-DIR-02: the rows become that person's direct reports instead of yours. */
+  team: (user?: string) => api<{ people: TeamRow[]; summary: CommandSummary | null }>(
+    'GET', `/deals/team${user ? `?user=${user}` : ''}`).then((r) => r.data),
   forecast: () => api<any>('GET', '/deals/forecast').then((r) => r.data),
 
   create: (body: unknown) => api<Deal>('POST', '/deals', body).then((r) => r.data),

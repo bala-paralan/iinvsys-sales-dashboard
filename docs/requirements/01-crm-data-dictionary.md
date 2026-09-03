@@ -53,6 +53,16 @@ an expo must stay fast. It does two things instead:
 | `inside_sales_outbound` | Inside Sales Outbound |
 | `inbound_enquiry` | Inbound Enquiry |
 | `social_media` | Social Media |
+| `director_board_meeting` | Director Origination — Board Meeting |
+| `director_trade_show` | Director Origination — Trade Show / Expo |
+| `director_ministry` | Director Origination — Ministry Contact |
+| `director_cxo` | Director Origination — CXO Relationship |
+| `director_referral` | Director Origination — Strategic Referral |
+
+> The five `director_*` keys are the Source options ERP Bible V3 doc 1 (IS-DIR-03) and doc 2
+> (SA-DIR-04) draw on the Director's own origination form, kept separate from the generic
+> list because IS-DIR-05's source report exists to compare them against it. `LinkedIn`
+> appears on doc 2's list but is a generic source in doc 1, so it stays `social_media`.
 
 > Leads captured through the expo/referrer flow are written as `exhibition_event`. The separate
 > `expo` ObjectId reference remains the actual linkage to the event record.

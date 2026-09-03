@@ -31,6 +31,7 @@ export function DealDetailPage() {
   const [listPrice, setListPrice] = useState('');
   const [why, setWhy] = useState('');
   const [poValue, setPoValue] = useState('');
+  const [proposalNote, setProposalNote] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,8 +69,8 @@ export function DealDetailPage() {
   });
 
   const proposal = useMutation({
-    mutationFn: () => salesApi.recordProposal(id, {}),
-    onSuccess: (r) => after(r.message ?? 'Proposal recorded'),
+    mutationFn: () => salesApi.recordProposal(id, { note: proposalNote }),
+    onSuccess: (r) => { setProposalNote(''); after(r.message ?? 'Proposal recorded'); },
     onError: onErr,
   });
 
@@ -107,14 +108,30 @@ export function DealDetailPage() {
           <h3 style={{ marginTop: 0 }}>Deal</h3>
           <Row label="Contact" value={d.name} />
           <Row label="Company" value={d.company || '—'} />
+          {/* Doc 2 SA-DIR-04 captures these at origination; a detail screen that drops
+              them makes the form look like a formality. */}
+          <Row label="Domain" value={(d.domain && d.domain !== 'none'
+            ? String(d.domain).replace(/_/g, ' ') : '—')} />
+          <Row label="Priority" value={String(d.priority ?? 'normal')} />
           <Row label="Value" value={money(d.value)} />
           <Row label="Probability" value={d.probability === null || d.probability === undefined ? '—' : `${d.probability}%`} />
           <Row label="SPENCO" value={d.spenco?.total ? `${d.spenco.total}/30${d.spenco.qualified ? ' ✓' : ''}` : 'not scored'} />
           <Row label="Expected close" value={d.expectedCloseDate ? new Date(d.expectedCloseDate).toLocaleDateString('en-IN') : '—'} />
           <Row label="Last activity" value={relTime(d.lastActivityAt)} />
           <Row label="Proposal" value={d.proposal?.version ? `v${d.proposal.version} sent ${relTime(d.proposal.sentAt)}` : 'none sent'} />
+          <Row label="PO number" value={d.poNumber || '—'} />
+          {d.notes && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #000' }}>
+              <div style={{ color: 'var(--text-3)', fontSize: 12, textTransform: 'uppercase' }}>Context</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{d.notes}</div>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-            <button className="neo-btn" onClick={() => nav(`${window.location.pathname.split('/deals')[0]}/../pipeline`)}>
+            {/* `pathname.split('/deals')[0]` already IS the portal's sales base — appending
+                "/../pipeline" produced a literal ".." segment that React Router matches as
+                a path segment rather than resolving, so the button landed on nothing. */}
+            <button className="neo-btn"
+              onClick={() => nav(`${window.location.pathname.split('/deals')[0]}/pipeline`)}>
               ⟵ Pipeline
             </button>
             {customerId && (
@@ -185,6 +202,14 @@ export function DealDetailPage() {
         <div className="card" style={{ padding: 16, marginTop: 16 }}>
           <h3 style={{ marginTop: 0 }}>Proposal &amp; Commercial Order</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 240px' }}>
+              <label className="form-label" htmlFor="pnote">
+                What changed in this version
+              </label>
+              <input id="pnote" className="form-input"
+                placeholder="e.g. revised to ₹72.5L with payment milestones"
+                value={proposalNote} onChange={(e) => setProposalNote(e.target.value)} />
+            </div>
             <button className="neo-btn" disabled={proposal.isPending} onClick={() => proposal.mutate()}>
               📝 Record proposal v{(d.proposal?.version ?? 0) + 1} sent
             </button>
