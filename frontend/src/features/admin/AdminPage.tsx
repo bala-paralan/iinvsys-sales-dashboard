@@ -13,9 +13,24 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
 import { useMe } from '../../portal/useMe';
+import { usePipeline } from '../../meta/usePipeline';
+import { useRoles, type RoleDef } from '../../meta/roles';
 import { Modal } from '../../components/Modal';
 
 type FieldType = 'text' | 'number' | 'date' | 'email' | 'select' | 'password';
+
+type Option = { value: string; label: string };
+
+/**
+ * What a dynamic field can see: the server's enums, the roster (for "reports to"), and
+ * the other values on the form (a "reports to" list depends on the role chosen).
+ */
+interface OptionCtx {
+  roles: ReturnType<typeof useRoles>;
+  meta: any;
+  users: Row[];
+  values: Record<string, string>;
+}
 
 interface Field {
   key: string;
@@ -24,9 +39,15 @@ interface Field {
   required?: boolean;
   /** Shown in the table; a field can be editable but not listed, and vice versa. */
   inTable?: boolean;
-  format?: (v: unknown, row: Row) => string;
-  /** type: 'select' only — the permitted values. */
-  options?: Array<{ value: string; label: string }>;
+  format?: (v: unknown, row: Row, ctx: OptionCtx) => string;
+  /** type: 'select' only — the permitted values, fixed or derived from the context. */
+  options?: Option[] | ((ctx: OptionCtx) => Option[]);
+  /**
+   * Sent through its own endpoint rather than the PUT body. `reportsTo` is the one:
+   * PUT /api/users/:id strips it so subtree repair can never be skipped, and the move
+   * goes through PATCH /:id/manager instead.
+   */
+  separateOnEdit?: string;
   /**
    * Shown when adding, hidden when editing. `password` is the only one: PUT
    * /api/users/:id strips the field (see userController.updateUser — reassignment
@@ -56,9 +77,54 @@ const ENTITIES: EntitySpec[] = [
     key: 'agents', title: 'Agents', path: '/agents',
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
-      { key: 'initials', label: 'Initials', required: true, inTable: true },
+      /*
+       * Role sits where "Initials" used to. Initials are derived from the name by the
+       * server (User.pre('validate')), so typing them bought nothing — while the form
+       * had NO role field, so every person it created became a Sales Executive by the
+       * model default. That is how a Sales Director arrived on production as an SE.
+       * Options are the server's taxonomy, rendered as the brief writes them:
+       * "SD - Sales Director".
+       */
+      { key: 'role', label: 'Role', type: 'select', required: true, inTable: true,
+        options: ({ roles }) => roles.roles.map((r: RoleDef) => ({
+          value: r.key, label: r.abbr ? `${r.abbr} - ${r.label}` : r.label,
+        })),
+        format: (v, _row, ctx) => {
+          const r = ctx.roles.get(String(v ?? ''));
+          return r ? (r.abbr ? `${r.abbr} - ${r.label}` : r.label) : String(v ?? '—');
+        } },
+      /*
+       * The reporting line is what every scoped screen and every transfer rule reads.
+       * The list is narrowed to the roles the chart allows above the chosen role
+       * (REPORTS_TO_ROLES on the server), so the form cannot offer a manager the API
+       * would refuse. Empty until a role is picked.
+       */
+      { key: 'reportsTo', label: 'Reports to', type: 'select', inTable: true,
+        separateOnEdit: 'manager',
+        options: ({ roles, users, values }) => {
+          const def = roles.get(values.role);
+          const allowed = def?.reportsTo?.filter((k): k is string => !!k) ?? null;
+          return users
+            .filter((u) => u.isActive !== false && (!allowed || allowed.includes(String(u.role))))
+            .map((u) => ({ value: u._id, label: `${String(u.name)} · ${roles.abbr(String(u.role))}` }));
+        },
+        format: (v, _row, ctx) => {
+          const id = typeof v === 'object' && v ? String((v as any)._id ?? (v as any).id ?? '') : String(v ?? '');
+          const m = ctx.users.find((u) => u._id === id);
+          return m ? String(m.name) : '—';
+        },
+        help: 'SD → ISM → ISE, and SD → ZSM → ASM → SE. Leave blank to place them later.' },
+      { key: 'zone', label: 'Zone', type: 'select', inTable: true,
+        options: ({ meta }) => (meta?.enums?.zones ?? []).map((z: any) => ({ value: z.key, label: z.label })) },
+      { key: 'domain', label: 'Domain', type: 'select',
+        options: ({ meta }) => (meta?.enums?.domains ?? [])
+          .filter((d: any) => d.key !== 'none')
+          .map((d: any) => ({ value: d.key, label: d.label })) },
       { key: 'email', label: 'Email', type: 'email', required: true, inTable: true },
-      { key: 'phone', label: 'Phone', required: true, inTable: true },
+      /* Not required: the server does not require it, and insisting here made every
+         person created without one (seed, import, invite) impossible to edit — the
+         browser refused the submit before a request was ever sent. */
+      { key: 'phone', label: 'Phone', inTable: true },
       { key: 'territory', label: 'Territory', inTable: true },
       { key: 'designation', label: 'Designation' },
       { key: 'target', label: 'Monthly target (₹)', type: 'number', inTable: true, format: money },
@@ -167,9 +233,26 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', spec.key] });
 
+  const roles = useRoles();
+  const { data: meta } = usePipeline();
+  const rows = list.data ?? [];
+  /* Only the agents table needs the roster for "reports to"; it IS the roster. */
+  const ctx: OptionCtx = { roles, meta, users: spec.key === 'agents' ? rows : [], values: {} };
+
   const save = useMutation({
-    mutationFn: ({ id, body }: { id: string | null; body: Record<string, unknown> }) =>
-      (id ? api('PUT', `${spec.path}/${id}`, body) : api('POST', spec.path, body)),
+    mutationFn: async ({ id, body }: { id: string | null; body: Record<string, unknown> }) => {
+      if (!id) return api('POST', spec.path, body);
+      /* Fields the PUT would silently drop go through their own endpoint, after the
+         PUT, so a refused manager (wrong role for the chart) surfaces as the error. */
+      const separate = spec.fields.filter((f) => f.separateOnEdit && f.key in body);
+      const rest = { ...body };
+      for (const f of separate) delete rest[f.key];
+      const res = await api('PUT', `${spec.path}/${id}`, rest);
+      for (const f of separate) {
+        await api('PATCH', `${spec.path}/${id}/${f.separateOnEdit}`, { [f.key]: body[f.key] || null });
+      }
+      return res;
+    },
     onSuccess: () => { setEditing(null); setError(null); void invalidate(); },
     onError: (err) => setError(err instanceof ApiError ? err.message : String(err)),
   });
@@ -181,7 +264,6 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
   });
 
   const columns = spec.fields.filter((f) => f.inTable);
-  const rows = list.data ?? [];
 
   return (
     <section>
@@ -219,7 +301,7 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
               <tr key={row._id} style={{ borderTop: '1px solid var(--surface-3)' }}>
                 {columns.map((c) => (
                   <td key={c.key} style={{ padding: '9px 12px' }}>
-                    {c.format ? c.format(row[c.key], row) : (row[c.key] == null || row[c.key] === '' ? '—' : String(row[c.key]))}
+                    {c.format ? c.format(row[c.key], row, ctx) : (row[c.key] == null || row[c.key] === '' ? '—' : String(row[c.key]))}
                   </td>
                 ))}
                 {canWrite && (
@@ -258,6 +340,7 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
       {editing && (
         <EntityForm
           spec={spec}
+          ctx={ctx}
           row={editing === 'new' ? null : editing}
           pending={save.isPending}
           /* The save error has to render INSIDE the dialog: the banner at the
@@ -273,9 +356,10 @@ function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }
 }
 
 function EntityForm({
-  spec, row, pending, error, onCancel, onSubmit,
+  spec, ctx, row, pending, error, onCancel, onSubmit,
 }: {
   spec: EntitySpec;
+  ctx: OptionCtx;
   row: Row | null;
   pending: boolean;
   error: string | null;
@@ -293,6 +377,8 @@ function EntityForm({
       const v = row && f.type !== 'password' ? row[f.key] : '';
       /* A date input needs YYYY-MM-DD; the API returns a full ISO string. */
       if (f.type === 'date' && v) return [f.key, String(v).slice(0, 10)];
+      /* A reference may come back populated ({_id, name}) or as a bare id. */
+      if (v && typeof v === 'object') return [f.key, String((v as any)._id ?? (v as any).id ?? '')];
       return [f.key, v == null ? '' : String(v)];
     })));
 
@@ -301,7 +387,9 @@ function EntityForm({
     const body: Record<string, unknown> = {};
     for (const f of fields) {
       const raw = values[f.key];
-      if (raw === '' && !f.required) continue;      // don't send blanks
+      /* Blanks are not sent — except a cleared reporting line on edit, which is a
+         real instruction ("unplace them") rather than an untouched box. */
+      if (raw === '' && !f.required && !(row && f.separateOnEdit)) continue;
       body[f.key] = f.type === 'number' ? Number(raw) : raw;
     }
     onSubmit(body);
@@ -338,10 +426,18 @@ function EntityForm({
                   className="form-input"
                   required={f.required}
                   value={values[f.key] ?? ''}
-                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                  onChange={(e) => setValues((v) => ({
+                    ...v, [f.key]: e.target.value,
+                    /* A new role changes who may sit above it; a stale manager pick
+                       would be refused by the server, so drop it rather than send it. */
+                    ...(f.key === 'role' && 'reportsTo' in v ? { reportsTo: '' } : {}),
+                  }))}
                 >
                   <option value="">— Select —</option>
-                  {(f.options ?? []).map((o) => (
+                  {(typeof f.options === 'function'
+                    ? f.options({ ...ctx, values, users: ctx.users.filter((u) => u._id !== row?._id) })
+                    : f.options ?? []
+                  ).map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
