@@ -128,6 +128,8 @@ const PORTALS = {
         { label: 'Installation', to: '/director/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
       { section: 'Account', items: [
+        /* SPENCO CRM brief §3 "full access": the Director builds the org chart. */
+        { label: 'People',  to: '/director/people', screen: SCREEN.ADMIN },
         { label: 'Alerts', to: '/director/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
@@ -174,6 +176,8 @@ const PORTALS = {
         { label: 'Review Queue', to: '/ism/review', screen: SCREEN.HYGIENE },
       ] },
       { section: 'Account', items: [
+        /* Brief §3: managers add people to their own team — scoped server-side. */
+        { label: 'People',  to: '/ism/people', screen: SCREEN.ADMIN },
         { label: 'Alerts', to: '/ism/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
@@ -236,6 +240,7 @@ const PORTALS = {
         { label: 'Installation', to: '/zsm/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
       { section: 'Account', items: [
+        { label: 'People',  to: '/zsm/people', screen: SCREEN.ADMIN },
         { label: 'Alerts', to: '/zsm/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
@@ -274,6 +279,7 @@ const PORTALS = {
         { label: 'Installation', to: '/asm/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
       { section: 'Account', items: [
+        { label: 'People',  to: '/asm/people', screen: SCREEN.ADMIN },
         { label: 'Alerts', to: '/asm/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],

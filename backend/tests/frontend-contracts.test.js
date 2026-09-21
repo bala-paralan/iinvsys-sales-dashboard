@@ -1146,14 +1146,23 @@ describe('DELETE /api/agents/:id — soft delete (deactivate)', () => {
     expect(check.body.data.isActive).toBe(false);
   });
 
-  it('manager cannot soft-delete agents (403)', async () => {
+  /* SPENCO CRM brief §3: the Director has full access and may deactivate anyone; a
+     manager may deactivate only within their own team (see 43-team-staff.test.js). */
+  it('the Director can soft-delete agents; a manager outside the team cannot (403)', async () => {
     const admin = await makeAdmin();
-    const mgr   = await makeManager();
+    const director = await makeManager();               // role: sales_director
     const { agent } = await makeAgentWithUser('1', admin.id);
-    const res = await request(app)
+    const asDirector = await request(app)
       .delete(`/api/agents/${agent._id}`)
-      .set('Authorization', `Bearer ${mgr.token}`);
-    expect(res.status).toBe(403);
+      .set('Authorization', `Bearer ${director.token}`);
+    expect(asDirector.status).toBe(200);
+
+    const { agent: other } = await makeAgentWithUser('2', admin.id);
+    const asmId = await insertUser({ name: 'ASM', email: 'asm@test.com', role: 'area_sales_manager' });
+    const asAsm = await request(app)
+      .delete(`/api/agents/${other._id}`)
+      .set('Authorization', `Bearer ${tok(asmId)}`);
+    expect(asAsm.status).toBe(403);
   });
 });
 

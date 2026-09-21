@@ -23,6 +23,29 @@ const audit = require('../services/auditService');
 
 const SAFE_FIELDS = 'name email role domain zone reportsTo initials phone territory designation target color joinDate isActive lastLogin createdAt';
 
+/*
+ * TEAM-SCOPED STAFF MANAGEMENT — SPENCO CRM brief §3.
+ *
+ * The Director's scope is 'all'; a manager's is 'team' (self + subtree). `user.write`
+ * says a caller may add and edit staff; these two rules say whose:
+ *
+ *   - a new person must report to the caller or to someone beneath them, so a manager
+ *     can only grow their own team (and the chart rule then decides which ROLE that
+ *     can be — an ASM's reports are SEs, full stop);
+ *   - an existing person may be edited, moved or deactivated only if they are STRICTLY
+ *     beneath the caller. A manager editing their own record through the staff form
+ *     (role, target, active) is the one write the chart rule does not fully cover, so
+ *     it is refused outright; that is what Account settings are for.
+ *
+ * A scope of 'all' passes both without a query. Superadmin and the Director are the
+ * only holders.
+ */
+function unrestricted(scope) { return !scope || scope.userIds === null; }
+function inTeam(scope, id)  { return unrestricted(scope) || scopeAllows(scope, id); }
+function beneath(scope, id) {
+  return unrestricted(scope) || (scopeAllows(scope, id) && String(id) !== String(scope.self));
+}
+
 /**
  * `.lean()` skips virtuals, so `status` — which the legacy client reads — never reaches
  * the wire from a lean query, and `initials` is absent on rows written straight through
@@ -59,6 +82,12 @@ async function listUsers(req, res, next) {
     /* Referrers are external, temporary expo accounts, not staff. They are not part of
        the directory any internal screen renders. */
     filter.role = filter.role || { $ne: 'referrer' };
+    /* `?team=1` — only the caller's own subtree (self included). The staff screen asks
+       for this so a manager sees the people they may actually edit; the plain directory
+       stays company-wide because every assignee picker reads it. */
+    if (req.query.team === '1' || req.query.team === 'true') {
+      if (!unrestricted(req.scope)) filter._id = { $in: req.scope.userIds };
+    }
 
     const { page, limit, skip } = parsePaging(req.query, { defaultLimit: 50 });
     const [users, total] = await Promise.all([
@@ -106,6 +135,15 @@ async function createUser(req, res, next) {
     if (role && !REGISTERABLE_ROLES.includes(role)) {
       return badRequest(res, `Role '${role}' cannot be created here`);
     }
+    /* A manager grows their own team and nothing else. Nobody but a superadmin mints
+       another superadmin, whatever their scope. */
+    if (!unrestricted(req.scope)) {
+      if (!req.body.reportsTo) return badRequest(res, 'New people must report to you or to someone in your team');
+      if (!inTeam(req.scope, req.body.reportsTo)) return forbidden(res, 'That manager is not in your team');
+    }
+    if (role === 'superadmin' && req.user.role !== 'superadmin') {
+      return forbidden(res, 'Only a superadmin can create a superadmin');
+    }
 
     /* No password in the request: mint an unusable one, exactly as the referrer flow
        does. The account exists in the org chart and cannot be signed into until its
@@ -129,6 +167,11 @@ async function updateUser(req, res, next) {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
+
+    if (!beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
+    if (req.body.role === 'superadmin' && req.user.role !== 'superadmin') {
+      return forbidden(res, 'Only a superadmin can grant superadmin');
+    }
 
     /* `chain` is derived state maintained by orgService; `reportsTo` moves only through
        PATCH /:id/manager so the subtree repair can never be skipped. Accepting either
@@ -169,6 +212,13 @@ async function updateUser(req, res, next) {
 async function setManager(req, res, next) {
   try {
     const { reportsTo } = req.body;
+    /* Both ends of the move stay inside the caller's team: the person, and where they
+       land. A manager unplacing someone (reportsTo: null) would push them out of every
+       team's view, so that too is the Director's call. */
+    if (!beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
+    if (!unrestricted(req.scope) && (!reportsTo || !inTeam(req.scope, reportsTo))) {
+      return forbidden(res, 'People in your team must report to you or to someone in your team');
+    }
     const user = await orgService.setManager(req.params.id, reportsTo || null);
     await audit.record({
       action: 'user.role_change',
@@ -197,6 +247,7 @@ async function deactivateUser(req, res, next) {
     if (String(user._id) === String(req.user._id)) {
       return badRequest(res, 'You cannot deactivate your own account');
     }
+    if (!beneath(req.scope, user._id)) return forbidden(res, 'That person is not in your team');
     user.isActive = false;
     await user.save();
     return ok(res, {}, 'User deactivated');

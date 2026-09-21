@@ -64,8 +64,11 @@ const ROLE_PERMISSIONS = {
   /* Doc 1 + Doc 2: sees everything, creates and assigns anywhere, final approval authority. */
   sales_director: [
     /* Doc 1 IS-DIR-03 and doc 2 SA-DIR-04 both list "Director Origination — Trade Show /
-       Expo" as a lead source, so the Director runs the expo capture programme. */
-    'user.read', 'directory.read', 'catalog.read', 'settings.read', 'expo.manage',
+       Expo" as a lead source, so the Director runs the expo capture programme.
+       SPENCO CRM brief §3 "full access to the entire system": the Director builds the
+       org chart — creates people, edits them, sets reporting lines. */
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
+    'settings.read', 'expo.manage',
     'customer.read', 'customer.write', 'customer.merge',
     'activity.read', 'activity.write', 'activity.read_team',
     'task.read', 'task.write', 'coaching.read', 'coaching.write',
@@ -83,7 +86,7 @@ const ROLE_PERMISSIONS = {
    * "which verbs"; the scope resolver answers "over which rows".
    */
   inside_sales_manager: [
-    'user.read', 'directory.read', 'catalog.read',
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'activity.read_team',
     'task.read', 'task.write', 'coaching.read', 'coaching.write',
@@ -105,12 +108,18 @@ const ROLE_PERMISSIONS = {
   ],
 
   /*
+   * MANAGERS CREATE PEOPLE — WITHIN THEIR TEAM. ISM, ZSM and ASM hold `user.write` and
+   * `user.assign_reports` like the Director, but their scope is 'team', and
+   * userController applies it: a new person must report to them or to someone beneath
+   * them, and they may edit, move or deactivate only their own subtree. The permission
+   * says "may add staff"; the scope says "whose". Same split as leads.
+   *
    * SPENCO CRM brief §3: manages every Area Sales Manager in the zone, sees zone-level
    * pipeline and performance, reassigns between ASMs. Same verbs as an ASM — the two
    * differ in how far down the org chart they read, which is the scope resolver's job.
    */
   zonal_sales_manager: [
-    'user.read', 'directory.read', 'catalog.read',
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'activity.read_team',
     'task.read', 'task.write', 'coaching.read', 'coaching.write',
@@ -124,7 +133,7 @@ const ROLE_PERMISSIONS = {
   /* Doc 2: "Sees only his 2 Executives' deals + his own." Approves discounts 3–10%.
      SPENCO CRM brief: the Area Sales Manager, reporting to a Zonal Sales Manager. */
   area_sales_manager: [
-    'user.read', 'directory.read', 'catalog.read',
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'activity.read_team',
     'task.read', 'task.write', 'coaching.read', 'coaching.write',

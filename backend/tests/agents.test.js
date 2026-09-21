@@ -90,13 +90,16 @@ describe('DELETE /api/agents/:id', () => {
     expect(res.status).toBe(200);
   });
 
-  it('manager cannot hard-delete agents', async () => {
+  it('the Director can deactivate; only a superadmin can hard-delete', async () => {
     const adminToken = await loginAs('superadmin');
     const create = await request(app).post('/api/agents').set('Authorization', `Bearer ${adminToken}`).send(sampleAgent);
     const id = create.body.data._id;
 
-    const mgrToken = await loginAs('sales_director');
-    const res = await request(app).delete(`/api/agents/${id}`).set('Authorization', `Bearer ${mgrToken}`);
-    expect(res.status).toBe(403);
+    /* SPENCO CRM brief §3: full access for the Director — but DELETE /:id is the soft
+       deactivate; the irreversible /:id/hard stays superadmin-only. */
+    const dirToken = await loginAs('sales_director');
+    expect((await request(app).delete(`/api/agents/${id}/hard`).set('Authorization', `Bearer ${dirToken}`)).status).toBe(403);
+    const res = await request(app).delete(`/api/agents/${id}`).set('Authorization', `Bearer ${dirToken}`);
+    expect(res.status).toBe(200);
   });
 });

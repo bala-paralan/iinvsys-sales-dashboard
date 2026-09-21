@@ -30,6 +30,8 @@ interface OptionCtx {
   meta: any;
   users: Row[];
   values: Record<string, string>;
+  /** The caller may only place people inside their own team (scope !== 'all'). */
+  teamOnly: boolean;
 }
 
 interface Field {
@@ -58,6 +60,8 @@ interface Field {
   createOnly?: boolean;
   /** Rendered under the input, for a rule the input cannot express on its own. */
   help?: string;
+  /** Required only in some contexts — a manager must place a new person in their team. */
+  requiredWhen?: (ctx: OptionCtx) => boolean;
 }
 
 interface Row { _id: string; [k: string]: unknown }
@@ -113,6 +117,7 @@ const ENTITIES: EntitySpec[] = [
           const m = ctx.users.find((u) => u._id === id);
           return m ? String(m.name) : '—';
         },
+        requiredWhen: (ctx) => ctx.teamOnly,
         help: 'SD → ISM → ISE, and SD → ZSM → ASM → SE. Leave blank to place them later.' },
       { key: 'zone', label: 'Zone', type: 'select', inTable: true,
         options: ({ meta }) => (meta?.enums?.zones ?? []).map((z: any) => ({ value: z.key, label: z.label })) },
@@ -195,49 +200,77 @@ const WRITE_PERMISSION: Record<string, string> = {
 
 export function AdminPage() {
   const { data: me } = useMe();
+  const perms = me?.permissions ?? [];
+  /*
+   * A tab appears only when the caller can WRITE it. This screen is where things are
+   * maintained; a read-only copy of the product catalogue does nothing for an Area
+   * Sales Manager who came here to add an executive. The superadmin sees all three,
+   * the Director sees Agents and Expos, a manager sees Agents alone — and the server
+   * scopes that one to their own team (SPENCO CRM brief §3).
+   */
+  const tabs = ENTITIES.filter((e) => perms.includes(WRITE_PERMISSION[e.key] ?? '\u0000'));
   const [active, setActive] = useState(ENTITIES[0].key);
-  const spec = ENTITIES.find((e) => e.key === active)!;
-  const canWrite = (me?.permissions ?? []).includes(WRITE_PERMISSION[spec.key] ?? '\u0000');
+  const spec = tabs.find((e) => e.key === active) ?? tabs[0];
+  const teamOnly = !!me && me.scope.mode !== 'all';
+
+  if (!spec) {
+    return (
+      <>
+        <h1 className="page-title">People</h1>
+        <div className="page-sub">// NOTHING HERE IS YOURS TO EDIT</div>
+      </>
+    );
+  }
 
   return (
     <>
-      <h1 className="page-title">Admin</h1>
-      <div className="page-sub">// REFERENCE DATA</div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {ENTITIES.map((e) => (
-          <button
-            key={e.key}
-            className={`neo-btn${active === e.key ? ' gold' : ''}`}
-            onClick={() => setActive(e.key)}
-          >
-            {e.title}
-          </button>
-        ))}
+      <h1 className="page-title">{tabs.length > 1 ? 'Admin' : 'People'}</h1>
+      <div className="page-sub">
+        // {teamOnly ? 'YOUR TEAM — PEOPLE YOU MAY ADD, EDIT AND MOVE' : 'REFERENCE DATA'}
       </div>
 
-      <EntityTable key={spec.key} spec={spec} canWrite={canWrite} />
+      {tabs.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {tabs.map((e) => (
+            <button
+              key={e.key}
+              className={`neo-btn${spec.key === e.key ? ' gold' : ''}`}
+              onClick={() => setActive(e.key)}
+            >
+              {e.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <EntityTable key={spec.key} spec={spec} canWrite teamOnly={teamOnly} />
     </>
   );
 }
 
-function EntityTable({ spec, canWrite }: { spec: EntitySpec; canWrite: boolean }) {
+function EntityTable({ spec, canWrite, teamOnly }: { spec: EntitySpec; canWrite: boolean; teamOnly: boolean }) {
   const queryClient = useQueryClient();
+  const { data: me } = useMe();
   const [editing, setEditing] = useState<Row | 'new' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: ['admin', spec.key],
-    queryFn: async () => (await api<Row[]>('GET', `${spec.path}?limit=200`)).data,
+    /* A manager's staff list is their subtree — the people the server will let them
+       touch. Asking for everyone would show rows whose Edit button 403s. */
+    queryFn: async () => (await api<Row[]>('GET', `${spec.path}?limit=200${teamOnly && spec.key === 'agents' ? '&team=1' : ''}`)).data,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', spec.key] });
 
   const roles = useRoles();
   const { data: meta } = usePipeline();
-  const rows = list.data ?? [];
+  const all = list.data ?? [];
+  /* A manager's own record is in the team list so "reports to me" can be offered — but
+     it is not theirs to edit here (the server refuses), so it is not a row. */
+  const rows = teamOnly ? all.filter((r) => r._id !== me?.userId) : all;
   /* Only the agents table needs the roster for "reports to"; it IS the roster. */
-  const ctx: OptionCtx = { roles, meta, users: spec.key === 'agents' ? rows : [], values: {} };
+  const ctx: OptionCtx = { roles, meta, users: spec.key === 'agents' ? all : [], values: {}, teamOnly };
 
   const save = useMutation({
     mutationFn: async ({ id, body }: { id: string | null; body: Record<string, unknown> }) => {
@@ -415,16 +448,16 @@ function EntityForm({
         )}
 
         <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-          {fields.map((f) => (
+          {fields.map((f) => { const required = !!f.required || !!f.requiredWhen?.(ctx); return (
             <div key={f.key}>
               <label className="form-label" htmlFor={`f-${f.key}`}>
-                {f.label}{f.required && <span style={{ color: 'var(--coral)' }}> *</span>}
+                {f.label}{required && <span style={{ color: 'var(--coral)' }}> *</span>}
               </label>
               {f.type === 'select' ? (
                 <select
                   id={`f-${f.key}`}
                   className="form-input"
-                  required={f.required}
+                  required={required}
                   value={values[f.key] ?? ''}
                   onChange={(e) => setValues((v) => ({
                     ...v, [f.key]: e.target.value,
@@ -446,7 +479,7 @@ function EntityForm({
                   id={`f-${f.key}`}
                   className="form-input"
                   type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : f.type === 'password' ? 'password' : 'text'}
-                  required={f.required}
+                  required={required}
                   /* Matches the server's own rule (body('password').isLength({min:8})),
                      so a short password is refused here rather than as a 422. */
                   minLength={f.type === 'password' ? 8 : undefined}
@@ -463,7 +496,7 @@ function EntityForm({
                 </div>
               )}
             </div>
-          ))}
+          ); })}
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>

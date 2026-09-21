@@ -31,8 +31,8 @@ const userUpdateValidation = [
   body('status').optional().isIn(['active', 'inactive']),
 ];
 
-router.get('/',  authenticate, requirePermission('directory.read'), ctrl.listUsers);
-router.post('/', authenticate, requirePermission('user.write'), userValidation, ctrl.createUser);
+router.get('/',  authenticate, requirePermission('directory.read'), attachScope, ctrl.listUsers);
+router.post('/', authenticate, requirePermission('user.write'), attachScope, userValidation, ctrl.createUser);
 
 router.get('/:id',         authenticate, requirePermission('directory.read'), ctrl.getUser);
 router.get('/:id/reports',  authenticate, requirePermission('directory.read'), ctrl.getReports);
@@ -42,9 +42,9 @@ router.get('/:id/reports',  authenticate, requirePermission('directory.read'), c
    Gating on user.read meant an executive could not open their own My Performance screen,
    which doc 1 IS-EX and doc 2 SA-EX both list in the sidebar. */
 router.get('/:id/stats',    authenticate, requirePermission('kpi.read'), attachScope, ctrl.getUserStats);
-router.put('/:id',          authenticate, requirePermission('user.write'), userUpdateValidation, ctrl.updateUser);
-router.patch('/:id/manager', authenticate, requirePermission('user.assign_reports'), ctrl.setManager);
-router.delete('/:id',       authenticate, requirePermission('user.write'), ctrl.deactivateUser);
+router.put('/:id',          authenticate, requirePermission('user.write'), attachScope, userUpdateValidation, ctrl.updateUser);
+router.patch('/:id/manager', authenticate, requirePermission('user.assign_reports'), attachScope, ctrl.setManager);
+router.delete('/:id',       authenticate, requirePermission('user.write'), attachScope, ctrl.deactivateUser);
 router.delete('/:id/hard',  authenticate, requireRole('superadmin'), ctrl.hardDeleteUser);
 
 module.exports = router;
