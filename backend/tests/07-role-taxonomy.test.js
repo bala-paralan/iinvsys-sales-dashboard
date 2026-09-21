@@ -127,7 +127,7 @@ describe('the finance-blind roles', () => {
     expect(permissionsFor(role)).not.toContain('finance.read');
   });
 
-  it.each(['sales_director', 'sales_manager', 'production_head', 'install_head'])(
+  it.each(['sales_director', 'area_sales_manager', 'production_head', 'install_head'])(
     '%s holds finance.read', (role) => {
       expect(permissionsFor(role)).toContain('finance.read');
     });

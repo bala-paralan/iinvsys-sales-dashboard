@@ -24,6 +24,8 @@ import { useMe } from '../../portal/useMe';
 import { EnumSelect } from '../../components/EnumSelect';
 import { StageGateChecklist } from '../../components/StageGateChecklist';
 import { SpencoPanel } from './SpencoPanel';
+import { TransferPanel } from './TransferPanel';
+import { LeadHistoryPanel } from './LeadHistoryPanel';
 
 const leadSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -218,7 +220,6 @@ export function LeadDetailPage() {
   }
 
   const d = lead.data;
-  const history = [...(d.stageHistory ?? [])].reverse();
 
   return (
     <>
@@ -426,38 +427,10 @@ export function LeadDetailPage() {
           </div>
         </form>
 
-        {/* ── Stage history timeline ── */}
-        <aside style={{ flex: '0 1 320px' }}>
-          <div className="form-label">Stage history</div>
-          {history.length === 0 && (
-            <p style={{ color: 'var(--text-3)', fontSize: 13 }}>
-              No transitions yet — still at first capture.
-            </p>
-          )}
-          {history.map((h, i) => (
-            <div
-              key={i}
-              style={{
-                borderLeft: `3px solid ${h.gateOverride ? 'var(--coral)' : 'var(--emerald)'}`,
-                padding: '8px 12px', marginBottom: 10, background: 'var(--surface-1)',
-              }}
-            >
-              <div style={{ fontSize: 14 }}>
-                {stageLabel(h.from)} → <strong>{stageLabel(h.to)}</strong>
-              </div>
-              <div style={{ color: 'var(--text-3)', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
-                {new Date(h.at).toLocaleString('en-IN')} · {h.byName || 'system'} · {h.direction}
-              </div>
-              {h.gateOverride && (
-                <div style={{ color: 'var(--coral)', fontSize: 12, marginTop: 4 }}>
-                  OVERRIDE — {h.missingAtOverride.length} requirement(s) waived
-                </div>
-              )}
-              {h.note && (
-                <div style={{ color: 'var(--text-2)', fontSize: 12, marginTop: 4 }}>“{h.note}”</div>
-              )}
-            </div>
-          ))}
+        {/* ── SPENCO CRM brief §5 + §7: transfer, and the full history log ── */}
+        <aside style={{ flex: '0 1 360px', display: 'grid', gap: 16, alignContent: 'start' }}>
+          <TransferPanel leadId={id} ownerId={(d as any).owner?._id ?? (d as any).owner ?? null} />
+          <LeadHistoryPanel leadId={id} />
         </aside>
       </div>
 

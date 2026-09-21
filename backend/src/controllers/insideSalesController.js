@@ -12,8 +12,9 @@ const salesEntry = require('../services/salesEntryService');
 const activityService = require('../services/activityService');
 const approvalService = require('../services/approvalService');
 const orgService = require('../services/orgService');
-const notify = require('../services/notificationService');
 const audit = require('../services/auditService');
+const transferService = require('../services/leadTransferService');
+const { ROLE_LABELS } = require('../config/permissions');
 
 /*
  * Inside Sales — ERP Bible V3 document 1.
@@ -75,7 +76,7 @@ async function getLead(req, res, next) {
  * Doc 1 IS-DIR-03, "the most important new screen in V3". One endpoint, three
  * destinations, because they are one decision the capturer makes once:
  *
- *   is_executive     nurture through BANT, then request a handoff
+ *   inside_sales_executive     nurture through BANT, then request a handoff
  *   bypass_is        a warm CXO lead enters SPENCO immediately — creates BOTH records
  *   director_managed stays in the Director's own queue rather than vanishing into a list
  */
@@ -84,7 +85,7 @@ async function createLead(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
-    const { assignmentMode = 'is_executive', assignTo, ...body } = req.body;
+    const { assignmentMode = 'inside_sales_executive', assignTo, ...body } = req.body;
     const modes = pipeline.IS_ASSIGNMENT_MODES.map((m) => m.key);
     if (!modes.includes(assignmentMode)) {
       return badRequest(res, `assignmentMode must be one of: ${modes.join(', ')}`);
@@ -103,8 +104,8 @@ async function createLead(req, res, next) {
     if (!assignee) return badRequest(res, 'assignTo does not name a user');
 
     if (assignmentMode === 'bypass_is') {
-      if (assignee.role !== 'sales_executive' && assignee.role !== 'sales_manager') {
-        return badRequest(res, 'Bypassing Inside Sales assigns to a Sales Executive or Manager');
+      if (!transferService.SALES_ROLES.includes(assignee.role)) {
+        return badRequest(res, 'Bypassing Inside Sales assigns to someone in Sales — a ZSM, ASM or Sales Executive');
       }
       /* Both records, deliberately: the Inside Sales one is closed as converted so the
          origin of the deal stays visible in Customer 360, which is the whole reason
@@ -121,8 +122,8 @@ async function createLead(req, res, next) {
       return created(res, { lead: isLead, salesLead }, 'Lead captured and sent straight to Sales');
     }
 
-    if (assignee.role !== 'is_executive' && assignee.role !== 'is_head') {
-      return badRequest(res, 'Inside Sales leads are assigned to an IS Executive or the IS Head');
+    if (!transferService.IS_ROLES.includes(assignee.role)) {
+      return badRequest(res, 'Inside Sales leads are assigned to an Inside Sales Executive or Manager');
     }
     const lead = await newIsLead(body, assignTo, req.user);
     await notifyAssignee(assignTo, lead, req.body.note);
@@ -142,31 +143,52 @@ async function assignLead(req, res, next) {
 
     const lead = await Lead.findOne({ _id: req.params.id, ...IS_TRACK });
     if (!lead) return notFound(res, 'Inside Sales lead not found');
+    if (!scopeAllows(req.scope, lead.owner)) return forbidden(res, 'That lead is not yours');
 
+    /*
+     * Doc 1 IS-HD-02 routes a lead within the IS team; the SPENCO CRM brief §5 lets the
+     * ISM hand one to a ZSM or ASM. Both are the transfer engine's job — an IS-side
+     * target is an owner change, a Sales-side target mints the SPENCO deal — and the
+     * engine writes the ownership log either way. An ISM's own matrix row does not
+     * include ISEs, so routing inside the team is the ISM's TEAM-SCOPE right (doc 1),
+     * checked here, while the cross-over is the brief's rule, checked in the engine.
+     */
     const assignee = await User.findById(assignTo).select('name role').lean();
     if (!assignee) return badRequest(res, 'assignTo does not name a user');
-    /* An IS Head may only route within their own team — doc 1 IS-HD-02. The Director,
-       whose scope is 'all', passes this for anyone. */
-    if (!scopeAllows(req.scope, assignTo)) {
-      return forbidden(res, 'That person is not in your team');
+
+    if (transferService.IS_ROLES.includes(assignee.role)) {
+      if (!scopeAllows(req.scope, assignTo)) return forbidden(res, 'That person is not in your team');
+      if (String(assignTo) === String(lead.owner)) return badRequest(res, 'That person already owns this lead');
+      const previous = lead.owner ? await User.findById(lead.owner).select('name').lean() : null;
+      lead.owner = assignTo;
+      lead.directorManaged = false;
+      lead.transferHistory.push({
+        kind: previous ? 'transferred' : 'assigned',
+        from: previous ? previous._id : null, fromName: previous ? previous.name : '',
+        to: assignee._id, toName: assignee.name,
+        by: req.user._id, byName: req.user.name, at: new Date(), note,
+      });
+      await lead.save();
+      await transferService.notifyAssignee(assignTo, lead, note);
+      await audit.record({
+        action: 'record.update',
+        entityType: 'lead',
+        entityId: lead._id,
+        summary: `${lead.refId} assigned to ${assignee.name}`,
+        meta: { from: previous ? String(previous._id) : null, to: String(assignTo), note },
+      }, req);
+      return ok(res, lead, `Assigned to ${assignee.name}`);
     }
 
-    const previous = lead.owner;
-    lead.owner = assignTo;
-    lead.directorManaged = false;
-    await lead.save();
-
-    await notifyAssignee(assignTo, lead, note);
-    await audit.record({
-      action: 'record.update',
-      entityType: 'lead',
-      entityId: lead._id,
-      summary: `${lead.refId} assigned to ${assignee.name}`,
-      meta: { from: previous ? String(previous) : null, to: String(assignTo), note },
-    }, req);
-
-    return ok(res, lead, `Assigned to ${assignee.name}`);
-  } catch (err) { next(err); }
+    const { salesLead } = await transferService.transfer(lead, {
+      to: assignTo, note, actor: req.user, scope: req.scope, req,
+    });
+    return ok(res, { lead, salesLead }, `Transferred to ${assignee.name} (${ROLE_LABELS[assignee.role]}) as ${salesLead.refId}`);
+  } catch (err) {
+    if (['NO_TARGET', 'SAME_OWNER', 'TARGET_ROLE', 'NO_SUCH_USER'].includes(err.code)) return badRequest(res, err.message);
+    if (['CANNOT_TRANSFER', 'OUT_OF_SCOPE'].includes(err.code)) return forbidden(res, err.message);
+    next(err);
+  }
 }
 
 /* ── PATCH /api/is/leads/:id/bant ────────────────────────────────── */
@@ -351,9 +373,15 @@ async function decideHandoff(req, res, next) {
 
     const assignee = assignTo || approval.payload?.suggestedAssignee;
     if (!assignee) return badRequest(res, 'assignTo is required — name the Sales Executive who takes this');
+    /* SPENCO CRM brief §5: an ISM hands leads to a ZSM or ASM, who route them onward
+       inside their zone or area. The Director, deciding an escalated handoff, may name
+       anyone in Sales. */
     const target = await User.findById(assignee).select('role name').lean();
-    if (!target || !['sales_executive', 'sales_manager'].includes(target.role)) {
-      return badRequest(res, 'A handoff is assigned to a Sales Executive or Manager');
+    const allowed = req.user.role === 'inside_sales_manager'
+      ? ['zonal_sales_manager', 'area_sales_manager']
+      : transferService.SALES_ROLES;
+    if (!target || !allowed.includes(target.role)) {
+      return badRequest(res, `A handoff is assigned to: ${allowed.map((r) => ROLE_LABELS[r]).join(', ')}`);
     }
 
     const { lead: salesLead } = await salesEntry.mintSalesLead(lead, {
@@ -380,7 +408,7 @@ async function teamPerformance(req, res, next) {
        nowhere in it. `req.scope.userIds` deliberately includes self — it answers "whose
        rows may I read" — so a performance table has to drop it explicitly. */
     const ids = (req.scope.userIds === null
-      ? (await User.find({ role: 'is_executive', isActive: true }).select('_id').lean()).map((u) => u._id)
+      ? (await User.find({ role: 'inside_sales_executive', isActive: true }).select('_id').lean()).map((u) => u._id)
       : req.scope.userIds
     ).filter((id) => String(id) !== String(req.user._id));
 
@@ -451,17 +479,8 @@ async function newIsLead(body, owner, actor, extra = {}) {
   return lead;
 }
 
-async function notifyAssignee(userId, lead, note) {
-  return notify.notifyUser(userId, {
-    event: 'lead.assigned',
-    severity: lead.priority === 'hot' ? 'critical' : 'warn',
-    title: `New lead: ${lead.name}${lead.company ? ` — ${lead.company}` : ''}`,
-    body: note || `${lead.refId} · priority ${lead.priority}`,
-    reason: 'It was assigned to you.',
-    entityType: 'lead',
-    entityId: lead._id,
-  });
-}
+/* Lives in leadTransferService now, so a hand-over reads the same from every door. */
+const notifyAssignee = transferService.notifyAssignee;
 
 function bantComplete(lead) {
   return pipeline.BANT_KEYS.every((k) => lead.bant[k] && lead.bant[k].confirmed);

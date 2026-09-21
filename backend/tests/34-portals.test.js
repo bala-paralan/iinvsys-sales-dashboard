@@ -44,6 +44,18 @@ describe('portal registry', () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
+  /* SPENCO CRM brief §4: "The Create Lead button must be visible and functional on every
+     role's dashboard without exception." Every Sales-side portal's SIDEBAR carries one —
+     a detail route the sidebar does not show would satisfy the router and fail the brief. */
+  it.each(['sales_director', 'inside_sales_manager', 'inside_sales_executive',
+    'zonal_sales_manager', 'area_sales_manager', 'sales_executive'])(
+    '%s has Create Lead in the sidebar', (role) => {
+      const p = portalFor(role);
+      const captures = p.nav.flatMap((s) => s.items)
+        .filter((i) => i.screen === 'is.capture' || i.screen === 'sa.capture');
+      expect(captures.length).toBeGreaterThan(0);
+    });
+
   it('makes every nav link a reachable route — the v2 drift bug', () => {
     for (const role of ALL_ROLES) {
       const p = portalFor(role);
@@ -129,11 +141,11 @@ describe('GET /api/meta/me', () => {
 
     expect(res.status).toBe(200);
     const me = res.body.data;
-    expect(me.role).toBe('sales_manager');
+    expect(me.role).toBe('area_sales_manager');
     expect(me.domain).toBe('railways');
     expect(me.scope.mode).toBe('team');
     expect(me.scope.canSeeFinancials).toBe(true);
-    expect(me.portal.key).toBe('sales-mgr');
+    expect(me.portal.key).toBe('asm');
     /* Every "Switch Exec ▼" picker and assignment dropdown renders from this. */
     expect(me.directReports.map((r) => String(r._id)).sort())
       .toEqual([execA.id, execB.id].map(String).sort());

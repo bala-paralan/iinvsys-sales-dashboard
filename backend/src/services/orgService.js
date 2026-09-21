@@ -15,6 +15,22 @@
  */
 
 const User = require('../models/User');
+const { mayReportTo, ROLE_LABELS } = require('../config/permissions');
+
+/**
+ * SPENCO CRM brief §2 — the Sales chart has a fixed shape (SD → ISM → ISE, SD → ZSM →
+ * ASM → SE). A wrong manager is refused; NO manager is allowed for any role, because a
+ * person can be created before their manager exists and a manager can be deleted from
+ * under them. An unplaced user has an empty 'team' subtree and is visible to nobody
+ * but the Director, which is the safe failure.
+ */
+function assertManagerRole(role, managerRole) {
+  if (!managerRole || mayReportTo(role, managerRole)) return;
+  throw Object.assign(
+    new Error(`A ${ROLE_LABELS[role] || role} cannot report to a ${ROLE_LABELS[managerRole] || managerRole}`),
+    { code: 'ORG_INVALID_MANAGER' },
+  );
+}
 
 /** The chain a user should have, given their manager. */
 async function chainFor(managerId) {
@@ -32,7 +48,7 @@ async function chainFor(managerId) {
  * subtree query wrong in a way that is very hard to see.
  */
 async function setManager(userId, managerId) {
-  const user = await User.findById(userId).select('chain reportsTo');
+  const user = await User.findById(userId).select('chain reportsTo role');
   if (!user) throw Object.assign(new Error('User not found'), { code: 'USER_NOT_FOUND' });
 
   const uid = String(user._id);
@@ -40,11 +56,12 @@ async function setManager(userId, managerId) {
     throw Object.assign(new Error('A user cannot report to themselves'), { code: 'ORG_CYCLE' });
   }
   if (managerId) {
-    const mgr = await User.findById(managerId).select('chain').lean();
+    const mgr = await User.findById(managerId).select('chain role').lean();
     if (!mgr) throw Object.assign(new Error('Manager not found'), { code: 'MANAGER_NOT_FOUND' });
     if ((mgr.chain || []).some((a) => String(a) === uid)) {
       throw Object.assign(new Error('That manager already reports to this user'), { code: 'ORG_CYCLE' });
     }
+    assertManagerRole(user.role, mgr.role);
   }
 
   const oldChain = user.chain || [];
@@ -85,7 +102,7 @@ async function descendantIds(userId) {
 /** Direct reports only — what the "Switch Exec ▼" pickers render. */
 async function directReports(userId) {
   return User.find({ reportsTo: userId, isActive: true })
-    .select('name role domain initials color').sort({ name: 1 }).lean();
+    .select('name role domain zone initials color').sort({ name: 1 }).lean();
 }
 
 /**
@@ -93,8 +110,32 @@ async function directReports(userId) {
  * missed on insert. `attrs.reportsTo` is honoured; everything else passes through.
  */
 async function createUser(attrs) {
+  if (attrs.reportsTo) {
+    const mgr = await User.findById(attrs.reportsTo).select('role').lean();
+    if (!mgr) throw Object.assign(new Error('Manager not found'), { code: 'MANAGER_NOT_FOUND' });
+    assertManagerRole(attrs.role || 'sales_executive', mgr.role);
+  }
   const chain = await chainFor(attrs.reportsTo);
   return User.create({ ...attrs, chain });
 }
 
-module.exports = { chainFor, setManager, descendantIds, directReports, createUser };
+/**
+ * Can `userId` take `newRole` where they sit? Their manager must be allowed above the
+ * new role, and each direct report must be allowed beneath it — otherwise a role edit
+ * silently produces a chart the transfer matrix does not describe.
+ */
+async function assertRoleFitsChart(userId, newRole) {
+  const user = await User.findById(userId).select('reportsTo').lean();
+  if (!user) throw Object.assign(new Error('User not found'), { code: 'USER_NOT_FOUND' });
+  if (user.reportsTo) {
+    const mgr = await User.findById(user.reportsTo).select('role').lean();
+    if (mgr) assertManagerRole(newRole, mgr.role);
+  }
+  const reports = await User.find({ reportsTo: userId }).select('role').lean();
+  for (const r of reports) assertManagerRole(r.role, newRole);
+}
+
+module.exports = {
+  chainFor, setManager, descendantIds, directReports, createUser,
+  assertManagerRole, assertRoleFitsChart,
+};

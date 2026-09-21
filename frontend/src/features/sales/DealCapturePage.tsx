@@ -18,7 +18,7 @@ import { useMe } from '../../portal/useMe';
  *   Hot lead → Sales Exec    already warm; Inside Sales is bypassed and SPENCO starts
  *   Deal → SPENCO direct     a fully-formed deal created at any open stage
  *
- * The first two are exactly doc 1 IS-DIR-03's `is_executive` and `bypass_is` modes, so
+ * The first two are exactly doc 1 IS-DIR-03's `inside_sales_executive` and `bypass_is` modes, so
  * they post to that endpoint rather than growing a second one — the bypass has to create
  * BOTH records for the origin to stay visible in Customer 360, and that logic already
  * exists and is tested.
@@ -73,8 +73,8 @@ export function DealCapturePage() {
   /* Who may receive it depends on where it is going — an Inside Sales lead cannot be
      assigned to a Sales Executive, and the server rejects it either way. */
   const wanted = intake === 'lead'
-    ? ['is_executive', 'is_head']
-    : ['sales_executive', 'sales_manager'];
+    ? ['inside_sales_executive', 'inside_sales_manager']
+    : ['sales_executive', 'area_sales_manager'];
   const candidates = (users.length ? users : (me?.directReports ?? []))
     .filter((u) => wanted.includes(u.role));
 
@@ -102,7 +102,7 @@ export function DealCapturePage() {
       const r = await isApi.create({
         ...shared,
         note: form.assigneeNote,
-        assignmentMode: intake === 'hot' ? 'bypass_is' : 'is_executive',
+        assignmentMode: intake === 'hot' ? 'bypass_is' : 'inside_sales_executive',
         spencoStage: 'suspect',
         assignTo,
       });

@@ -6,7 +6,7 @@ const { authenticate } = require('../middleware/auth');
 const { requirePermission, requireRole } = require('../middleware/rbac');
 const { attachScope } = require('../middleware/scope');
 const { ALL_ROLES } = require('../config/permissions');
-const { DOMAIN_KEYS } = require('../config/pipeline');
+const { DOMAIN_KEYS, ZONE_KEYS } = require('../config/pipeline');
 
 const userValidation = [
   body('name').trim().notEmpty(),
@@ -16,6 +16,7 @@ const userValidation = [
   body('password').optional().isLength({ min: 8 }),
   body('role').optional().isIn(ALL_ROLES),
   body('domain').optional().isIn(DOMAIN_KEYS),
+  body('zone').optional().isIn(['', ...ZONE_KEYS]),
 ];
 
 /* PUT is a partial update: each field keeps its format rule but is only checked when
@@ -25,6 +26,7 @@ const userUpdateValidation = [
   body('email').optional().isEmail().normalizeEmail(),
   body('role').optional().isIn(ALL_ROLES),
   body('domain').optional().isIn(DOMAIN_KEYS),
+  body('zone').optional().isIn(['', ...ZONE_KEYS]),
   body('target').optional().isNumeric(),
   body('status').optional().isIn(['active', 'inactive']),
 ];

@@ -54,7 +54,7 @@ export function IsExecDrillPage() {
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not save the note'),
   });
 
-  const base = me?.portal?.key === 'director' ? '/director/inside-sales' : '/is-head';
+  const base = me?.portal?.key === 'director' ? '/director/inside-sales' : '/ism';
 
   return (
     <div>

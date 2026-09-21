@@ -29,11 +29,11 @@ export function IsCapturePage() {
     name: '', phone: '', email: '', company: '', jobTitle: '',
     city: '', state: '', source: 'inside_sales_outbound', priority: 'normal', note: '',
   });
-  const [mode, setMode] = useState('is_executive');
+  const [mode, setMode] = useState('inside_sales_executive');
   const [assignTo, setAssignTo] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  /* Who may receive a lead. `directReports` covers an IS Head routing within their own
+  /* Who may receive a lead. `directReports` covers an ISM routing within their own
      team; a Director needs the wider list and holds `directory.read` to fetch it. */
   const { data: users = [] } = useQuery({
     queryKey: ['users', 'assignable'],
@@ -44,8 +44,8 @@ export function IsCapturePage() {
 
   const candidates = (users.length ? users : (me?.directReports ?? []))
     .filter((u) => (mode === 'bypass_is'
-      ? ['sales_executive', 'sales_manager'].includes(u.role)
-      : ['is_executive', 'is_head'].includes(u.role)));
+      ? ['zonal_sales_manager', 'area_sales_manager', 'sales_executive'].includes(u.role)
+      : ['inside_sales_executive', 'inside_sales_manager'].includes(u.role)));
 
   const save = useMutation({
     mutationFn: () => isApi.create({
@@ -66,9 +66,9 @@ export function IsCapturePage() {
 
   const canBypass = !!me?.permissions.includes('lead.gate_override');
   const modes = [
-    { key: 'is_executive', label: 'Assign to IS Executive',
+    { key: 'inside_sales_executive', label: 'Assign to IS Executive',
       hint: 'Nurtures the lead, qualifies via BANT, then requests a handoff to Sales.' },
-    ...(canBypass ? [{ key: 'bypass_is', label: 'Bypass IS → Sales Executive',
+    ...(canBypass ? [{ key: 'bypass_is', label: 'Bypass IS → Sales (ZSM / ASM / SE)',
       hint: 'Already warm. Enters SPENCO immediately; Inside Sales qualification is skipped.' }] : []),
     ...(canBypass ? [{ key: 'director_managed', label: 'Director-managed — hold',
       hint: 'Stays in your own queue. Reassign later with the context already recorded.' }] : []),
@@ -141,7 +141,7 @@ export function IsCapturePage() {
             </select>
             {!candidates.length && (
               <div className="offline-banner" style={{ marginTop: 8 }}>
-                Nobody to assign to. An IS Head routes within their own team, so someone
+                Nobody to assign to. An ISM routes within their own team, so someone
                 must report to you.
               </div>
             )}

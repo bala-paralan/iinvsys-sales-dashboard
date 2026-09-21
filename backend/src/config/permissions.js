@@ -78,11 +78,11 @@ const ROLE_PERMISSIONS = {
 
   /*
    * Doc 1: "Sees all IS Execs under them ... Cannot see Sales pipeline."
-   * The Sales-pipeline denial is a SCOPE rule, not a permission one — is_head holds
+   * The Sales-pipeline denial is a SCOPE rule, not a permission one — inside_sales_manager holds
    * lead.read but scopeService restricts it to track:'inside_sales'. Permissions answer
    * "which verbs"; the scope resolver answers "over which rows".
    */
-  is_head: [
+  inside_sales_manager: [
     'user.read', 'directory.read', 'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'activity.read_team',
@@ -94,7 +94,7 @@ const ROLE_PERMISSIONS = {
   ],
 
   /* Doc 1: "Sees ONLY their own leads." No peer comparison, no team KPIs. */
-  is_executive: [
+  inside_sales_executive: [
     'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'task.read', 'task.write',
@@ -104,8 +104,26 @@ const ROLE_PERMISSIONS = {
     'notification.read',
   ],
 
-  /* Doc 2: "Sees only his 2 Executives' deals + his own." Approves discounts 3–10%. */
-  sales_manager: [
+  /*
+   * SPENCO CRM brief §3: manages every Area Sales Manager in the zone, sees zone-level
+   * pipeline and performance, reassigns between ASMs. Same verbs as an ASM — the two
+   * differ in how far down the org chart they read, which is the scope resolver's job.
+   */
+  zonal_sales_manager: [
+    'user.read', 'directory.read', 'catalog.read',
+    'customer.read', 'customer.write',
+    'activity.read', 'activity.write', 'activity.read_team',
+    'task.read', 'task.write', 'coaching.read', 'coaching.write',
+    'approval.request', 'approval.decide', 'approval.escalate',
+    'lead.read', 'lead.write', 'lead.advance', 'lead.gate_override',
+    'workorder.read', 'install.read',
+    'kpi.read', 'kpi.read_team', 'report.export',
+    'notification.read', 'finance.read',
+  ],
+
+  /* Doc 2: "Sees only his 2 Executives' deals + his own." Approves discounts 3–10%.
+     SPENCO CRM brief: the Area Sales Manager, reporting to a Zonal Sales Manager. */
+  area_sales_manager: [
     'user.read', 'directory.read', 'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'activity.read_team',
@@ -210,10 +228,15 @@ const ROLE_PERMISSIONS = {
   referrer: [],
 };
 
-/** The eleven roles ERP Bible V3 names. `superadmin` and `referrer` are system roles. */
+/**
+ * The twelve business roles: ERP Bible V3's eleven, plus the Zonal Sales Manager the
+ * SPENCO CRM brief inserts between the Director and the Area Sales Managers. The Sales
+ * keys follow that brief's names (SD / ISM / ZSM / ASM / ISE / SE). `superadmin` and
+ * `referrer` are system roles.
+ */
 const V3_ROLES = [
-  'sales_director', 'is_head', 'is_executive',
-  'sales_manager', 'sales_executive',
+  'sales_director', 'inside_sales_manager', 'inside_sales_executive',
+  'zonal_sales_manager', 'area_sales_manager', 'sales_executive',
   'production_head', 'production_engineer',
   'install_head', 'cs_manager', 'field_engineer', 'cs_agent',
 ];
@@ -240,9 +263,10 @@ const REGISTERABLE_ROLES = ALL_ROLES.filter((r) => r !== 'referrer');
 const ROLE_SCOPE = {
   superadmin: 'all',
   sales_director: 'all',
-  is_head: 'team',
-  is_executive: 'own',
-  sales_manager: 'team',
+  inside_sales_manager: 'team',
+  inside_sales_executive: 'own',
+  zonal_sales_manager: 'team',
+  area_sales_manager: 'team',
   sales_executive: 'own',
   production_head: 'all',
   production_engineer: 'own',
@@ -257,7 +281,77 @@ const ROLE_SCOPE = {
  * Roles whose Sales reach is limited to Inside Sales records.
  * Doc 1: the IS Head and IS Executive "cannot see Sales pipeline".
  */
-const INSIDE_SALES_ONLY_ROLES = ['is_head', 'is_executive'];
+const INSIDE_SALES_ONLY_ROLES = ['inside_sales_manager', 'inside_sales_executive'];
+
+/** Display names, keyed by role — the client renders these and never hardcodes one. */
+const ROLE_LABELS = {
+  superadmin:             'Super Admin',
+  sales_director:         'Sales Director',
+  inside_sales_manager:   'Inside Sales Manager',
+  inside_sales_executive: 'Inside Sales Executive',
+  zonal_sales_manager:    'Zonal Sales Manager',
+  area_sales_manager:     'Area Sales Manager',
+  sales_executive:        'Sales Executive',
+  production_head:        'Production Head',
+  production_engineer:    'Production Engineer',
+  install_head:           'Installation Head',
+  cs_manager:             'CS Manager',
+  field_engineer:         'Field Engineer',
+  cs_agent:               'CS Agent',
+  referrer:               'Referrer',
+};
+
+/** The brief's short forms, for column headers and badges. */
+const ROLE_ABBR = {
+  sales_director: 'SD', inside_sales_manager: 'ISM', inside_sales_executive: 'ISE',
+  zonal_sales_manager: 'ZSM', area_sales_manager: 'ASM', sales_executive: 'SE',
+};
+
+/**
+ * Who may report to whom — SPENCO CRM brief §2, as data.
+ *
+ *   SD ─┬─ ISM ── ISE
+ *       └─ ZSM ── ASM ── SE
+ *
+ * A role absent here has no constraint on its manager (the non-Sales modules keep the
+ * free-form chart Phase 0 gave them). `null` in the list means "may report to nobody".
+ * orgService.setManager enforces it; the transfer matrix and every 'team' scope assume
+ * the chart has this shape, so a chart that violates it would make those rules lie.
+ */
+const REPORTS_TO_ROLES = {
+  sales_director:         [null, 'superadmin'],
+  inside_sales_manager:   ['sales_director'],
+  inside_sales_executive: ['inside_sales_manager'],
+  zonal_sales_manager:    ['sales_director'],
+  area_sales_manager:     ['zonal_sales_manager'],
+  sales_executive:        ['area_sales_manager'],
+};
+
+/**
+ * Who may transfer a lead to whom — SPENCO CRM brief §5, as data.
+ *
+ *   null  — anyone in the system (the Director)
+ *   []    — cannot transfer; must escalate to their manager (ISE, SE)
+ *   list  — target must hold one of these roles AND sit in the actor's reporting
+ *           subtree ("within their zone / area"), which scopeService decides.
+ *
+ * services/leadTransferService.js is the only consumer; nothing else changes an owner.
+ */
+const TRANSFER_TARGETS = {
+  sales_director:         null,
+  inside_sales_manager:   ['zonal_sales_manager', 'area_sales_manager'],
+  zonal_sales_manager:    ['area_sales_manager'],
+  area_sales_manager:     ['sales_executive'],
+  inside_sales_executive: [],
+  sales_executive:        [],
+};
+
+/** True when `role` may report to `managerRole` (`null` = no manager). */
+function mayReportTo(role, managerRole) {
+  const allowed = REPORTS_TO_ROLES[role];
+  if (!allowed) return true;
+  return allowed.includes(managerRole === undefined ? null : managerRole);
+}
 
 function permissionsFor(role) {
   return ROLE_PERMISSIONS[role] || [];
@@ -281,6 +375,6 @@ function scopeModeFor(role) {
 
 module.exports = {
   PERMISSIONS, ROLE_PERMISSIONS, ALL_ROLES, V3_ROLES, REGISTERABLE_ROLES,
-  ROLE_SCOPE, INSIDE_SALES_ONLY_ROLES,
-  permissionsFor, roleHasAny, rolesWith, scopeModeFor,
+  ROLE_SCOPE, INSIDE_SALES_ONLY_ROLES, ROLE_LABELS, ROLE_ABBR, REPORTS_TO_ROLES, TRANSFER_TARGETS,
+  permissionsFor, roleHasAny, rolesWith, scopeModeFor, mayReportTo,
 };

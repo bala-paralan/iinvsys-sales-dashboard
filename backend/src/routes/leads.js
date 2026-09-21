@@ -75,6 +75,23 @@ router.get('/:id/gate',
 router.post('/:id/advance',
   authenticate, requirePermission('lead.advance'), attachScope, ctrl.advanceLead);
 
+/* SPENCO CRM brief §5 — transfers. The ONLY sanctioned way to change a lead's owner;
+   PUT /:id refuses one. `lead.write` is the verb; the matrix in permissions.js decides
+   who may send what where, and the service refuses the rest. */
+router.get('/:id/transfer-targets',
+  authenticate, requirePermission('lead.read'), attachScope, ctrl.transferTargets);
+router.post('/:id/transfer',
+  authenticate, requirePermission('lead.write'), attachScope, ctrl.transferLead);
+/* An ISE or SE cannot transfer — they ask. Their manager decides at the route below. */
+router.post('/:id/request-transfer',
+  authenticate, requirePermission('approval.request'), attachScope, ctrl.requestTransfer);
+router.post('/transfer-requests/:id/decide',
+  authenticate, requirePermission('approval.decide'), attachScope, ctrl.decideTransferRequest);
+
+/* SPENCO CRM brief §7 — the lead history log. */
+router.get('/:id/history',
+  authenticate, requirePermission('lead.read'), attachScope, ctrl.getHistory);
+
 /* PRD 4 — merge */
 router.post('/:id/merge',          ...auth,         ctrl.mergeLead);
 /* PRD 5 — enrichment */

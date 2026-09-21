@@ -28,7 +28,7 @@ export function LogActivityPage() {
     queryFn: () => isApi.customers('?limit=200'),
   });
 
-  const isInsideSales = me?.role === 'is_executive' || me?.role === 'is_head';
+  const isInsideSales = me?.role === 'inside_sales_executive' || me?.role === 'inside_sales_manager';
 
   /* The caller's own records against the chosen account, so the deal picker offers only
      things they could legitimately be talking about. */

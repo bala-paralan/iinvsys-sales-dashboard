@@ -23,7 +23,7 @@ export function IsTeamPage() {
     queryFn: isApi.team,
   });
 
-  const base = me?.portal?.key === 'director' ? '/director/inside-sales' : '/is-head';
+  const base = me?.portal?.key === 'director' ? '/director/inside-sales' : '/ism';
 
   return (
     <div>

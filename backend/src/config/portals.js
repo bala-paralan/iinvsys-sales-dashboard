@@ -22,7 +22,7 @@
  * HARD CONSTRAINT, like pipeline.js: pure data, no mongoose, no model requires.
  *
  * Paths follow ERP Bible V3 verbatim (`app.iinvsys.com/director/inside-sales/dashboard`,
- * `/is-head/handoff-queue`, `/prod-eng/orders/:id`, `/cs-agent/my-tickets`), so the
+ * `/ism/handoff-queue`, `/prod-eng/orders/:id`, `/cs-agent/my-tickets`), so the
  * specification is the route table.
  */
 
@@ -63,6 +63,7 @@ const SCREEN = {
   SA_FORECAST:      'sa.forecast',      // SA-DIR-08
   SA_CAPTURE:       'sa.capture',       // SA-DIR-04 / SA-EX-05
   SA_MY_DASHBOARD:  'sa.myDashboard',   // SA-EX-01 / SA-MGR-01
+  SA_ZONE:          'sa.zone',          // SPENCO CRM brief §6 — the Zonal Sales Manager's dashboard
 
   /* ── Phase 3: Production & Delivery (ERP Bible V3, document 3) ───────────── */
   PD_DASHBOARD:     'pd.dashboard',     // PD-HD-01 / PD-ENG-01
@@ -151,132 +152,175 @@ const PORTALS = {
   },
 
   /* ── Doc 1: "Cannot see Sales pipeline" — no delivery, no installation ──── */
-  is_head: {
-    key: 'is-head',
-    landing: '/is-head/dashboard',
+  inside_sales_manager: {
+    key: 'ism',
+    landing: '/ism/dashboard',
     nav: [
       { section: 'My Team', items: [
-        { label: 'Team Dashboard',  to: '/is-head/dashboard', screen: SCREEN.IS_TEAM },
-        { label: 'All Team Leads',  to: '/is-head/leads', screen: SCREEN.IS_LEADS },
-        { label: 'Lead Assignment', to: '/is-head/assignment', screen: SCREEN.IS_LEADS },
-        { label: 'Log Activity',    to: '/is-head/log-activity', screen: SCREEN.LOG_ACTIVITY },
-        { label: 'Handoff Queue',   to: '/is-head/handoff-queue', screen: SCREEN.IS_HANDOFFS, badge: 'handoffs' },
+        { label: 'Team Dashboard',  to: '/ism/dashboard', screen: SCREEN.IS_TEAM },
+        { label: 'All Team Leads',  to: '/ism/leads', screen: SCREEN.IS_LEADS },
+        /* SPENCO CRM brief §6: "assignment panel for ZSM/ASM" — the lead list in its
+           assignment mode, where each row's Transfer control offers ZSMs and ASMs. */
+        { label: 'Assignment Panel', to: '/ism/assignment', screen: SCREEN.IS_LEADS },
+        { label: 'Handoff Queue',   to: '/ism/handoff-queue', screen: SCREEN.IS_HANDOFFS, badge: 'handoffs' },
+      ] },
+      { section: 'Actions', items: [
+        /* Brief §4: "Create Lead ... on every role's dashboard without exception". */
+        { label: 'Create Lead',     to: '/ism/leads/new', screen: SCREEN.IS_CAPTURE },
+        { label: 'Log Activity',    to: '/ism/log-activity', screen: SCREEN.LOG_ACTIVITY },
       ] },
       { section: 'Reports', items: [
-        { label: 'Team Reports', to: '/is-head/reports', screen: SCREEN.IS_ANALYTICS },
-        { label: 'Review Queue', to: '/is-head/review', screen: SCREEN.HYGIENE },
+        { label: 'Team Reports', to: '/ism/reports', screen: SCREEN.IS_ANALYTICS },
+        { label: 'Review Queue', to: '/ism/review', screen: SCREEN.HYGIENE },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/is-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Alerts', to: '/ism/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
     routes: [
-      detail('/is-head/leads/:id', SCREEN.IS_LEAD_DETAIL),
+      detail('/ism/leads/:id', SCREEN.IS_LEAD_DETAIL),
       /* IS-HD-03 — per-exec activity, the coaching view. */
-      detail('/is-head/exec/:id', SCREEN.IS_EXEC_DRILL),
-      detail('/is-head/customers/:id', SCREEN.CUSTOMER_360),
-      detail('/is-head/leads/new', SCREEN.IS_CAPTURE),
+      detail('/ism/exec/:id', SCREEN.IS_EXEC_DRILL),
+      detail('/ism/customers/:id', SCREEN.CUSTOMER_360),
     ],
   },
 
-  is_executive: {
-    key: 'is-exec',
-    landing: '/is-exec/my-dashboard',
+  inside_sales_executive: {
+    key: 'ise',
+    landing: '/ise/my-dashboard',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Dashboard', to: '/is-exec/my-dashboard', screen: SCREEN.IS_MY_DASHBOARD },
-        { label: 'My Leads',     to: '/is-exec/leads', screen: SCREEN.IS_LEADS },
-        { label: 'My Tasks',     to: '/is-exec/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
-        { label: 'Log Activity', to: '/is-exec/log-activity', screen: SCREEN.LOG_ACTIVITY },
+        { label: 'My Dashboard', to: '/ise/my-dashboard', screen: SCREEN.IS_MY_DASHBOARD },
+        { label: 'My Leads',     to: '/ise/leads', screen: SCREEN.IS_LEADS },
+        { label: 'My Tasks',     to: '/ise/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+        { label: 'Log Activity', to: '/ise/log-activity', screen: SCREEN.LOG_ACTIVITY },
       ] },
       { section: 'Actions', items: [
-        { label: 'Capture Lead',    to: '/is-exec/leads/new', screen: SCREEN.IS_CAPTURE },
+        { label: 'Capture Lead',    to: '/ise/leads/new', screen: SCREEN.IS_CAPTURE },
         /* Doc 1 lists "Request Handoff" as an action. The request itself is raised on a
            lead, so this is the shortlist of leads that are ready for one. */
-        { label: 'Request Handoff', to: '/is-exec/leads?isStage=is_qualified', screen: SCREEN.IS_LEADS },
-        { label: 'My Performance',  to: '/is-exec/performance', screen: SCREEN.MY_PERFORMANCE },
+        { label: 'Request Handoff', to: '/ise/leads?isStage=is_qualified', screen: SCREEN.IS_LEADS },
+        { label: 'My Performance',  to: '/ise/performance', screen: SCREEN.MY_PERFORMANCE },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/is-exec/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Alerts', to: '/ise/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
     /* No team dashboard, no peer list, no analytics. Doc 1: "Personal targets visible —
        no peer comparison shown." The omission is the requirement. */
     routes: [
-      detail('/is-exec/leads/:id', SCREEN.IS_LEAD_DETAIL),
-      detail('/is-exec/customers/:id', SCREEN.CUSTOMER_360),
+      detail('/ise/leads/:id', SCREEN.IS_LEAD_DETAIL),
+      detail('/ise/customers/:id', SCREEN.CUSTOMER_360),
     ],
   },
 
-  /* ── Doc 2 ───────────────────────────────────────────────────────────────── */
-  sales_manager: {
-    key: 'sales-mgr',
-    landing: '/sales-mgr/dashboard',
+  /* ── SPENCO CRM brief §6: "Zone-level leads, ASM-wise pipeline, zone performance" ── */
+  zonal_sales_manager: {
+    key: 'zsm',
+    landing: '/zsm/dashboard',
     nav: [
-      { section: 'My Team', items: [
-        { label: 'Team Dashboard', to: '/sales-mgr/dashboard', screen: SCREEN.SA_TEAM },
-        { label: 'Team Pipeline',  to: '/sales-mgr/pipeline', screen: SCREEN.SA_BOARD },
-        { label: 'My Own Deals',   to: '/sales-mgr/my-deals', screen: SCREEN.SA_MY_DASHBOARD },
+      { section: 'My Zone', items: [
+        { label: 'Zone Dashboard', to: '/zsm/dashboard', screen: SCREEN.SA_ZONE },
+        { label: 'Zone Pipeline',  to: '/zsm/pipeline', screen: SCREEN.SA_BOARD },
+        { label: 'My Own Deals',   to: '/zsm/my-deals', screen: SCREEN.SA_MY_DASHBOARD },
       ] },
       { section: 'Actions', items: [
-        { label: 'Discount Approvals', to: '/sales-mgr/approvals', screen: SCREEN.SA_APPROVALS, badge: 'approvals' },
-        { label: 'New Deal',     to: '/sales-mgr/new', screen: SCREEN.SA_CAPTURE },
-        { label: 'Log Activity', to: '/sales-mgr/log-activity', screen: SCREEN.LOG_ACTIVITY },
-        { label: 'Customers',  to: '/sales-mgr/customers', screen: SCREEN.CUSTOMERS },
-        { label: 'My Tasks',   to: '/sales-mgr/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+        { label: 'Approvals',    to: '/zsm/approvals', screen: SCREEN.SA_APPROVALS, badge: 'approvals' },
+        { label: 'Create Lead',  to: '/zsm/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'Log Activity', to: '/zsm/log-activity', screen: SCREEN.LOG_ACTIVITY },
+        { label: 'Customers',    to: '/zsm/customers', screen: SCREEN.CUSTOMERS },
+        { label: 'My Tasks',     to: '/zsm/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
       ] },
       { section: 'Other Modules', items: [
-        { label: 'Delivery',     to: '/sales-mgr/delivery', screen: SCREEN.DELIVERY_BOARD },
-        { label: 'Installation', to: '/sales-mgr/installation', screen: SCREEN.INSTALL_BOARD },
+        { label: 'Delivery',     to: '/zsm/delivery', screen: SCREEN.DELIVERY_BOARD },
+        { label: 'Installation', to: '/zsm/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/sales-mgr/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Alerts', to: '/zsm/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+      ] },
+    ],
+    /* No company-wide figures, no other zone — the same reasoning as the ASM's. */
+    routes: [
+      detail('/zsm/deals/:id', SCREEN.SA_DEAL),
+      /* Click an ASM row on the zone dashboard: that ASM's team, then their SEs. */
+      detail('/zsm/asm/:id', SCREEN.SA_EXEC_DRILL),
+      detail('/zsm/exec/:id', SCREEN.SA_EXEC_DRILL),
+      detail('/zsm/customers/:id', SCREEN.CUSTOMER_360),
+      detail('/zsm/delivery/:id', SCREEN.DELIVERY_DETAIL),
+      detail('/zsm/installation/:id', SCREEN.INSTALL_DETAIL),
+      detail('/zsm/review', SCREEN.HYGIENE),
+    ],
+  },
+
+  /* ── Doc 2; SPENCO CRM brief: the Area Sales Manager ─────────────────────── */
+  area_sales_manager: {
+    key: 'asm',
+    landing: '/asm/dashboard',
+    nav: [
+      { section: 'My Team', items: [
+        { label: 'Team Dashboard', to: '/asm/dashboard', screen: SCREEN.SA_TEAM },
+        { label: 'Team Pipeline',  to: '/asm/pipeline', screen: SCREEN.SA_BOARD },
+        { label: 'My Own Deals',   to: '/asm/my-deals', screen: SCREEN.SA_MY_DASHBOARD },
+      ] },
+      { section: 'Actions', items: [
+        { label: 'Discount Approvals', to: '/asm/approvals', screen: SCREEN.SA_APPROVALS, badge: 'approvals' },
+        { label: 'New Deal',     to: '/asm/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'Log Activity', to: '/asm/log-activity', screen: SCREEN.LOG_ACTIVITY },
+        { label: 'Customers',  to: '/asm/customers', screen: SCREEN.CUSTOMERS },
+        { label: 'My Tasks',   to: '/asm/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+      ] },
+      { section: 'Other Modules', items: [
+        { label: 'Delivery',     to: '/asm/delivery', screen: SCREEN.DELIVERY_BOARD },
+        { label: 'Installation', to: '/asm/installation', screen: SCREEN.INSTALL_BOARD },
+      ] },
+      { section: 'Account', items: [
+        { label: 'Alerts', to: '/asm/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
     /* No company-wide figures and no other manager's team — doc 2 SA-MGR-01:
        "For company-wide figures, the Sales Director's dashboard is the right source." */
     routes: [
-      detail('/sales-mgr/deals/:id', SCREEN.SA_DEAL),
+      detail('/asm/deals/:id', SCREEN.SA_DEAL),
       /* SA-MGR-03 — the per-customer activity log the Manager coaches from. */
-      detail('/sales-mgr/exec/:id', SCREEN.SA_EXEC_DRILL),
-      detail('/sales-mgr/customers/:id', SCREEN.CUSTOMER_360),
-      detail('/sales-mgr/delivery/:id', SCREEN.DELIVERY_DETAIL),
-      detail('/sales-mgr/installation/:id', SCREEN.INSTALL_DETAIL),
-      detail('/sales-mgr/review', SCREEN.HYGIENE),
+      detail('/asm/exec/:id', SCREEN.SA_EXEC_DRILL),
+      detail('/asm/customers/:id', SCREEN.CUSTOMER_360),
+      detail('/asm/delivery/:id', SCREEN.DELIVERY_DETAIL),
+      detail('/asm/installation/:id', SCREEN.INSTALL_DETAIL),
+      detail('/asm/review', SCREEN.HYGIENE),
     ],
   },
 
 
   sales_executive: {
-    key: 'sales-exec',
-    landing: '/sales-exec/my-dashboard',
+    key: 'se',
+    landing: '/se/my-dashboard',
     nav: [
       { section: 'My Work', items: [
-        { label: 'My Dashboard',    to: '/sales-exec/my-dashboard', screen: SCREEN.SA_MY_DASHBOARD },
-        { label: 'My SPENCO Board', to: '/sales-exec/pipeline', screen: SCREEN.SA_BOARD },
-        { label: 'My Tasks',        to: '/sales-exec/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
-        { label: 'My Accounts',     to: '/sales-exec/customers', screen: SCREEN.CUSTOMERS },
+        { label: 'My Dashboard',    to: '/se/my-dashboard', screen: SCREEN.SA_MY_DASHBOARD },
+        { label: 'My SPENCO Board', to: '/se/pipeline', screen: SCREEN.SA_BOARD },
+        { label: 'My Tasks',        to: '/se/tasks', screen: SCREEN.TASKS, badge: 'tasks' },
+        { label: 'My Accounts',     to: '/se/customers', screen: SCREEN.CUSTOMERS },
       ] },
       { section: 'Actions', items: [
-        { label: 'New Deal',       to: '/sales-exec/new', screen: SCREEN.SA_CAPTURE },
-        { label: 'Log Activity',   to: '/sales-exec/log-activity', screen: SCREEN.LOG_ACTIVITY },
-        { label: 'My Performance', to: '/sales-exec/performance', screen: SCREEN.MY_PERFORMANCE },
+        { label: 'New Deal',       to: '/se/new', screen: SCREEN.SA_CAPTURE },
+        { label: 'Log Activity',   to: '/se/log-activity', screen: SCREEN.LOG_ACTIVITY },
+        { label: 'My Performance', to: '/se/performance', screen: SCREEN.MY_PERFORMANCE },
       ] },
       { section: 'Downstream', items: [
-        { label: 'Delivery',     to: '/sales-exec/delivery', screen: SCREEN.DELIVERY_BOARD },
-        { label: 'Installation', to: '/sales-exec/installation', screen: SCREEN.INSTALL_BOARD },
+        { label: 'Delivery',     to: '/se/delivery', screen: SCREEN.DELIVERY_BOARD },
+        { label: 'Installation', to: '/se/installation', screen: SCREEN.INSTALL_BOARD },
       ] },
       { section: 'Account', items: [
-        { label: 'Alerts', to: '/sales-exec/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
+        { label: 'Alerts', to: '/se/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
     ],
     /* No team dashboard, no approvals queue, no forecast. Doc 2: "No other exec's data,
        no company pipeline, no manager's deals." */
     routes: [
-      detail('/sales-exec/deals/:id', SCREEN.SA_DEAL),
-      detail('/sales-exec/customers/:id', SCREEN.CUSTOMER_360),
-      detail('/sales-exec/delivery/:id', SCREEN.DELIVERY_DETAIL),
-      detail('/sales-exec/installation/:id', SCREEN.INSTALL_DETAIL),
+      detail('/se/deals/:id', SCREEN.SA_DEAL),
+      detail('/se/customers/:id', SCREEN.CUSTOMER_360),
+      detail('/se/delivery/:id', SCREEN.DELIVERY_DETAIL),
+      detail('/se/installation/:id', SCREEN.INSTALL_DETAIL),
     ],
   },
 

@@ -7,6 +7,7 @@ const { parsePaging } = require('../utils/pagination');
 const { scopeAllows } = require('../services/scopeService');
 const approvalService = require('../services/approvalService');
 const audit = require('../services/auditService');
+const transferService = require('../services/leadTransferService');
 
 /* ── GET /api/approvals ──────────────────────────────────────────── */
 
@@ -89,6 +90,20 @@ async function decideApproval(req, res, next) {
     }
     if (approval.status !== 'pending' && approval.status !== 'escalated') {
       return badRequest(res, `This approval was already ${approval.status}`);
+    }
+
+    /* A transfer request approved here must MOVE the lead, whichever door decided it.
+       The engine applies the decider's own matrix row; `decision` names the target. */
+    if (approval.kind === 'transfer') {
+      try {
+        await transferService.decideRequest(approval, req.user, { status, note, to: decision || null, req });
+      } catch (err) {
+        if (['NO_TARGET', 'SAME_OWNER', 'TARGET_ROLE', 'NO_SUCH_USER', 'NO_ASSIGNEE'].includes(err.code)) return badRequest(res, err.message);
+        if (['CANNOT_TRANSFER', 'OUT_OF_SCOPE'].includes(err.code)) return forbidden(res, err.message);
+        if (err.code === 'NO_LEAD') return notFound(res, err.message);
+        throw err;
+      }
+      return ok(res, approval, `Approval ${status}`);
     }
 
     await approvalService.decide(approval, req.user, { status, decision, note });

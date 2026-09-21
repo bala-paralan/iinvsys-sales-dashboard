@@ -30,9 +30,10 @@ async function isTeam() {
   const head = await roles.asISHead({ reportsTo: director.id });
   const execA = await roles.asISExec({ reportsTo: head.id });
   const execB = await roles.asISExec({ reportsTo: head.id });
-  const salesMgr = await roles.asSalesManager({ reportsTo: director.id, domain: 'railways' });
-  const salesExec = await roles.asSalesExecutive({ reportsTo: salesMgr.id, domain: 'railways' });
-  return { director, head, execA, execB, salesMgr, salesExec };
+  const zsm = await roles.asZSM({ reportsTo: director.id, zone: 'north' });
+  const salesMgr = await roles.asSalesManager({ reportsTo: zsm.id, domain: 'railways', zone: 'north' });
+  const salesExec = await roles.asSalesExecutive({ reportsTo: salesMgr.id, domain: 'railways', zone: 'north' });
+  return { director, head, execA, execB, zsm, salesMgr, salesExec };
 }
 
 const CAPTURE = {
@@ -49,7 +50,7 @@ describe('Inside Sales', () => {
     it('assigns to an IS Executive and notifies them', async () => {
       const t = await isTeam();
       const res = await request(app).post('/api/is/leads').set(auth(t.head.token))
-        .send({ ...CAPTURE, assignmentMode: 'is_executive', assignTo: t.execA.id });
+        .send({ ...CAPTURE, assignmentMode: 'inside_sales_executive', assignTo: t.execA.id });
 
       expect(res.status).toBe(201);
       expect(res.body.data.lead.track).toBe('inside_sales');
@@ -61,7 +62,7 @@ describe('Inside Sales', () => {
     it('creates the customer account the activity log hangs off', async () => {
       const t = await isTeam();
       await request(app).post('/api/is/leads').set(auth(t.head.token))
-        .send({ ...CAPTURE, assignmentMode: 'is_executive', assignTo: t.execA.id });
+        .send({ ...CAPTURE, assignmentMode: 'inside_sales_executive', assignTo: t.execA.id });
 
       const customer = await Customer.findOne({ name: 'ICF Chennai' });
       expect(customer).not.toBeNull();
@@ -275,12 +276,20 @@ describe('Inside Sales', () => {
 
       expect(await Lead.countDocuments({ track: 'sales' })).toBe(0);
 
-      const res = await request(app).post(`/api/is/handoffs/${approval._id}/decide`)
+      /* SPENCO CRM brief §5: the ISM hands off to a ZSM or ASM, never straight to an
+         SE — the ASM routes it inside their area. Both directions asserted. */
+      const toExec = await request(app).post(`/api/is/handoffs/${approval._id}/decide`)
         .set(auth(t.head.token)).send({ status: 'approved', assignTo: t.salesExec.id });
+      expect(toExec.status).toBe(400);
+      expect(await Lead.countDocuments({ track: 'sales' })).toBe(0);
+
+      const res = await request(app).post(`/api/is/handoffs/${approval._id}/decide`)
+        .set(auth(t.head.token)).send({ status: 'approved', assignTo: t.salesMgr.id });
 
       expect(res.status).toBe(200);
       expect(res.body.data.salesLead.track).toBe('sales');
       expect(res.body.data.salesLead.stage).toBe('prospect');
+      expect(String(res.body.data.salesLead.owner)).toBe(String(t.salesMgr.id));
 
       const converted = await Lead.findById(lead._id);
       expect(converted.isStage).toBe('is_converted');
@@ -326,11 +335,12 @@ describe('Inside Sales', () => {
       const approval = await Approval.findOne({ kind: 'is_handoff' });
 
       await request(app).post(`/api/is/handoffs/${approval._id}/decide`)
-        .set(auth(t.head.token)).send({ status: 'approved', assignTo: t.salesExec.id });
+        .set(auth(t.head.token)).send({ status: 'approved', assignTo: t.salesMgr.id });
       const second = await request(app).post(`/api/is/handoffs/${approval._id}/decide`)
-        .set(auth(t.head.token)).send({ status: 'approved', assignTo: t.salesExec.id });
+        .set(auth(t.head.token)).send({ status: 'approved', assignTo: t.salesMgr.id });
 
       expect(second.status).toBe(400);        // already decided
+      expect(second.body.message).toMatch(/already/);
       expect(await Lead.countDocuments({ track: 'sales' })).toBe(1);
     });
 

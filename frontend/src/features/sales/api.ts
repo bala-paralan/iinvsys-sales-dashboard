@@ -1,7 +1,7 @@
 import { api } from '../../api/client';
 
 export interface DealUserRef {
-  _id: string; name: string; role?: string; initials?: string; color?: string; domain?: string;
+  _id: string; name: string; role?: string; initials?: string; color?: string; domain?: string; zone?: string;
 }
 
 export interface Deal {
@@ -64,8 +64,15 @@ export const salesApi = {
   board: (q = '') => api<{ stages: BoardColumn[]; total: number }>('GET', `/deals/board${q}`)
     .then((r) => r.data),
   /** `user` is SA-DIR-02: the rows become that person's direct reports instead of yours. */
-  team: (user?: string) => api<{ people: TeamRow[]; summary: CommandSummary | null }>(
-    'GET', `/deals/team${user ? `?user=${user}` : ''}`).then((r) => r.data),
+  /** `rollup` is the ZSM's ASM-wise view: one row per direct report, summing their subtree. */
+  team: (user?: string, opts: { rollup?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (user) q.set('user', user);
+    if (opts.rollup) q.set('rollup', '1');
+    const qs = q.toString();
+    return api<{ people: TeamRow[]; summary: CommandSummary | null }>(
+      'GET', `/deals/team${qs ? `?${qs}` : ''}`).then((r) => r.data);
+  },
   forecast: () => api<any>('GET', '/deals/forecast').then((r) => r.data),
 
   create: (body: unknown) => api<Deal>('POST', '/deals', body).then((r) => r.data),

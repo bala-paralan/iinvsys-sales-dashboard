@@ -8,6 +8,8 @@ import { usePipeline } from '../../meta/usePipeline';
 import { LogActivityForm } from '../insideSales/LogActivityForm';
 import { ActivityTimeline, relTime } from '../insideSales/ActivityTimeline';
 import { isApi } from '../insideSales/api';
+import { TransferPanel } from '../leads/TransferPanel';
+import { LeadHistoryPanel } from '../leads/LeadHistoryPanel';
 
 /**
  * The deal working screen — SA-EX-03/04/06/07, SA-MGR-06 and SA-DIR-03.
@@ -233,6 +235,13 @@ export function DealDetailPage() {
           </p>
         </div>
       )}
+
+      {/* SPENCO CRM brief §5 and §7 — who may move this deal, and everything that has
+          happened to it. Side by side: a transfer is the next line in the history. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginTop: 16 }}>
+        <TransferPanel leadId={id} ownerId={d.owner?._id ?? null} onDone={after} />
+        <LeadHistoryPanel leadId={id} />
+      </div>
 
       {customerId && (
         <div style={{ marginTop: 16 }}>

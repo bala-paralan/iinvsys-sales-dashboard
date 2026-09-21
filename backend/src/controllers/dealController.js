@@ -1,6 +1,8 @@
 'use strict';
+const mongoose = require('mongoose');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
+const orgService = require('../services/orgService');
 const Approval = require('../models/Approval');
 const pipeline = require('../config/pipeline');
 const { ok, created, notFound, badRequest, forbidden, paginated } = require('../utils/response');
@@ -101,15 +103,35 @@ async function teamPerformance(req, res, next) {
       rootId = req.query.user;
     }
 
-    const ids = (req.query.user
-      /* SA-DIR-02: whoever reports to the person being drilled into. */
-      ? (await User.find({ reportsTo: rootId, isActive: true }).select('_id').lean())
-        .map((u) => u._id)
-      : (req.scope.userIds === null
-        ? (await User.find({ role: { $in: ['sales_manager', 'sales_executive'] }, isActive: true })
-          .select('_id').lean()).map((u) => u._id)
-        : req.scope.userIds)
-    ).filter((id) => String(id) !== String(rootId));
+    /*
+     * `?rollup=1` — SPENCO CRM brief §6, the ZSM's "ASM-wise pipeline": one row per
+     * DIRECT report, each row the sum of that person AND everyone beneath them. Without
+     * it a ZSM's table is a flat list of ASMs and SEs, and an ASM's row shows only the
+     * deals the ASM personally owns — the opposite of what "ASM-wise" means. The
+     * Director gets the same view of their ZSMs.
+     */
+    const rollup = req.query.rollup === '1' || req.query.rollup === 'true';
+    let headOf = null;       // owner id → the direct report whose row absorbs it
+    let ids;
+    if (rollup) {
+      const heads = await User.find({ reportsTo: rootId, isActive: true }).select('_id').lean();
+      headOf = new Map();
+      for (const h of heads) {
+        headOf.set(String(h._id), String(h._id));
+        for (const d of await orgService.descendantIds(h._id)) headOf.set(String(d), String(h._id));
+      }
+      ids = [...headOf.keys()].map((k) => new mongoose.Types.ObjectId(k));
+    } else {
+      ids = (req.query.user
+        /* SA-DIR-02: whoever reports to the person being drilled into. */
+        ? (await User.find({ reportsTo: rootId, isActive: true }).select('_id').lean())
+          .map((u) => u._id)
+        : (req.scope.userIds === null
+          ? (await User.find({ role: { $in: ['zonal_sales_manager', 'area_sales_manager', 'sales_executive'] }, isActive: true })
+            .select('_id').lean()).map((u) => u._id)
+          : req.scope.userIds)
+      ).filter((id) => String(id) !== String(rootId));
+    }
 
     const [rows, activity] = await Promise.all([
       Lead.aggregate([
@@ -138,8 +160,9 @@ async function teamPerformance(req, res, next) {
       activityService.lastActivityFor(ids),
     ]);
 
-    const users = await User.find({ _id: { $in: ids } })
-      .select('name role domain initials color target reportsTo').lean();
+    const rowIds = rollup ? [...new Set(headOf.values())].map((k) => new mongoose.Types.ObjectId(k)) : ids;
+    const users = await User.find({ _id: { $in: rowIds } })
+      .select('name role domain zone initials color target reportsTo').lean();
 
     /* SA-DIR-01 shows "2 execs" against each Manager row, and the Director's own table
        mixes Managers and Executives — so this is per-row rather than one figure. */
@@ -155,9 +178,30 @@ async function teamPerformance(req, res, next) {
     );
     const today = new Map(todayCounts);
 
-    const stats = new Map(rows.map((r) => [String(r._id), r]));
-    const acts = new Map(activity.map((a) => [String(a.user), a]));
     const blank = { deals: 0, open: 0, won: 0, lost: 0, pipelineValue: 0, wonValue: 0, atRisk: 0 };
+    const stats = new Map();
+    const acts = new Map();
+    for (const r of rows) {
+      const key = rollup ? headOf.get(String(r._id)) : String(r._id);
+      const acc = stats.get(key) || { ...blank };
+      for (const f of Object.keys(blank)) acc[f] += r[f] || 0;
+      stats.set(key, acc);
+    }
+    for (const a of activity) {
+      const key = rollup ? headOf.get(String(a.user)) : String(a.user);
+      const cur = acts.get(key);
+      /* A subtree's last activity is its most recent member's. */
+      if (!cur || (a.lastAt && (!cur.lastAt || new Date(a.lastAt) > new Date(cur.lastAt)))) acts.set(key, a);
+    }
+    if (rollup) {
+      /* "Activities Today" for a subtree is the subtree's total, not the head's own. */
+      const perHead = new Map();
+      for (const [uid, head] of headOf) {
+        if (uid === head) continue;
+        perHead.set(head, (perHead.get(head) || 0) + await activityService.dailyCount(uid));
+      }
+      for (const [head, n] of perHead) today.set(head, (today.get(head) || 0) + n);
+    }
 
     return ok(res, {
       people: users.map((u) => {

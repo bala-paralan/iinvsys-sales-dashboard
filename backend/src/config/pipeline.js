@@ -17,6 +17,12 @@
  * route to all consume it without a require cycle.
  */
 
+/* permissions.js is pure data under the same constraint and requires nothing, so the
+   role taxonomy can ride in the /api/meta payload beside every other enum. */
+const {
+  V3_ROLES, ROLE_LABELS, ROLE_ABBR, ROLE_SCOPE, REPORTS_TO_ROLES, TRANSFER_TARGETS,
+} = require('./permissions');
+
 /* ══════════════════════════════════════════════════════════════════════════
    ENUMS — stored key ⇄ display label
    ══════════════════════════════════════════════════════════════════════════ */
@@ -301,7 +307,7 @@ const DISCOUNT_TIERS = [
   {
     tier: 2, from: 3, to: 10,
     label: 'Sales Manager',
-    approverRole: 'sales_manager',
+    approverRole: 'area_sales_manager',
     permission: 'approval.decide',
   },
   {
@@ -366,7 +372,7 @@ const IS_STAGES = [
   {
     key: 'is_new', order: 1, shortCode: 'N1', label: 'New', color: 'var(--gold)',
     borderClass: 'gold-border', probability: 0, maxDays: 2, terminal: false,
-    ownerRole: 'is_executive',
+    ownerRole: 'inside_sales_executive',
     definition: 'Assigned, not yet contacted.',
     advancesOn: 'First contact attempt logged.',
     entryRequires: [],
@@ -374,7 +380,7 @@ const IS_STAGES = [
   {
     key: 'is_contacted', order: 2, shortCode: 'N2', label: 'Contacted', color: 'var(--azure)',
     borderClass: 'blue-border', probability: 0, maxDays: 14, terminal: false,
-    ownerRole: 'is_executive',
+    ownerRole: 'inside_sales_executive',
     definition: 'Conversation started. BANT in progress.',
     advancesOn: 'All four BANT dimensions confirmed.',
     entryRequires: [
@@ -387,7 +393,7 @@ const IS_STAGES = [
   {
     key: 'is_qualified', order: 3, shortCode: 'N3', label: 'Qualified', color: 'var(--emerald)',
     borderClass: 'green-border', probability: 0, maxDays: 7, terminal: false,
-    ownerRole: 'is_executive',
+    ownerRole: 'inside_sales_executive',
     definition: 'BANT complete. Ready to request handoff to Sales.',
     advancesOn: 'IS Executive requests handoff.',
     entryRequires: [
@@ -400,7 +406,7 @@ const IS_STAGES = [
   {
     key: 'is_handoff_requested', order: 4, shortCode: 'N4', label: 'Handoff Requested',
     color: 'var(--violet)', borderClass: 'violet-border', probability: 0, maxDays: 3,
-    terminal: false, ownerRole: 'is_head',
+    terminal: false, ownerRole: 'inside_sales_manager',
     definition: 'Waiting on the IS Head. Doc 1 IS-HD-04.',
     advancesOn: 'IS Head approves — a Sales lead is minted and this record closes.',
     entryRequires: [
@@ -410,7 +416,7 @@ const IS_STAGES = [
   {
     key: 'is_converted', order: 5, shortCode: 'N5', label: 'Converted to Sales',
     color: 'var(--emerald)', borderClass: 'green-border', probability: 100,
-    terminal: true, ownerRole: 'is_head',
+    terminal: true, ownerRole: 'inside_sales_manager',
     definition: 'Approved. A track:sales lead exists and carries the opportunity.',
     advancesOn: '—',
     entryRequires: [
@@ -420,7 +426,7 @@ const IS_STAGES = [
   {
     key: 'is_lost', order: 6, shortCode: '—', label: 'Disqualified', color: 'var(--coral)',
     borderClass: 'coral-border', probability: 0, terminal: true, reachableFromAny: true,
-    reopenable: true, ownerRole: 'is_executive',
+    reopenable: true, ownerRole: 'inside_sales_executive',
     definition: 'Not a fit, unreachable, or no budget.',
     advancesOn: '—',
     entryRequires: [
@@ -438,7 +444,7 @@ const IS_CONVERTED_STAGE = 'is_converted';
 
 /* Doc 1 IS-DIR-03 — where a Director-originated lead goes. */
 const IS_ASSIGNMENT_MODES = [
-  { key: 'is_executive', label: 'Assign to IS Executive' },
+  { key: 'inside_sales_executive', label: 'Assign to IS Executive' },
   { key: 'bypass_is',    label: 'Bypass IS → Assign to Sales Executive' },
   { key: 'director_managed', label: 'Director Managed — Hold for now' },
 ];
@@ -502,7 +508,7 @@ const SALES_STAGES = [
   {
     key: 'negotiation', order: 4, shortCode: 'S4', label: 'Negotiation', color: 'var(--amber)',
     borderClass: 'amber-border', probability: 70, maxDays: 21, terminal: false,
-    ownerRole: 'sales_manager',
+    ownerRole: 'area_sales_manager',
     definition: 'Active price/term discussion.',
     advancesOn: 'Any pricing conversation started.',
     entryRequires: [
@@ -515,7 +521,7 @@ const SALES_STAGES = [
   {
     key: 'commercial_order', order: 5, shortCode: 'S5', label: 'Commercial Order', color: 'var(--emerald)',
     borderClass: 'green-border', probability: 100, maxDays: null, terminal: true, won: true,
-    ownerRole: 'sales_manager',
+    ownerRole: 'area_sales_manager',
     definition: 'PO received and verified. Work Order created.',
     advancesOn: 'PO number logged. Subscription form signed.',
     entryRequires: [
@@ -1443,6 +1449,8 @@ function pipelineVersion(rules) {
   const ownerRoles = [...IS_STAGES, ...SALES_STAGES, ...DELIVERY_STAGES, ...INSTALL_STAGES]
     .map((s) => `${s.key}:${s.ownerRole || ''}`).join(',');
   return hash36([
+    V3_ROLES.map((k) => `${k}:${ROLE_LABELS[k]}`).join(','),
+    JSON.stringify(TRANSFER_TARGETS),
     IS_STAGE_KEYS.join(','),
     SALES_STAGE_KEYS.join(','),
     DELIVERY_STAGE_KEYS.join(','),
@@ -1487,6 +1495,13 @@ function serialize(rules) {
       ticketPriorities: r.ticketPriorities, ticketStatuses: TICKET_STATUSES,
       ticketIssueTypes: TICKET_ISSUE_TYPES, contractTypes: CONTRACT_TYPES,
       isAssignmentModes: IS_ASSIGNMENT_MODES,
+      /* SPENCO CRM brief §1–§2, §5: the roles, who reports to whom, who may transfer
+         to whom. The client renders labels and pickers from this and hardcodes none. */
+      roles: V3_ROLES.map((key) => ({
+        key, label: ROLE_LABELS[key], abbr: ROLE_ABBR[key] || null,
+        scope: ROLE_SCOPE[key], reportsTo: REPORTS_TO_ROLES[key] || null,
+        transfersTo: TRANSFER_TARGETS[key] === undefined ? [] : TRANSFER_TARGETS[key],
+      })),
     },
     spenco: {
       dimensions: SPENCO_DIMENSIONS, maxPerDimension: SPENCO_MAX_PER_DIMENSION,

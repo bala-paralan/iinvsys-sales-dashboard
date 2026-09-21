@@ -19,7 +19,7 @@ import { relTime } from './ActivityTimeline';
  */
 export function MyPerformancePage() {
   const { data: me } = useMe();
-  const isInsideSales = me?.role === 'is_executive' || me?.role === 'is_head';
+  const isInsideSales = me?.role === 'inside_sales_executive' || me?.role === 'inside_sales_manager';
 
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['users', me?.userId, 'stats'],

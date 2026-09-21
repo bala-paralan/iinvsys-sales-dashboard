@@ -142,7 +142,7 @@ export function MyDashboardPage() {
         {noContact.slice(0, 8).map((l) => (
           <div key={l._id} className="card"
             style={{ padding: 12, cursor: 'pointer', borderLeft: '4px solid var(--coral)' }}
-            onClick={() => nav(`/is-exec/leads/${l._id}`)}>
+            onClick={() => nav(`/ise/leads/${l._id}`)}>
             <strong>{l.name}</strong> — {l.company}
             <div style={{ color: 'var(--text-3)', fontSize: 12 }}>
               {l.refId} · assigned {relTime(l.createdAt)} · no activity logged

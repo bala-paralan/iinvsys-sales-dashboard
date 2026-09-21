@@ -448,3 +448,44 @@ describe('Sales — discounts and commercial orders', () => {
     });
   });
 });
+
+/* SPENCO CRM brief §6 — the ZSM's "ASM-wise pipeline" is a subtree roll-up. */
+describe('GET /api/deals/team?rollup=1', () => {
+  beforeAll(connect);
+  afterAll(disconnect);
+  beforeEach(clearCollections);
+
+  it('gives a ZSM one row per ASM, each summing the ASM and their SEs', async () => {
+    const o = await roles.salesOrg();
+    await dealFor(o.northA.manager.id, { refId: 'SA-2026-101', value: 100 });
+    await dealFor(o.northA.execA.id,   { refId: 'SA-2026-102', value: 200 });
+    await dealFor(o.northA.execB.id,   { refId: 'SA-2026-103', value: 300 });
+    await dealFor(o.northB.execA.id,   { refId: 'SA-2026-104', value: 1000 });
+    await dealFor(o.southA.execA.id,   { refId: 'SA-2026-105', value: 5000 });   // other zone
+
+    const res = await request(app).get('/api/deals/team?rollup=1').set(auth(o.north.token));
+    expect(res.status).toBe(200);
+    const rows = Object.fromEntries(res.body.data.people.map((p) => [String(p.user._id), p]));
+    expect(Object.keys(rows).sort()).toEqual([String(o.northA.manager.id), String(o.northB.manager.id)].sort());
+    expect(rows[String(o.northA.manager.id)]).toMatchObject({ deals: 3, pipelineValue: 600, teamSize: 2 });
+    expect(rows[String(o.northB.manager.id)]).toMatchObject({ deals: 1, pipelineValue: 1000 });
+
+    /* Without rollup the same call is the flat subtree — ASMs and SEs each on their own. */
+    const flat = await request(app).get('/api/deals/team').set(auth(o.north.token));
+    expect(flat.body.data.people).toHaveLength(6);
+    const asmRow = flat.body.data.people.find((p) => String(p.user._id) === String(o.northA.manager.id));
+    expect(asmRow.deals).toBe(1);
+  });
+
+  it('gives the Director one row per ZSM', async () => {
+    const o = await roles.salesOrg();
+    await dealFor(o.northA.execA.id, { refId: 'SA-2026-106', value: 200 });
+    await dealFor(o.southA.execA.id, { refId: 'SA-2026-107', value: 5000 });
+    const res = await request(app).get('/api/deals/team?rollup=1').set(auth(o.director.token));
+    const byId = Object.fromEntries(res.body.data.people.map((p) => [String(p.user._id), p]));
+    expect(byId[String(o.north.id)].pipelineValue).toBe(200);
+    expect(byId[String(o.south.id)].pipelineValue).toBe(5000);
+    /* The ISM reports to the Director too, but owns no deals — a zero row, not an error. */
+    expect(byId[String(o.ism.id)].deals).toBe(0);
+  });
+});

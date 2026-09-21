@@ -8,6 +8,8 @@ import { BantPanel } from './BantPanel';
 import { LogActivityForm } from './LogActivityForm';
 import { ActivityTimeline, relTime } from './ActivityTimeline';
 import type { IsLead } from './types';
+import { TransferPanel } from '../leads/TransferPanel';
+import { LeadHistoryPanel } from '../leads/LeadHistoryPanel';
 
 /**
  * IS-EX-03 / IS-EX-04 / IS-EX-05 in one screen — the Inside Sales Executive's working
@@ -101,12 +103,12 @@ export function IsLeadDetailPage() {
           </div>
         ) : lead.handoffApproval ? (
           <div className="offline-banner">
-            Requested. Waiting on the IS Head to approve, return, or escalate.
+            Requested. Waiting on the Inside Sales Manager to approve, return, or escalate.
           </div>
         ) : (
           <>
             <p style={{ color: 'var(--text-3)', marginTop: 0 }}>
-              All four BANT dimensions must be confirmed. The IS Head reviews them before
+              All four BANT dimensions must be confirmed. The Inside Sales Manager reviews them before
               a Sales deal is created.
             </p>
             <button className="neo-btn gold" disabled={handoff.isPending || !canEdit}
@@ -122,6 +124,17 @@ export function IsLeadDetailPage() {
         )}
         {error && !gate && <div className="offline-banner" style={{ borderColor: 'var(--coral)', marginTop: 10 }} role="alert">{error}</div>}
       </div>
+
+      {/* SPENCO CRM brief §5 and §7. For an ISM the picker offers ZSMs and ASMs — the
+          "assignment panel" — and for an ISE it is the escalation form. */}
+      {!lead.convertedTo && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 16 }}>
+          <TransferPanel leadId={lead._id} ownerId={lead.owner?._id ?? null}
+            onDone={() => qc.invalidateQueries({ queryKey: ['is', 'lead', id] })} />
+          <LeadHistoryPanel leadId={lead._id} />
+        </div>
+      )}
+      {lead.convertedTo && <div style={{ marginTop: 16 }}><LeadHistoryPanel leadId={lead._id} /></div>}
 
       {customerId && canEdit && (
         <div style={{ marginTop: 16 }}>

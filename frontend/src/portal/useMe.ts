@@ -44,6 +44,7 @@ export interface Me {
   userId: string;
   name: string;
   role: string;
+  zone?: string;
   domain: string;
   permissions: string[];
   scope: {

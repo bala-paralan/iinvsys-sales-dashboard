@@ -11,8 +11,10 @@ const mongoose = require('mongoose');
  *   qc          doc 3 PD-HD-07 — Production Head approves QC, unlocking dispatch
  *   co_confirm  doc 2 SA-DIR-09 — Director confirms the Commercial Order
  *   signoff     doc 4 IC-HD-04 — Install Head approves customer sign-off
+ *   transfer    SPENCO CRM brief §5 — an ISE or SE "cannot transfer — must escalate":
+ *               the request goes to their manager, who decides and thereby transfers
  */
-const APPROVAL_KINDS = ['is_handoff', 'discount', 'qc', 'co_confirm', 'signoff'];
+const APPROVAL_KINDS = ['is_handoff', 'discount', 'qc', 'co_confirm', 'signoff', 'transfer'];
 const APPROVAL_STATUSES = ['pending', 'approved', 'returned', 'escalated', 'rejected'];
 
 const ApprovalSchema = new mongoose.Schema({

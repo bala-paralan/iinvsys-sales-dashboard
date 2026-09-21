@@ -34,8 +34,12 @@ router.get('/leads/:id/gate', authenticate, requirePermission('lead.read'), atta
 router.patch('/leads/:id/bant', authenticate, requirePermission('lead.write'), attachScope, ctrl.updateBant);
 router.post('/leads/:id/advance', authenticate, requirePermission('lead.advance'), attachScope, ctrl.advanceLead);
 
-/* Routing a lead between executives is the IS Head's job — doc 1 IS-HD-02. */
-router.post('/leads/:id/assign', authenticate, requirePermission('user.assign_reports', 'lead.gate_override'), attachScope, ctrl.assignLead);
+/* Routing a lead between executives is the ISM's job — doc 1 IS-HD-02 — and handing
+   one to a ZSM/ASM is the SPENCO CRM brief §5. The verb is `lead.write`; who may send
+   what where is the scope (inside the team) and the transfer matrix (across to Sales).
+   This was guarded by `user.assign_reports`/`lead.gate_override`, which the IS Head
+   never held — so the screen it exists for could only be used by the Director. */
+router.post('/leads/:id/assign', authenticate, requirePermission('lead.write'), attachScope, ctrl.assignLead);
 
 router.post('/leads/:id/request-handoff', authenticate, requirePermission('approval.request'), attachScope, ctrl.requestHandoff);
 /* Approving is the ONLY path that mints a Sales lead — see salesEntryService. */

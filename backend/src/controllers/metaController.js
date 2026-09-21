@@ -74,6 +74,7 @@ async function getMe(req, res, next) {
       name: req.user.name,
       role: req.user.role,
       domain: req.user.domain,
+      zone: req.user.zone || '',
       permissions: permissionsFor(req.user.role),
       scope: {
         mode: scopeModeFor(req.user.role),

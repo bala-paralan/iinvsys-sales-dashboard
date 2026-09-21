@@ -5,7 +5,7 @@ const bcrypt   = require('bcryptjs');
    mongoose dependency, so importing them here cannot create a require cycle.
    See docs/requirements/04-roles-and-permissions.md. */
 const { ALL_ROLES } = require('../config/permissions');
-const { DOMAIN_KEYS } = require('../config/pipeline');
+const { DOMAIN_KEYS, ZONE_KEYS } = require('../config/pipeline');
 
 /**
  * User is the ONLY identity model.
@@ -32,6 +32,11 @@ const UserSchema = new mongoose.Schema({
   /* Doc 2: one Sales Manager per domain, two Executives each. A labelling and
      routing attribute — visibility is decided by the reporting line, not by this. */
   domain:    { type: String, enum: DOMAIN_KEYS, default: 'none' },
+  /* SPENCO CRM brief: a Zonal Sales Manager's zone, and the zone of everyone beneath
+     them. Same status as `domain` — a label for dashboards and filters. "Within their
+     zone" is enforced as "within their reporting subtree" (scopeService), so a zone tag
+     that disagrees with the chart can mislabel a row but never leak one. */
+  zone:      { type: String, enum: ['', ...ZONE_KEYS], default: '' },
 
   /* ── Sales profile, absorbed from the retired `Agent` model ────────────────── */
   initials:    { type: String, trim: true, maxlength: 3 },
@@ -57,6 +62,7 @@ UserSchema.index({ role: 1, isActive: 1 });
 UserSchema.index({ reportsTo: 1 });
 UserSchema.index({ chain: 1 });
 UserSchema.index({ domain: 1 });
+UserSchema.index({ zone: 1 });
 
 /* Derive initials from the name when not given, so the seed and the invite flow
    never have to. Two letters from the first two words, upper-cased. */

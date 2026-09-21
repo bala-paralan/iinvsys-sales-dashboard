@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const pipeline = require('../config/pipeline');
 const SpencoSchema       = require('./schemas/spenco');
 const StageHistorySchema = require('./schemas/stageHistory');
+const TransferHistorySchema = require('./schemas/transferHistory');
 const AttachmentSchema   = require('./schemas/attachment');
 
 /*
@@ -250,6 +251,9 @@ const LeadSchema = new mongoose.Schema({
   spenco:        { type: SpencoSchema, default: null },
   stageEnteredAt:{ type: Date, default: Date.now },
   stageHistory:  { type: [StageHistorySchema], default: [] },
+  /* Ownership log — brief §7. Appended only by leadTransferService and the opening
+     entry below; read merged with stageHistory by GET /leads/:id/history. */
+  transferHistory: { type: [TransferHistorySchema], default: [] },
   attachments:   { type: [AttachmentSchema], default: [] },
 
   /* Handoff 1 back-pointer. Written only by processHandoffService; its presence is
@@ -367,6 +371,19 @@ LeadSchema.pre('validate', function deriveFields(next) {
       at: this.createdAt || new Date(),
       direction: 'forward',
       note: 'Lead created',
+    });
+  }
+
+  /* The ownership log opens the same way: who created it, and who it was assigned to
+     at birth. Names are filled by the history reader from the ids; the ids are what
+     survive here. Same pre('validate') reasoning as above — insertMany skips save. */
+  if (this.isNew && Array.isArray(this.transferHistory) && this.transferHistory.length === 0) {
+    this.transferHistory.push({
+      kind: 'created',
+      from: null,
+      to: this.owner || null,
+      by: this.createdBy || null,
+      at: this.createdAt || new Date(),
     });
   }
 

@@ -13,6 +13,10 @@ const pipeline = require('../config/pipeline');
 const { applyTransition, previewGate } = require('../services/stageService');
 const { can } = require('../middleware/rbac');
 const { scopeFilter, scopeAllows, trackFilter } = require('../services/scopeService');
+const transferService = require('../services/leadTransferService');
+const Approval = require('../models/Approval');
+const AuditLog = require('../models/AuditLog');
+const User     = require('../models/User');
 const { nanoid } = (() => {
   try { return require('nanoid'); } catch { return { nanoid: () => Math.random().toString(36).slice(2, 10) }; }
 })();
@@ -34,7 +38,7 @@ const upload = multer({
  * POST /:id/upload, which puts real bytes in GridFS first.
  */
 const SERVER_OWNED_FIELDS = [
-  'stageHistory', 'stageEnteredAt', 'attachments',
+  'stageHistory', 'stageEnteredAt', 'attachments', 'transferHistory',
   'needsReview', 'reviewIssues', 'workOrder', 'createdBy',
 ];
 
@@ -233,6 +237,19 @@ async function updateLead(req, res, next) {
       const allowed = ['stage', 'notes'];
       Object.keys(req.body).forEach(k => { if (!allowed.includes(k)) delete req.body[k]; });
     }
+
+    /* An owner change goes through POST /:id/transfer, which applies the brief's
+       transfer matrix, notifies the assignee and writes the ownership log. Accepting it
+       here was the one door with no rule, no audit row and no notification. An
+       unchanged owner is a no-op, so an ordinary Save never trips this. */
+    if (req.body.owner !== undefined && String(req.body.owner) !== String(lead.owner || '')) {
+      return gateFailed(
+        res, 'OWNER_CHANGE_VIA_TRANSFER',
+        'Owner changes go through POST /api/leads/:id/transfer so the transfer rules and history apply',
+        [],
+      );
+    }
+    delete req.body.owner;
 
     /* A stage change must go through POST /:id/advance, which runs canAdvance()
        and the entry gate. Allowing it here would make every gate optional —
@@ -844,7 +861,173 @@ async function uploadAttachment(req, res, next) {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Transfers — SPENCO CRM brief §5. One engine, services/leadTransferService.js.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const TRANSFER_ERRORS = {
+  NO_TARGET: badRequest, SAME_OWNER: badRequest, TARGET_ROLE: badRequest, NO_SUCH_USER: badRequest,
+  NO_REASON: badRequest, ALREADY_REQUESTED: badRequest, NO_APPROVER: badRequest, BAD_STATUS: badRequest,
+  ALREADY_DECIDED: badRequest, NO_ASSIGNEE: badRequest, UNKNOWN_STAGE: badRequest,
+  CANNOT_TRANSFER: forbidden, OUT_OF_SCOPE: forbidden, NOT_OWNER: forbidden, NOT_ASSIGNEE: forbidden,
+  NO_LEAD: notFound,
+};
+
+/** Load a lead the caller may act on, or answer for them. Returns null after replying. */
+async function loadScopedLead(req, res) {
+  const lead = await Lead.findById(req.params.id);
+  if (!lead) { notFound(res, 'Lead not found'); return null; }
+  if (!scopeAllows(req.scope, lead.owner)) { forbidden(res, 'Access denied'); return null; }
+  return lead;
+}
+
+/* ── GET /api/leads/:id/transfer-targets ─ who may this go to? ───── */
+
+async function transferTargets(req, res, next) {
+  try {
+    const lead = await loadScopedLead(req, res);
+    if (!lead) return undefined;
+    const targets = await transferService.targetsFor(req.user, req.scope, lead);
+    return ok(res, {
+      canTransfer: transferService.targetRolesFor(req.user, lead).length > 0,
+      roles: transferService.targetRolesFor(req.user, lead),
+      targets,
+    });
+  } catch (err) { next(err); }
+}
+
+/* ── POST /api/leads/:id/transfer ─ { to, note } ─────────────────── */
+
+async function transferLead(req, res, next) {
+  try {
+    const lead = await loadScopedLead(req, res);
+    if (!lead) return undefined;
+    const { to, note = '' } = req.body;
+    const { salesLead, crossedTrack } = await transferService.transfer(lead, {
+      to, note, actor: req.user, scope: req.scope, req,
+    });
+    const populated = await Lead.findById(lead._id).populate('owner', 'name initials color role').lean({ virtuals: true });
+    return ok(res, { lead: populated, salesLead, crossedTrack },
+      crossedTrack ? `Transferred to Sales as ${salesLead.refId}` : `Transferred to ${populated.owner?.name || 'the new owner'}`);
+  } catch (err) {
+    const reply = TRANSFER_ERRORS[err.code];
+    if (reply) return reply(res, err.message);
+    next(err);
+  }
+}
+
+/* ── POST /api/leads/:id/request-transfer ─ { reason, suggestedTo } ─ */
+
+async function requestTransfer(req, res, next) {
+  try {
+    const lead = await loadScopedLead(req, res);
+    if (!lead) return undefined;
+    const { reason = '', suggestedTo = null } = req.body;
+    const approval = await transferService.requestTransfer(lead, req.user, { reason, suggestedTo });
+    return created(res, approval, 'Transfer requested — your manager will decide');
+  } catch (err) {
+    const reply = TRANSFER_ERRORS[err.code];
+    if (reply) return reply(res, err.message);
+    next(err);
+  }
+}
+
+/* ── POST /api/leads/transfer-requests/:id/decide ─ { status, to, note } ─ */
+
+async function decideTransferRequest(req, res, next) {
+  try {
+    const approval = await Approval.findOne({ _id: req.params.id, kind: 'transfer' });
+    if (!approval) return notFound(res, 'Transfer request not found');
+    const { status, to = null, note = '' } = req.body;
+    const { lead, result } = await transferService.decideRequest(approval, req.user, { status, to, note, req });
+    return ok(res, { approval, lead, salesLead: result ? result.salesLead : null }, `Transfer request ${status}`);
+  } catch (err) {
+    const reply = TRANSFER_ERRORS[err.code];
+    if (reply) return reply(res, err.message);
+    next(err);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   History — SPENCO CRM brief §7, "Lead History Log — Mandatory".
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * One time-ordered list from three sources the lead already carries or the audit log
+ * already holds: `transferHistory` (created / assigned / transferred), `stageHistory`
+ * (every status change, with gate overrides), and the AuditLog rows against this lead
+ * that neither embeds (gate overrides, merges, uploads, the Sales hand-off mint).
+ * Nothing is written here; a history endpoint that also wrote would be a fourth source.
+ */
+async function getHistory(req, res, next) {
+  try {
+    const lead = await Lead.findById(req.params.id)
+      .select('refId owner createdBy stageHistory transferHistory track originLead convertedTo')
+      .lean();
+    if (!lead) return notFound(res, 'Lead not found');
+    if (req.referrerExpoId) return forbidden(res, 'Access denied');
+    if (!scopeAllows(req.scope, lead.owner)) return forbidden(res, 'Access denied');
+
+    /* Names: prefer what is stored (survives deletion), fall back to a lookup. */
+    const ids = new Set();
+    for (const t of lead.transferHistory || []) [t.from, t.to, t.by].forEach((x) => x && ids.add(String(x)));
+    for (const h of lead.stageHistory || []) if (h.by) ids.add(String(h.by));
+    const users = ids.size
+      ? await User.find({ _id: { $in: [...ids] } }).select('name role').lean()
+      : [];
+    const byId = Object.fromEntries(users.map((u) => [String(u._id), u]));
+    const who = (id, stored) => {
+      if (!id) return null;
+      const u = byId[String(id)];
+      return { id: String(id), name: stored || (u ? u.name : 'Former user'), role: u ? u.role : null };
+    };
+
+    const stageLabel = (key) => {
+      if (!key) return '—';
+      const all = [...pipeline.IS_STAGES, ...pipeline.SALES_STAGES];
+      const found = all.find((st) => st.key === key);
+      return found ? found.label : key.replace(/_/g, ' ');
+    };
+
+    const events = [];
+    for (const t of lead.transferHistory || []) {
+      const to = who(t.to, t.toName), from = who(t.from, t.fromName), by = who(t.by, t.byName);
+      const summary = t.kind === 'created'
+        ? `Created by ${by ? by.name : 'system'}${to ? `, assigned to ${to.name}` : ''}`
+        : t.kind === 'assigned'
+          ? `Assigned to ${to ? to.name : '—'} by ${by ? by.name : 'system'}`
+          : `Transferred from ${from ? from.name : '—'} to ${to ? to.name : '—'} by ${by ? by.name : 'system'}`;
+      events.push({ at: t.at, kind: t.kind, actor: by, summary, meta: { from, to, note: t.note || '' } });
+    }
+    for (const h of lead.stageHistory || []) {
+      if (!h.from && h.note === 'Lead created') continue; /* the opening entry duplicates 'created' */
+      const by = who(h.by, h.byName);
+      events.push({
+        at: h.at, kind: h.gateOverride ? 'gate_override' : 'stage',
+        actor: by,
+        summary: `${h.from ? `${stageLabel(h.from)} → ` : ''}${stageLabel(h.to)}${h.gateOverride ? ' (gate overridden)' : ''}${by ? ` by ${by.name}` : ''}`,
+        meta: { from: h.from, to: h.to, direction: h.direction, note: h.note || '', missingAtOverride: h.missingAtOverride || [] },
+      });
+    }
+    const auditRows = await AuditLog.find({
+      entityType: 'lead', entityId: lead._id,
+      action: { $in: ['stage.gate_override', 'record.merge', 'handoff.created', 'record.delete'] },
+    }).sort({ at: 1 }).lean();
+    for (const a of auditRows) {
+      events.push({
+        at: a.at, kind: a.action, actor: a.actor?.user ? { id: String(a.actor.user), name: a.actor.name, role: a.actor.role } : null,
+        summary: a.summary, meta: a.meta || {},
+      });
+    }
+
+    /* Time-ordered; the opening entry wins a tie so the log always starts at the start. */
+    events.sort((x, y) => (new Date(x.at) - new Date(y.at)) || (x.kind === 'created' ? -1 : y.kind === 'created' ? 1 : 0));
+    return ok(res, { refId: lead.refId, events });
+  } catch (err) { next(err); }
+}
+
 module.exports = {
+  transferTargets, transferLead, requestTransfer, decideTransferRequest, getHistory,
   listLeads, getLead, createLead, updateLead, deleteLead, bulkImport,
   checkDuplicate, mergeLead, logTelemetry,
   bulkScan, triggerEnrich, rollbackEnrichField, getBatch,

@@ -46,6 +46,7 @@ import { DealDetailPage } from '../features/sales/DealDetailPage';
 import { SalesDashboardPage } from '../features/sales/SalesDashboardPage';
 import { ForecastPage } from '../features/sales/ForecastPage';
 import { DealCapturePage } from '../features/sales/DealCapturePage';
+import { ZoneDashboardPage } from '../features/sales/ZoneDashboardPage';
 
 /* Phase 3 — Production & Delivery (ERP Bible V3, document 3) */
 import { ProductionDashboardPage } from '../features/production/ProductionDashboardPage';
@@ -102,6 +103,7 @@ export const SCREENS: Record<string, ComponentType> = {
   'sa.forecast':        ForecastPage,         // SA-DIR-08
   'sa.capture':         DealCapturePage,      // SA-DIR-04 / SA-EX-05
   'sa.myDashboard':     SalesDashboardPage,   // SA-EX-01 / SA-MGR-04
+  'sa.zone':            ZoneDashboardPage,    // SPENCO CRM brief §6 — the ZSM's dashboard
 
   /* Phase 3 — Production & Delivery */
   'pd.dashboard':       ProductionDashboardPage,  // PD-HD-01 / PD-ENG-01

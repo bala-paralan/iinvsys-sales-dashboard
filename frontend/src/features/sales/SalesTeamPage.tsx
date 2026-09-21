@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { salesApi, money, type TeamRow } from './api';
 import { usePipeline } from '../../meta/usePipeline';
 import { useMe } from '../../portal/useMe';
+import { useRoles } from '../../meta/roles';
 import { relTime } from '../insideSales/ActivityTimeline';
 
 /**
@@ -98,7 +99,7 @@ export function SalesTeamPage() {
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '16px 0 10px' }}>
         <h3 style={{ margin: 0 }}>
-          {isDirector ? 'Sales Manager performance' : 'My executives'}
+          {isDirector ? 'Team performance — every ZSM and ASM' : 'My executives'}
         </h3>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button className="neo-btn" aria-pressed={!domain}
@@ -171,18 +172,24 @@ export function SalesTeamPage() {
 }
 
 function Row({ p, onOpen }: { p: TeamRow; onOpen: () => void }) {
+  const roles = useRoles();
   return (
     <tr style={{ borderTop: '1px solid #000', cursor: 'pointer' }} onClick={onOpen}>
       <td style={{ padding: '10px 8px' }}>
         <strong>{p.user.name}</strong>
         <div style={{ color: 'var(--text-3)', fontSize: 12 }}>
-          {p.user.role?.replace(/_/g, ' ')}
+          {roles.label(p.user.role)}
         </div>
       </td>
       <td style={{ padding: '10px 8px' }}>{(p.user.domain ?? 'none').replace(/_/g, ' ')}</td>
-      {/* A manager row says "2 execs"; an executive has nobody, and a dash reads better
-          than a zero that looks like a missing figure. */}
-      <td style={{ padding: '10px 8px' }}>{p.teamSize ? `${p.teamSize} exec${p.teamSize === 1 ? '' : 's'}` : '—'}</td>
+      {/* A manager row says "2 SEs" — or "2 ASMs" for a Zonal Sales Manager, whose reports
+          are managers. An executive has nobody, and a dash reads better than a zero that
+          looks like a missing figure. */}
+      <td style={{ padding: '10px 8px' }}>
+        {p.teamSize
+          ? `${p.teamSize} ${roles.abbr(p.user.role === 'zonal_sales_manager' ? 'area_sales_manager' : 'sales_executive')}s`
+          : '—'}
+      </td>
       <td style={{ padding: '10px 8px' }}>{p.open}</td>
       <td style={{ padding: '10px 8px' }}>{money(p.pipelineValue)}</td>
       <td style={{ padding: '10px 8px' }}>{money(p.wonValue)}</td>

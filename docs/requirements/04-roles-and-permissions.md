@@ -11,9 +11,9 @@ upgrade to something that looks similar.
 | V3 role | Module | Doc | Retired v2 role it supersedes |
 |---|---|---|---|
 | `sales_director` | 1 + 2 | doc 1, doc 2 | `sales_director` (unchanged) |
-| `is_head` | 1 | IS-HD-01…05 | — (new) |
-| `is_executive` | 1 | IS-EX-01…05 | — (new) |
-| `sales_manager` | 2 | SA-MGR-01…09 | `manager` |
+| `inside_sales_manager` | 1 | IS-HD-01…05 | — (new) |
+| `inside_sales_executive` | 1 | IS-EX-01…05 | — (new) |
+| `area_sales_manager` | 2 | SA-MGR-01…09 | `manager` |
 | `sales_executive` | 2 | SA-EX-01…07 | `agent` |
 | `production_head` | 3 | PD-HD-01…10 | `delivery_manager`, `logistics` |
 | `production_engineer` | 3 | PD-ENG-01…05 | `warehouse` |
@@ -116,7 +116,7 @@ nothing is worse than a missing one, because the matrix reads as though the rule
 
 Legend: ● granted · — denied
 
-| Permission | superadmin | director | is_head | is_exec | sa_mgr | sa_exec | prod_head | prod_eng | inst_head | cs_mgr | field_eng | cs_agent | referrer |
+| Permission | superadmin | director | inside_sales_manager | is_exec | sa_mgr | sa_exec | prod_head | prod_eng | inst_head | cs_mgr | field_eng | cs_agent | referrer |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `user.read` | ● | ● | ● | — | ● | — | ● | — | ● | ● | — | — | — |
 | `user.write` / `user.assign_reports` | ● | — | — | — | — | — | — | — | — | — | — | — | — |
@@ -208,8 +208,8 @@ Conflating them is how a scope bug becomes a company-wide leak.
 
 | mode | roles |
 |---|---|
-| `own` | `is_executive`, `sales_executive`, `production_engineer`, `field_engineer`, `cs_agent`, `referrer` |
-| `team` (self + `User.chain` subtree) | `is_head`, `sales_manager` |
+| `own` | `inside_sales_executive`, `sales_executive`, `production_engineer`, `field_engineer`, `cs_agent`, `referrer` |
+| `team` (self + `User.chain` subtree) | `inside_sales_manager`, `area_sales_manager` |
 | `all` | `superadmin`, `sales_director`, `production_head`, `install_head`, `cs_manager` |
 
 `User.chain` is a materialised ancestor path maintained by `services/orgService.js`, so "everyone

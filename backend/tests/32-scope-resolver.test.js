@@ -41,8 +41,9 @@ describe('scope resolver', () => {
     });
 
     it('rewrites the whole subtree when a reporting line moves', async () => {
-      const d1 = await roles.asDirector();
-      const d2 = await roles.asDirector();
+      /* An ASM moving between two ZSMs — the brief's chart. */
+      const d1 = await roles.asZSM({ zone: 'north' });
+      const d2 = await roles.asZSM({ zone: 'south' });
       const manager = await roles.asSalesManager({ reportsTo: d1.id });
       const exec = await roles.asSalesExecutive({ reportsTo: manager.id });
 
@@ -61,6 +62,50 @@ describe('scope resolver', () => {
         expect.arrayContaining([String(manager.id), String(exec.id)]),
       );
       expect((await orgService.descendantIds(d1.id)).map(String)).toEqual([]);
+    });
+
+    /* SPENCO CRM brief §2: the Sales chart has one shape. Both directions — the rule
+       must admit the right pair, or it refuses everyone and the accept tests above are
+       the only thing noticing. */
+    it('admits the brief\'s reporting pairs and refuses the wrong ones', async () => {
+      const director = await roles.asDirector();
+      const zsm = await roles.asZSM({ reportsTo: director.id });
+      const ism = await roles.asISM({ reportsTo: director.id });
+      const asm = await roles.asASM();
+      const se  = await roles.asSE();
+      const ise = await roles.asISE();
+
+      await expect(orgService.setManager(asm.id, zsm.id)).resolves.toBeTruthy();
+      await expect(orgService.setManager(se.id, asm.id)).resolves.toBeTruthy();
+      await expect(orgService.setManager(ise.id, ism.id)).resolves.toBeTruthy();
+
+      await expect(orgService.setManager(asm.id, director.id))
+        .rejects.toMatchObject({ code: 'ORG_INVALID_MANAGER' });
+      await expect(orgService.setManager(se.id, zsm.id))
+        .rejects.toMatchObject({ code: 'ORG_INVALID_MANAGER' });
+      await expect(orgService.setManager(ise.id, asm.id))
+        .rejects.toMatchObject({ code: 'ORG_INVALID_MANAGER' });
+      await expect(orgService.setManager(zsm.id, ism.id))
+        .rejects.toMatchObject({ code: 'ORG_INVALID_MANAGER' });
+
+      /* No manager is always allowed — the account can exist before its manager does. */
+      await expect(orgService.setManager(se.id, null)).resolves.toBeTruthy();
+    });
+
+    it('refuses a role change that would break the chart around the user', async () => {
+      const zsm = await roles.asZSM();
+      const asm = await roles.asASM({ reportsTo: zsm.id });
+      const se  = await roles.asSE({ reportsTo: asm.id });
+
+      /* An SE under a ZSM is not a shape the brief has. */
+      await expect(orgService.assertRoleFitsChart(asm.id, 'sales_executive'))
+        .rejects.toMatchObject({ code: 'ORG_INVALID_MANAGER' });
+      /* An SE whose report is an SE — same. */
+      await expect(orgService.assertRoleFitsChart(asm.id, 'zonal_sales_manager'))
+        .rejects.toMatchObject({ code: 'ORG_INVALID_MANAGER' });
+      /* The role they already hold, and the same role again, fit. */
+      await expect(orgService.assertRoleFitsChart(asm.id, 'area_sales_manager')).resolves.toBeUndefined();
+      await expect(orgService.assertRoleFitsChart(se.id, 'sales_executive')).resolves.toBeUndefined();
     });
 
     it('refuses a cycle', async () => {

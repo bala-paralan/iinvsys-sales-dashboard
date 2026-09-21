@@ -21,7 +21,7 @@ const audit = require('../services/auditService');
  * Planning requires a technician ObjectId and there was no endpoint that could supply one.
  */
 
-const SAFE_FIELDS = 'name email role domain reportsTo initials phone territory designation target color joinDate isActive lastLogin createdAt';
+const SAFE_FIELDS = 'name email role domain zone reportsTo initials phone territory designation target color joinDate isActive lastLogin createdAt';
 
 /**
  * `.lean()` skips virtuals, so `status` — which the legacy client reads — never reaches
@@ -43,10 +43,11 @@ function present(u) {
 
 async function listUsers(req, res, next) {
   try {
-    const { role, domain, territory, active, status, reportsTo, q } = req.query;
+    const { role, domain, zone, territory, active, status, reportsTo, q } = req.query;
     const filter = {};
     if (role)      filter.role      = role;
     if (domain)    filter.domain    = domain;
+    if (zone)      filter.zone      = zone;
     if (reportsTo) filter.reportsTo = reportsTo;
     if (territory) filter.territory = new RegExp(territory, 'i');
     if (active === 'true')  filter.isActive = true;
@@ -116,7 +117,7 @@ async function createUser(req, res, next) {
     const user = await orgService.createUser({ ...req.body, password, createdBy: req.user._id });
     return created(res, sanitise(user), 'User created');
   } catch (err) {
-    if (err.code === 'MANAGER_NOT_FOUND') return badRequest(res, err.message);
+    if (err.code === 'MANAGER_NOT_FOUND' || err.code === 'ORG_INVALID_MANAGER') return badRequest(res, err.message);
     if (err.code === 11000) return conflict(res, 'That email is already registered');
     next(err);
   }
@@ -141,6 +142,16 @@ async function updateUser(req, res, next) {
       }
       safe.isActive = safe.status === 'active';
       delete safe.status;
+    }
+
+    /* A role change must leave the chart in the brief's shape — see orgService. */
+    if (safe.role) {
+      try { await orgService.assertRoleFitsChart(req.params.id, safe.role); }
+      catch (err) {
+        if (err.code === 'ORG_INVALID_MANAGER') return badRequest(res, err.message);
+        if (err.code === 'USER_NOT_FOUND') return notFound(res, err.message);
+        throw err;
+      }
     }
 
     const user = await User.findByIdAndUpdate(req.params.id, safe, {
@@ -171,7 +182,7 @@ async function setManager(req, res, next) {
     }, req);
     return ok(res, await User.findById(user._id).select(SAFE_FIELDS).lean(), 'Reporting line updated');
   } catch (err) {
-    if (err.code === 'ORG_CYCLE') return badRequest(res, err.message);
+    if (err.code === 'ORG_CYCLE' || err.code === 'ORG_INVALID_MANAGER') return badRequest(res, err.message);
     if (err.code === 'MANAGER_NOT_FOUND' || err.code === 'USER_NOT_FOUND') return notFound(res, err.message);
     next(err);
   }
@@ -208,7 +219,16 @@ async function hardDeleteUser(req, res, next) {
        longer exists, and every subtree query beneath them would silently return nothing.
        Re-point them at this user's own manager before the record goes. */
     const reports = await User.find({ reportsTo: user._id }).select('_id').lean();
-    for (const r of reports) await orgService.setManager(r._id, user.reportsTo || null);
+    for (const r of reports) {
+      try {
+        await orgService.setManager(r._id, user.reportsTo || null);
+      } catch (err) {
+        /* The grandparent is the wrong role for them (an SE cannot report to a ZSM).
+           Leave them unplaced rather than refuse the delete; the Director sees them. */
+        if (err.code !== 'ORG_INVALID_MANAGER') throw err;
+        await orgService.setManager(r._id, null);
+      }
+    }
 
     const orphaned = await Lead.updateMany({ owner: user._id }, { $set: { owner: null } });
     await User.findByIdAndDelete(user._id);
@@ -219,7 +239,7 @@ async function hardDeleteUser(req, res, next) {
       label: user.name,
       reason: 'hard delete',
       snapshot: {
-        name: user.name, email: user.email, role: user.role, domain: user.domain,
+        name: user.name, email: user.email, role: user.role, domain: user.domain, zone: user.zone,
         reportsTo: user.reportsTo, territory: user.territory, target: user.target,
         leadsUnassigned: orphaned.modifiedCount,
         reportsReparented: reports.length,
