@@ -64,9 +64,13 @@ export function LogActivityForm({
 }: { customerId: string; dealId?: string; onLogged?: () => void }) {
   const qc = useQueryClient();
   const [type, setType] = useState('call');
+  /* The form clears itself on success, which on its own is indistinguishable from the
+     form having thrown the entry away. Say so. */
+  const [saved, setSaved] = useState(false);
   const [duration, setDuration] = useState('');
   const [outcome, setOutcome] = useState('');
   const [summary, setSummary] = useState('');
+  const beginEdit = () => { if (saved) setSaved(false); };
   const [contactName, setContactName] = useState('');
   /* Doc 2 SA-EX-04 makes "Date & Time *" a field rather than an implicit now(): the
      screen is most often used AFTER the call, and a log that always says "now" makes the
@@ -99,9 +103,20 @@ export function LogActivityForm({
       qc.invalidateQueries({ queryKey: ['activities'] });
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['customer360'] });
+      /*
+       * Logging an activity moves `lastActivityAt` on the deal and the team's At Risk
+       * count with it. Without these the record you are looking at keeps saying
+       * "Last activity —" immediately after you logged one, which reads as a failed
+       * save — and is the reason this form was reported as not working.
+       */
+      qc.invalidateQueries({ queryKey: ['deal'] });
+      qc.invalidateQueries({ queryKey: ['deals'] });
+      qc.invalidateQueries({ queryKey: ['is'] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
+      setSaved(true);
       onLogged?.();
     },
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not save'),
+    onError: (e) => { setSaved(false); setError(e instanceof ApiError ? e.message : 'Could not save'); },
   });
 
   return (
@@ -171,7 +186,7 @@ export function LogActivityForm({
           Summary * <span style={{ color: 'var(--text-3)' }}>— visible to your manager and Director</span>
         </label>
         <textarea id="act-summary" className="form-input" rows={3}
-          value={summary} onChange={(e) => setSummary(e.target.value)} />
+          value={summary} onChange={(e) => { beginEdit(); setSummary(e.target.value); }} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginTop: 10 }}>
@@ -188,6 +203,12 @@ export function LogActivityForm({
       </div>
 
       {error && <div className="offline-banner" style={{ borderColor: 'var(--coral)', marginTop: 10 }} role="alert">{error}</div>}
+      {saved && !error && (
+        <div className="offline-banner" style={{ borderColor: 'var(--emerald)', color: 'var(--emerald)', marginTop: 10 }} role="status">
+          ✓ Activity logged — it is on the timeline below, and this account's open deals
+          now show it as their last activity.
+        </div>
+      )}
 
       <button className="neo-btn gold" style={{ marginTop: 12 }}
         disabled={!summary.trim() || !occurredAt || save.isPending}

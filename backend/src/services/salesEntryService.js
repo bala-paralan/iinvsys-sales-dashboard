@@ -95,6 +95,20 @@ async function mintSalesLead(originLead, opts = {}) {
   }
   if (!lead) throw new Error('could not allocate a unique refId in 3 attempts');
 
+  /*
+   * Name the author on the opening history entry. The model seeds it in pre('validate')
+   * with `by: null`, and leadController patches it afterwards — but this service is the
+   * ONLY door into SPENCO, so every deal created through POST /api/deals carried an
+   * unattributed "Lead created". That left the deal's own history saying who it was
+   * assigned to but never who raised it, and left the creator uncredited in every
+   * "Last activity" figure, which reads those entries.
+   */
+  if (actor && lead.stageHistory.length && !lead.stageHistory[0].by) {
+    lead.stageHistory[0].by = actor._id;
+    lead.stageHistory[0].byName = actor.name || '';
+    await lead.save();
+  }
+
   if (originLead) {
     originLead.convertedTo = lead._id;
     originLead.isStage = pipeline.IS_CONVERTED_STAGE;

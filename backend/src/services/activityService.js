@@ -43,16 +43,27 @@ async function logActivity(input, actor) {
     },
   });
 
-  /* Keep the deal's hygiene anchor current. config/pipeline.js computes the C-5
-     "one note per week" rule from the lead document alone, so if this is skipped a deal
-     with daily calls logged against it still reports stale notes. */
-  if (activity.deal) {
-    const Lead = require('../models/Lead');
-    await Lead.updateOne(
-      { _id: activity.deal },
-      { $set: { lastActivityAt: activity.occurredAt, lastContact: activity.occurredAt } },
-    );
-  }
+  /*
+   * Keep the hygiene anchor current. config/pipeline.js computes the C-5 "one note per
+   * week" rule from the lead document alone, so if this is skipped a deal with daily
+   * calls logged against it still reports stale notes.
+   *
+   * WHEN THERE IS NO DEAL, STAMP THE ACCOUNT'S OPEN ONES. The Log Activity screen
+   * defaults to "General account activity (no deal)" and says so in its own subtitle —
+   * "activities belong to the company, not the lead". Before this, every call logged
+   * that way left `lastActivityAt` null on every one of that account's deals: the
+   * timeline filled up while the pipeline still reported "Last activity —" and counted
+   * them all At Risk. Contact with the account is contact with the account.
+   */
+  const Lead = require('../models/Lead');
+  const pipeline = require('../config/pipeline');
+  const target = activity.deal
+    ? { _id: activity.deal }
+    : { customer: activity.customer, stage: { $in: pipeline.OPEN_SALES_STAGES } };
+  await Lead.updateMany(
+    target,
+    { $set: { lastActivityAt: activity.occurredAt, lastContact: activity.occurredAt } },
+  );
 
   let task = null;
   if (activity.nextAction.label) {
@@ -84,13 +95,36 @@ function tomorrow() {
 
 /** When each of the given users last logged anything, plus the doc 1 severity band. */
 async function lastActivityFor(userIds) {
-  const rows = await Activity.aggregate([
-    { $match: { by: { $in: userIds } } },
-    { $group: { _id: '$by', lastAt: { $max: '$occurredAt' } } },
+  const Lead = require('../models/Lead');
+  /*
+   * "Last activity" means the last time this person DID something on a record, not only
+   * the last time they filled in the activity form. Reading Activity alone reported
+   * "never" against someone who had created fifteen leads that morning, which is what
+   * the column exists to tell you and the opposite of the truth.
+   *
+   * `stageHistory` is the attributable record of that work: its opening entry is stamped
+   * by whoever created the lead, and every transition carries `by` and `at`.
+   */
+  const [rows, stageRows] = await Promise.all([
+    Activity.aggregate([
+      { $match: { by: { $in: userIds } } },
+      { $group: { _id: '$by', lastAt: { $max: '$occurredAt' } } },
+    ]),
+    Lead.aggregate([
+      { $match: { 'stageHistory.by': { $in: userIds } } },
+      { $unwind: '$stageHistory' },
+      { $match: { 'stageHistory.by': { $in: userIds } } },
+      { $group: { _id: '$stageHistory.by', lastAt: { $max: '$stageHistory.at' } } },
+    ]),
   ]);
 
   const now = Date.now();
   const byUser = new Map(rows.map((r) => [String(r._id), r.lastAt]));
+  for (const r of stageRows) {
+    const key = String(r._id);
+    const cur = byUser.get(key);
+    if (!cur || (r.lastAt && new Date(r.lastAt) > new Date(cur))) byUser.set(key, r.lastAt);
+  }
   return userIds.map((id) => {
     const lastAt = byUser.get(String(id)) || null;
     const hours = lastAt ? (now - new Date(lastAt).getTime()) / 36e5 : Infinity;

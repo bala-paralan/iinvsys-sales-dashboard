@@ -150,10 +150,7 @@ async function teamPerformance(req, res, next) {
           atRisk: { $sum: { $cond: [
             { $and: [
               { $in: ['$stage', pipeline.OPEN_SALES_STAGES] },
-              { $or: [
-                { $eq: [{ $ifNull: ['$lastActivityAt', null] }, null] },
-                { $lt: ['$lastActivityAt', staleBefore()] },
-              ] },
+              { $lt: [STALE_ANCHOR, staleBefore()] },
             ] }, 1, 0] } },
         } },
       ]),
@@ -230,6 +227,17 @@ function staleBefore() {
 }
 
 /**
+ * What "untouched" is measured from.
+ *
+ * `lastActivityAt` alone treats a MISSING value as infinitely stale, so a deal created
+ * this morning was At Risk before anyone could have called anybody — and a team that had
+ * just entered fifteen leads read as fifteen deals in trouble. A lead with no activity
+ * yet is as old as the lead, which is exactly the fallback config/pipeline.js already
+ * uses for the same question (hygiene C-5). The two now agree.
+ */
+const STALE_ANCHOR = { $ifNull: ['$lastActivityAt', { $ifNull: ['$stageEnteredAt', '$createdAt'] }] };
+
+/**
  * The five tiles across the top of SA-DIR-01, and the four across SA-MGR-01.
  *
  * Computed over the caller's WHOLE scope — including their own deals — because the tiles
@@ -266,10 +274,12 @@ async function commandSummary(req) {
       { $match: { ...filter, stage: { $in: [pipeline.WON_STAGE, pipeline.LOST_STAGE] } } },
       { $group: { _id: '$stage', count: { $sum: 1 } } },
     ]),
+    /* Same anchor as the per-person figure above — the tile and the table must not
+       disagree about which deals are in trouble. */
     Lead.countDocuments({
       ...filter,
       stage: { $in: pipeline.OPEN_SALES_STAGES },
-      $or: [{ lastActivityAt: null }, { lastActivityAt: { $lt: staleBefore() } }],
+      $expr: { $lt: [STALE_ANCHOR, staleBefore()] },
     }),
     Approval.countDocuments({
       assignedTo: req.user._id,
