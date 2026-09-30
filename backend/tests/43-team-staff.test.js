@@ -138,6 +138,50 @@ describe('team-scoped staff management — SPENCO CRM brief §3', () => {
     });
   });
 
+  describe('deactivate is reversible — not a one-way door', () => {
+    /*
+     * scope.userIds counts ACTIVE descendants, so reusing it for staff administration
+     * meant a manager lost sight of anyone the moment they deactivated them: gone from
+     * ?team=1, and every edit/restore 403. The button that promised "you can restore
+     * them here" could not.
+     */
+    it('an ASM can still see, edit and restore an SE they deactivated', async () => {
+      const o = await roles.salesOrg();
+      const target = o.northA.execA.id;
+      const asm = o.northA.manager;
+
+      expect((await request(app).delete(`/api/users/${target}`).set(auth(asm.token))).status).toBe(200);
+      expect((await User.findById(target).lean()).isActive).toBe(false);
+
+      const listed = await request(app).get('/api/users?team=1&limit=100').set(auth(asm.token));
+      expect(listed.body.data.map((u) => String(u._id))).toContain(String(target));
+
+      const restored = await request(app).put(`/api/users/${target}`)
+        .set(auth(asm.token)).send({ status: 'active' });
+      expect(restored.status).toBe(200);
+      expect((await User.findById(target).lean()).isActive).toBe(true);
+    });
+
+    it('a ZSM can restore someone two levels down, and still not reach another zone', async () => {
+      const o = await roles.salesOrg();
+      await request(app).delete(`/api/users/${o.northA.execA.id}`).set(auth(o.north.token));
+      expect((await request(app).put(`/api/users/${o.northA.execA.id}`)
+        .set(auth(o.north.token)).send({ status: 'active' })).status).toBe(200);
+
+      await request(app).delete(`/api/users/${o.southA.execA.id}`).set(auth(o.director.token));
+      expect((await request(app).put(`/api/users/${o.southA.execA.id}`)
+        .set(auth(o.north.token)).send({ status: 'active' })).status).toBe(403);
+    });
+
+    it('a deactivated person cannot be made someone\'s manager', async () => {
+      const o = await roles.salesOrg();
+      await request(app).delete(`/api/users/${o.northB.manager.id}`).set(auth(o.north.token));
+      const res = await request(app).patch(`/api/users/${o.northA.execA.id}/manager`)
+        .set(auth(o.north.token)).send({ reportsTo: o.northB.manager.id });
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('the staff list', () => {
     it('?team=1 returns exactly the caller\'s subtree, self included; the Director gets everyone', async () => {
       const o = await roles.salesOrg();
@@ -146,6 +190,11 @@ describe('team-scoped staff management — SPENCO CRM brief §3', () => {
 
       const asm = await list(o.northA.manager);
       expect(asm).toEqual([o.northA.manager.id, o.northA.execA.id, o.northA.execB.id].map(String).sort());
+
+      /* Still exactly the subtree after one of them is deactivated — see above. */
+      await request(app).delete(`/api/users/${o.northA.execB.id}`).set(auth(o.northA.manager.token));
+      expect(await list(o.northA.manager)).toEqual(
+        [o.northA.manager.id, o.northA.execA.id, o.northA.execB.id].map(String).sort());
 
       const zsm = await list(o.north);
       expect(zsm).toContain(String(o.northB.execB.id));

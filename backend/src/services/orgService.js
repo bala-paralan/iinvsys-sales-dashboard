@@ -94,9 +94,27 @@ async function setManager(userId, managerId) {
 }
 
 /** Every active user in `userId`'s subtree, excluding the user themselves. */
-async function descendantIds(userId) {
-  const rows = await User.find({ chain: userId, isActive: true }).select('_id').lean();
+/**
+ * @param {object} [opts]
+ * @param {boolean} [opts.includeInactive] — deactivated people too. The DEFAULT excludes
+ *   them, because this feeds row-level scope for leads and KPIs, where a deactivated
+ *   owner should not widen anyone's reach. Staff administration is the exception: a
+ *   manager who deactivates someone must still be able to see and restore them, so
+ *   userController asks for the full subtree. Without that, Deactivate was a one-way
+ *   door — the person left their manager's scope the instant they were deactivated.
+ */
+async function descendantIds(userId, { includeInactive = false } = {}) {
+  const filter = { chain: userId };
+  if (!includeInactive) filter.isActive = true;
+  const rows = await User.find(filter).select('_id').lean();
   return rows.map((r) => r._id);
+}
+
+/** True when `targetId` sits strictly beneath `managerId`, active or not. */
+async function isBeneath(managerId, targetId) {
+  if (String(managerId) === String(targetId)) return false;
+  const t = await User.findById(targetId).select('chain').lean();
+  return !!t && (t.chain || []).some((a) => String(a) === String(managerId));
 }
 
 /** Direct reports only — what the "Switch Exec ▼" pickers render. */
@@ -137,5 +155,5 @@ async function assertRoleFitsChart(userId, newRole) {
 
 module.exports = {
   chainFor, setManager, descendantIds, directReports, createUser,
-  assertManagerRole, assertRoleFitsChart,
+  assertManagerRole, assertRoleFitsChart, isBeneath,
 };

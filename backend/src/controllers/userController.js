@@ -42,8 +42,20 @@ const SAFE_FIELDS = 'name email role domain zone reportsTo initials phone territ
  */
 function unrestricted(scope) { return !scope || scope.userIds === null; }
 function inTeam(scope, id)  { return unrestricted(scope) || scopeAllows(scope, id); }
-function beneath(scope, id) {
-  return unrestricted(scope) || (scopeAllows(scope, id) && String(id) !== String(scope.self));
+
+/*
+ * `scope.userIds` counts ACTIVE descendants only — right for leads, wrong here: a
+ * manager who deactivates someone would lose the ability to see, edit or restore them
+ * the moment they did it. These two ask the org chart directly instead, so a
+ * deactivated person stays administrable by the manager they report to.
+ */
+async function beneath(scope, id) {
+  if (unrestricted(scope)) return true;
+  return orgService.isBeneath(scope.self, id);
+}
+async function staffIds(scope) {
+  const descendants = await orgService.descendantIds(scope.self, { includeInactive: true });
+  return [scope.self, ...descendants];
 }
 
 /**
@@ -86,7 +98,9 @@ async function listUsers(req, res, next) {
        for this so a manager sees the people they may actually edit; the plain directory
        stays company-wide because every assignee picker reads it. */
     if (req.query.team === '1' || req.query.team === 'true') {
-      if (!unrestricted(req.scope)) filter._id = { $in: req.scope.userIds };
+      if (!unrestricted(req.scope)) filter._id = { $in: await staffIds(req.scope) };
+      /* Deactivated people are part of staff administration — they are how Restore is
+         reached. `?active=` still narrows explicitly when a caller wants only one. */
     }
 
     const { page, limit, skip } = parsePaging(req.query, { defaultLimit: 50 });
@@ -168,7 +182,7 @@ async function updateUser(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
-    if (!beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
+    if (!await beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
     if (req.body.role === 'superadmin' && req.user.role !== 'superadmin') {
       return forbidden(res, 'Only a superadmin can grant superadmin');
     }
@@ -215,7 +229,7 @@ async function setManager(req, res, next) {
     /* Both ends of the move stay inside the caller's team: the person, and where they
        land. A manager unplacing someone (reportsTo: null) would push them out of every
        team's view, so that too is the Director's call. */
-    if (!beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
+    if (!await beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
     if (!unrestricted(req.scope) && (!reportsTo || !inTeam(req.scope, reportsTo))) {
       return forbidden(res, 'People in your team must report to you or to someone in your team');
     }
@@ -247,7 +261,7 @@ async function deactivateUser(req, res, next) {
     if (String(user._id) === String(req.user._id)) {
       return badRequest(res, 'You cannot deactivate your own account');
     }
-    if (!beneath(req.scope, user._id)) return forbidden(res, 'That person is not in your team');
+    if (!await beneath(req.scope, user._id)) return forbidden(res, 'That person is not in your team');
     user.isActive = false;
     await user.save();
     return ok(res, {}, 'User deactivated');

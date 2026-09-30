@@ -62,6 +62,9 @@ interface Field {
   help?: string;
   /** Required only in some contexts — a manager must place a new person in their team. */
   requiredWhen?: (ctx: OptionCtx) => boolean;
+  /** Shown in the table but never in the form — changed by its own control instead. */
+  readOnly?: boolean;
+  formOnly?: boolean;
 }
 
 interface Row { _id: string; [k: string]: unknown }
@@ -71,6 +74,15 @@ interface EntitySpec {
   title: string;
   path: string;
   fields: Field[];
+  /**
+   * DELETE on this path DEACTIVATES rather than destroys, so the row stays listed and
+   * can be brought back. Users and products work that way; an expo is really deleted.
+   * The button says which, because "Delete" on a soft delete reads as a no-op — the row
+   * comes back looking identical — and "Deactivate" on a hard delete is a lie.
+   */
+  softDelete?: boolean;
+  /** The body that reverses it, for a soft-delete entity. */
+  restoreBody?: Record<string, unknown>;
 }
 
 const money = (v: unknown) => (v == null || v === '' ? '—' : `₹${Number(v).toLocaleString('en-IN')}`);
@@ -79,6 +91,7 @@ const day = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString('en-IN')
 const ENTITIES: EntitySpec[] = [
   {
     key: 'agents', title: 'Agents', path: '/agents',
+    softDelete: true, restoreBody: { status: 'active' },
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
       /*
@@ -134,6 +147,15 @@ const ENTITIES: EntitySpec[] = [
       { key: 'designation', label: 'Designation' },
       { key: 'target', label: 'Monthly target (₹)', type: 'number', inTable: true, format: money },
       /*
+       * DELETE /api/users/:id is a soft DEACTIVATE — the record stays so its leads,
+       * activities and audit rows keep resolving. Without this column the row looked
+       * identical afterwards, so the button read as broken and people pressed it again.
+       * Not editable here: `status` moves through the row's own Deactivate / Restore
+       * control, which says what it does.
+       */
+      { key: 'status', label: 'Status', inTable: true, formOnly: false, readOnly: true,
+        format: (v) => (v === 'inactive' ? 'Inactive' : 'Active') },
+      /*
        * Required, though POST /api/users treats it as optional. Omitting it there mints
        * a random password that is immediately discarded, so the account lands in the org
        * chart and nobody — including the admin who created it — can ever sign into it.
@@ -149,6 +171,7 @@ const ENTITIES: EntitySpec[] = [
   },
   {
     key: 'products', title: 'Products', path: '/products',
+    softDelete: true, restoreBody: { isActive: true },
     fields: [
       { key: 'name', label: 'Name', required: true, inTable: true },
       { key: 'sku', label: 'SKU', required: true, inTable: true },
@@ -167,6 +190,8 @@ const ENTITIES: EntitySpec[] = [
         ],
       },
       { key: 'price', label: 'Price (₹)', type: 'number', required: true, inTable: true, format: money },
+      { key: 'isActive', label: 'Status', inTable: true, readOnly: true,
+        format: (v) => (v === false ? 'Inactive' : 'Active') },
       { key: 'description', label: 'Description' },
     ],
   },
@@ -296,6 +321,14 @@ function EntityTable({ spec, canWrite, teamOnly }: { spec: EntitySpec; canWrite:
     onError: (err) => setError(err instanceof ApiError ? err.message : String(err)),
   });
 
+  /* The other half of a soft deactivate. Without it the only way back was the database,
+     so "Deactivate" was effectively irreversible despite being designed not to be. */
+  const restore = useMutation({
+    mutationFn: (id: string) => api('PUT', `${spec.path}/${id}`, spec.restoreBody ?? { isActive: true }),
+    onSuccess: () => { setError(null); void invalidate(); },
+    onError: (err) => setError(err instanceof ApiError ? err.message : String(err)),
+  });
+
   const columns = spec.fields.filter((f) => f.inTable);
 
   return (
@@ -326,39 +359,71 @@ function EntityTable({ spec, canWrite, teamOnly }: { spec: EntitySpec; canWrite:
                   {c.label}
                 </th>
               ))}
-              {canWrite && <th style={{ width: 140 }} />}
+              {/* Pinned to the right edge: the table scrolls sideways, and these sat
+                  past it — present in the DOM, unreachable on screen. */}
+              {canWrite && <th className="table-th" style={{
+                width: 150, position: 'sticky', right: 0, background: 'var(--surface-2)',
+                textAlign: 'right', padding: '10px 12px', whiteSpace: 'nowrap',
+              }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row._id} style={{ borderTop: '1px solid var(--surface-3)' }}>
+            {rows.map((row) => {
+              const inactive = !!spec.softDelete && (row.status === 'inactive' || row.isActive === false);
+              const label = String(row.name ?? row._id);
+              return (
+              <tr key={row._id} style={{
+                borderTop: '1px solid var(--surface-3)',
+                /* A deactivated person stays listed — dimmed, so the state is legible
+                   at a glance rather than only in the Status cell. */
+                opacity: inactive ? 0.45 : 1,
+              }}>
                 {columns.map((c) => (
                   <td key={c.key} style={{ padding: '9px 12px' }}>
                     {c.format ? c.format(row[c.key], row, ctx) : (row[c.key] == null || row[c.key] === '' ? '—' : String(row[c.key]))}
                   </td>
                 ))}
                 {canWrite && (
-                  <td style={{ padding: '6px 12px', whiteSpace: 'nowrap' }}>
+                  <td style={{
+                    padding: '6px 12px', whiteSpace: 'nowrap', textAlign: 'right',
+                    position: 'sticky', right: 0, background: 'var(--surface-1)',
+                  }}>
                     <button
                       className="neo-btn" style={{ padding: '3px 9px', fontSize: 11 }}
                       onClick={() => { setEditing(row); setError(null); }}
                     >
                       Edit
                     </button>{' '}
-                    <button
-                      className="neo-btn" style={{ padding: '3px 9px', fontSize: 11 }}
-                      onClick={() => {
-                        /* A delete here is not recoverable from this screen, so
-                           it asks — and names what it is about to remove. */
-                        if (window.confirm(`Delete "${String(row.name ?? row._id)}"?`)) remove.mutate(row._id);
-                      }}
-                    >
-                      Delete
-                    </button>
+                    {inactive ? (
+                      <button
+                        className="neo-btn" style={{ padding: '3px 9px', fontSize: 11 }}
+                        disabled={restore.isPending}
+                        onClick={() => restore.mutate(row._id)}
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        className="neo-btn" style={{ padding: '3px 9px', fontSize: 11 }}
+                        disabled={remove.isPending}
+                        onClick={() => {
+                          /* Each button says what its endpoint actually does. Calling a
+                             soft deactivate "Delete" promised something it never did —
+                             the row came back looking identical, so it read as broken. */
+                          if (window.confirm(spec.softDelete
+                            ? `Deactivate "${label}"? It stays listed with its history intact `
+                              + 'and can be restored here.'
+                            : `Delete "${label}" permanently? This cannot be undone.`,
+                          )) remove.mutate(row._id);
+                        }}
+                      >
+                        {spec.softDelete ? 'Deactivate' : 'Delete'}
+                      </button>
+                    )}
                   </td>
                 )}
               </tr>
-            ))}
+            ); })}
             {!list.isLoading && rows.length === 0 && (
               <tr>
                 <td colSpan={columns.length + 1} style={{ padding: 16, color: 'var(--text-3)' }}>
@@ -400,7 +465,7 @@ function EntityForm({
   onSubmit: (body: Record<string, unknown>) => void;
 }) {
   /* Editing shows every field the server will actually accept, and no others. */
-  const fields = spec.fields.filter((f) => !(row && f.createOnly));
+  const fields = spec.fields.filter((f) => !f.readOnly && !(row && f.createOnly));
 
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => {
