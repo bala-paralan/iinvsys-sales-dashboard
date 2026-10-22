@@ -348,6 +348,10 @@ const PORTALS = {
         { label: 'Delivery Board', to: '/prod-head/delivery', screen: SCREEN.DELIVERY_BOARD },
       ] },
       { section: 'Account', items: [
+        /* Every manager staffs their own team — the head adds and removes engineers
+           themselves. Without this entry the screen existed and the API allowed the
+           writes, but nothing in the portal linked to it. */
+        { label: 'People',  to: '/prod-head/people', screen: SCREEN.ADMIN },
         { label: 'Reports', to: '/prod-head/reports', screen: SCREEN.DASHBOARD },
         { label: 'Alerts',  to: '/prod-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
@@ -396,6 +400,8 @@ const PORTALS = {
         { label: 'Contracts',     to: '/install-head/contracts', screen: SCREEN.IC_CONTRACTS },
       ] },
       { section: 'Account', items: [
+        /* Their own field engineers — see the Production Head's People entry. */
+        { label: 'People',  to: '/install-head/people', screen: SCREEN.ADMIN },
         { label: 'Reports', to: '/install-head/reports', screen: SCREEN.DASHBOARD },
         { label: 'Alerts',  to: '/install-head/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },
@@ -422,6 +428,8 @@ const PORTALS = {
       ] },
       { section: 'Account', items: [
         { label: 'Customers', to: '/cs-mgr/customers', screen: SCREEN.CUSTOMERS },
+        /* Their own CS agents — see the Production Head's People entry. */
+        { label: 'People',    to: '/cs-mgr/people', screen: SCREEN.ADMIN },
         { label: 'Reports',   to: '/cs-mgr/reports', screen: SCREEN.DASHBOARD },
         { label: 'Alerts',    to: '/cs-mgr/alerts', screen: SCREEN.NOTIFICATIONS, badge: 'notifications' },
       ] },

@@ -103,9 +103,27 @@ const ENTITIES: EntitySpec[] = [
        * "SD - Sales Director".
        */
       { key: 'role', label: 'Role', type: 'select', required: true, inTable: true,
-        options: ({ roles }) => roles.roles.map((r: RoleDef) => ({
-          value: r.key, label: r.abbr ? `${r.abbr} - ${r.label}` : r.label,
-        })),
+        /*
+         * Narrowed for a team-scoped manager to the roles the server will actually let
+         * them appoint — the same two rules userController applies: the new person must
+         * be able to report INTO this team, and a manager may not appoint a role that
+         * reads company-wide. Unnarrowed, the list offered a Production Head four roles
+         * whose creation is a 403 and, before the server refused them at all, offered
+         * every manager a one-click route to a company-wide reader inside their team.
+         */
+        options: ({ roles, users, teamOnly }) => {
+          const teamRoles = new Set(users.filter((u) => u.isActive !== false).map((u) => String(u.role)));
+          return roles.roles
+            .filter((r: RoleDef) => {
+              if (!teamOnly) return true;
+              if (r.scope === 'all') return false;
+              const above = r.reportsTo?.filter((k): k is string => !!k) ?? null;
+              return !above || above.some((k) => teamRoles.has(k));
+            })
+            .map((r: RoleDef) => ({
+              value: r.key, label: r.abbr ? `${r.abbr} - ${r.label}` : r.label,
+            }));
+        },
         format: (v, _row, ctx) => {
           const r = ctx.roles.get(String(v ?? ''));
           return r ? (r.abbr ? `${r.abbr} - ${r.label}` : r.label) : String(v ?? '—');
@@ -236,7 +254,11 @@ export function AdminPage() {
   const tabs = ENTITIES.filter((e) => perms.includes(WRITE_PERMISSION[e.key] ?? '\u0000'));
   const [active, setActive] = useState(ENTITIES[0].key);
   const spec = tabs.find((e) => e.key === active) ?? tabs[0];
-  const teamOnly = !!me && me.scope.mode !== 'all';
+  /* The STAFF-WRITE axis, not the read scope. A Production Head reads company-wide
+     (scope.mode 'all') but may only add, edit and deactivate their own engineers, so
+     keying this off `mode` listed them the entire company and let them submit a person
+     with no reporting line that POST /api/users then refused. */
+  const teamOnly = !!me && me.scope.staffWrite !== 'all';
 
   if (!spec) {
     return (

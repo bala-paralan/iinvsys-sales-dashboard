@@ -1,7 +1,9 @@
 'use strict';
 const { validationResult } = require('express-validator');
 const { WON_STAGE, TERMINAL_SALES_STAGES } = require('../config/pipeline');
-const { ALL_ROLES, REGISTERABLE_ROLES } = require('../config/permissions');
+const {
+  ALL_ROLES, REGISTERABLE_ROLES, ROLE_LABELS, scopeModeFor, staffWriteMode,
+} = require('../config/permissions');
 const Lead = require('../models/Lead');
 const User = require('../models/User');
 const { ok, created, notFound, unprocessable, paginated, badRequest, forbidden, conflict } = require('../utils/response');
@@ -24,10 +26,10 @@ const audit = require('../services/auditService');
 const SAFE_FIELDS = 'name email role domain zone reportsTo initials phone territory designation target color joinDate isActive lastLogin createdAt';
 
 /*
- * TEAM-SCOPED STAFF MANAGEMENT — SPENCO CRM brief §3.
+ * TEAM-SCOPED STAFF MANAGEMENT — SPENCO CRM brief §3, applied to all four modules.
  *
- * The Director's scope is 'all'; a manager's is 'team' (self + subtree). `user.write`
- * says a caller may add and edit staff; these two rules say whose:
+ * EVERY MANAGER STAFFS THEIR OWN TEAM. `user.write` says a caller may add and edit
+ * staff; these rules say whose:
  *
  *   - a new person must report to the caller or to someone beneath them, so a manager
  *     can only grow their own team (and the chart rule then decides which ROLE that
@@ -37,11 +39,27 @@ const SAFE_FIELDS = 'name email role domain zone reportsTo initials phone territ
  *     (role, target, active) is the one write the chart rule does not fully cover, so
  *     it is refused outright; that is what Account settings are for.
  *
- * A scope of 'all' passes both without a query. Superadmin and the Director are the
- * only holders.
+ * THE DECIDING ROLE SET IS `staffWriteMode`, NOT `req.scope`. These checks used to read
+ * `scope.userIds === null` — the READ scope — which made every role that reads
+ * company-wide a company-wide staff administrator too. That is right for the superadmin
+ * and the Director, and wrong for the three module heads: a Production Head reads every
+ * engineer (doc 3) but may no more edit the Sales Director than an ASM may. Reading and
+ * writing are separate axes; see STAFF_WRITE_ALL_ROLES in config/permissions.js.
  */
-function unrestricted(scope) { return !scope || scope.userIds === null; }
-function inTeam(scope, id)  { return unrestricted(scope) || scopeAllows(scope, id); }
+function writesAnywhere(req) { return staffWriteMode(req.user.role) === 'all'; }
+
+/*
+ * Where a scoped manager may PLACE someone: themselves, or anyone beneath them —
+ * and the destination must be ACTIVE, because a deactivated person is not a post a new
+ * hire can be filed under. Asks the org chart rather than `scope.userIds`, which for a
+ * head whose read scope is 'all' is `null` and would wave every target through.
+ */
+async function managerInTeam(req, managerId) {
+  if (String(managerId) === String(req.user._id)) return true;
+  const mgr = await User.findById(managerId).select('isActive').lean();
+  if (!mgr || mgr.isActive === false) return false;
+  return orgService.isBeneath(req.user._id, managerId);
+}
 
 /*
  * `scope.userIds` counts ACTIVE descendants only — right for leads, wrong here: a
@@ -49,13 +67,35 @@ function inTeam(scope, id)  { return unrestricted(scope) || scopeAllows(scope, i
  * the moment they did it. These two ask the org chart directly instead, so a
  * deactivated person stays administrable by the manager they report to.
  */
-async function beneath(scope, id) {
-  if (unrestricted(scope)) return true;
-  return orgService.isBeneath(scope.self, id);
+async function beneath(req, id) {
+  if (writesAnywhere(req)) return true;
+  return orgService.isBeneath(req.user._id, id);
 }
-async function staffIds(scope) {
-  const descendants = await orgService.descendantIds(scope.self, { includeInactive: true });
-  return [scope.self, ...descendants];
+async function staffIds(req) {
+  const descendants = await orgService.descendantIds(req.user._id, { includeInactive: true });
+  return [req.user._id, ...descendants];
+}
+
+/*
+ * Two guards that apply to every staff write, whatever the caller's reach.
+ *
+ * `protectsSuperadmin` — nobody but a superadmin writes to a superadmin's record. The
+ * Director's staff reach is company-wide so that they can build the org chart, and that
+ * included the platform account: `PUT {role:'sales_executive'}` or one DELETE on
+ * admin@iinvsys.com locked every administrator out of a deployment whose only
+ * superadmin it is, with no route back through the app.
+ *
+ * `grantsCompanyWideRole` — a scoped manager may not appoint a role that reads the whole
+ * company (Director, Production Head, Installation Head, CS Manager). The chart rule in
+ * REPORTS_TO_ROLES already refuses these placements; this says the same thing in terms
+ * of privilege rather than chart shape, so neither layer is the only thing standing
+ * between a team manager and a company-wide reader.
+ */
+function protectsSuperadmin(req, target) {
+  return target && target.role === 'superadmin' && req.user.role !== 'superadmin';
+}
+function grantsCompanyWideRole(req, role) {
+  return !!role && !writesAnywhere(req) && scopeModeFor(role) === 'all';
 }
 
 /**
@@ -98,7 +138,7 @@ async function listUsers(req, res, next) {
        for this so a manager sees the people they may actually edit; the plain directory
        stays company-wide because every assignee picker reads it. */
     if (req.query.team === '1' || req.query.team === 'true') {
-      if (!unrestricted(req.scope)) filter._id = { $in: await staffIds(req.scope) };
+      if (!writesAnywhere(req)) filter._id = { $in: await staffIds(req) };
       /* Deactivated people are part of staff administration — they are how Restore is
          reached. `?active=` still narrows explicitly when a caller wants only one. */
     }
@@ -151,12 +191,15 @@ async function createUser(req, res, next) {
     }
     /* A manager grows their own team and nothing else. Nobody but a superadmin mints
        another superadmin, whatever their scope. */
-    if (!unrestricted(req.scope)) {
+    if (!writesAnywhere(req)) {
       if (!req.body.reportsTo) return badRequest(res, 'New people must report to you or to someone in your team');
-      if (!inTeam(req.scope, req.body.reportsTo)) return forbidden(res, 'That manager is not in your team');
+      if (!await managerInTeam(req, req.body.reportsTo)) return forbidden(res, 'That manager is not in your team');
     }
     if (role === 'superadmin' && req.user.role !== 'superadmin') {
       return forbidden(res, 'Only a superadmin can create a superadmin');
+    }
+    if (grantsCompanyWideRole(req, role)) {
+      return forbidden(res, `Only the Director can appoint a ${ROLE_LABELS[role] || role}`);
     }
 
     /* No password in the request: mint an unusable one, exactly as the referrer flow
@@ -167,6 +210,13 @@ async function createUser(req, res, next) {
       || `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}A1!`;
 
     const user = await orgService.createUser({ ...req.body, password, createdBy: req.user._id });
+    await audit.record({
+      action: 'user.create',
+      entityType: 'user',
+      entityId: user._id,
+      summary: `${user.name} added as ${ROLE_LABELS[user.role] || user.role}`,
+      meta: { role: user.role, reportsTo: user.reportsTo ? String(user.reportsTo) : null },
+    }, req);
     return created(res, sanitise(user), 'User created');
   } catch (err) {
     if (err.code === 'MANAGER_NOT_FOUND' || err.code === 'ORG_INVALID_MANAGER') return badRequest(res, err.message);
@@ -182,9 +232,17 @@ async function updateUser(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return unprocessable(res, 'Validation failed', errors.array());
 
-    if (!await beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
+    const target = await User.findById(req.params.id).select('role name isActive').lean();
+    if (!target) return notFound(res, 'User not found');
+    if (protectsSuperadmin(req, target)) {
+      return forbidden(res, 'Only a superadmin can change a superadmin account');
+    }
+    if (!await beneath(req, req.params.id)) return forbidden(res, 'That person is not in your team');
     if (req.body.role === 'superadmin' && req.user.role !== 'superadmin') {
       return forbidden(res, 'Only a superadmin can grant superadmin');
+    }
+    if (grantsCompanyWideRole(req, req.body.role)) {
+      return forbidden(res, `Only the Director can appoint a ${ROLE_LABELS[req.body.role] || req.body.role}`);
     }
 
     /* `chain` is derived state maintained by orgService; `reportsTo` moves only through
@@ -215,6 +273,20 @@ async function updateUser(req, res, next) {
       new: true, runValidators: true,
     }).select(SAFE_FIELDS);
     if (!user) return notFound(res, 'User not found');
+    /* A staff edit is an access change as often as it is a profile change — a role, a
+       target, or the isActive flag that Restore flips. Logged with the field names so
+       "who reactivated this account" is answerable; values stay out, since one of them
+       could be an email address being corrected. */
+    const restored = safe.isActive === true && target.isActive === false;
+    await audit.record({
+      action: 'record.update',
+      entityType: 'user',
+      entityId: user._id,
+      summary: restored
+        ? `${user.name} restored`
+        : `${user.name} updated (${Object.keys(safe).join(', ')})`,
+      meta: { fields: Object.keys(safe), role: user.role },
+    }, req);
     return ok(res, user, 'User updated');
   } catch (err) {
     next(err);
@@ -229,8 +301,13 @@ async function setManager(req, res, next) {
     /* Both ends of the move stay inside the caller's team: the person, and where they
        land. A manager unplacing someone (reportsTo: null) would push them out of every
        team's view, so that too is the Director's call. */
-    if (!await beneath(req.scope, req.params.id)) return forbidden(res, 'That person is not in your team');
-    if (!unrestricted(req.scope) && (!reportsTo || !inTeam(req.scope, reportsTo))) {
+    const moving = await User.findById(req.params.id).select('role').lean();
+    if (!moving) return notFound(res, 'User not found');
+    if (protectsSuperadmin(req, moving)) {
+      return forbidden(res, 'Only a superadmin can change a superadmin account');
+    }
+    if (!await beneath(req, req.params.id)) return forbidden(res, 'That person is not in your team');
+    if (!writesAnywhere(req) && (!reportsTo || !await managerInTeam(req, reportsTo))) {
       return forbidden(res, 'People in your team must report to you or to someone in your team');
     }
     const user = await orgService.setManager(req.params.id, reportsTo || null);
@@ -261,9 +338,22 @@ async function deactivateUser(req, res, next) {
     if (String(user._id) === String(req.user._id)) {
       return badRequest(res, 'You cannot deactivate your own account');
     }
-    if (!await beneath(req.scope, user._id)) return forbidden(res, 'That person is not in your team');
+    if (protectsSuperadmin(req, user)) {
+      return forbidden(res, 'Only a superadmin can deactivate a superadmin account');
+    }
+    if (!await beneath(req, user._id)) return forbidden(res, 'That person is not in your team');
     user.isActive = false;
     await user.save();
+    /* Deactivation revokes every session and every login (middleware/auth.js and
+       authController both refuse an inactive account), so it is the system's real
+       "delete" for a person. It was the one staff write with no audit row at all. */
+    await audit.record({
+      action: 'record.delete',
+      entityType: 'user',
+      entityId: user._id,
+      summary: `${user.name} deactivated`,
+      meta: { role: user.role, soft: true },
+    }, req);
     return ok(res, {}, 'User deactivated');
   } catch (err) {
     next(err);

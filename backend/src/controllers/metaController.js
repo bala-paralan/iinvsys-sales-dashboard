@@ -1,7 +1,7 @@
 'use strict';
 
 const pipeline = require('../config/pipeline');
-const { ROLE_PERMISSIONS, permissionsFor, scopeModeFor } = require('../config/permissions');
+const { ROLE_PERMISSIONS, permissionsFor, scopeModeFor, staffWriteMode } = require('../config/permissions');
 const { portalFor } = require('../config/portals');
 const { can } = require('../middleware/rbac');
 const orgService = require('../services/orgService');
@@ -78,6 +78,12 @@ async function getMe(req, res, next) {
       permissions: permissionsFor(req.user.role),
       scope: {
         mode: scopeModeFor(req.user.role),
+        /* Staff writes are a separate axis from reads — a Production Head reads
+           company-wide and administers only their own subtree. The People screen asks
+           for `?team=1` and insists on a reporting line off THIS, not off `mode`;
+           keyed off `mode` it showed those heads the whole company and let them submit
+           a person the server would then refuse to place. */
+        staffWrite: staffWriteMode(req.user.role),
         /* Named explicitly so a screen can hide a money column rather than render an
            empty one. The server still strips the values either way — see utils/redact.js;
            this is a rendering hint, never the enforcement. */

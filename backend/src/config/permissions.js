@@ -156,9 +156,13 @@ const ROLE_PERMISSIONS = {
     'notification.read', 'finance.read',
   ],
 
-  /* Doc 3: all orders, all engineers, all financial values, sole dispatch authority. */
+  /* Doc 3: all orders, all engineers, all financial values, sole dispatch authority.
+     EVERY MANAGER STAFFS THEIR OWN TEAM: a Production Head hires and removes engineers
+     without waiting on the superadmin, exactly as an ASM does with executives. Their
+     READ scope is 'all' (doc 3: "all orders, all engineers") but staff writes are a
+     separate axis — see STAFF_WRITE_ALL_ROLES — and theirs is their own subtree. */
   production_head: [
-    'user.read', 'directory.read', 'catalog.read',
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
     'customer.read',
     'task.read', 'task.write',
     'approval.decide',
@@ -185,9 +189,10 @@ const ROLE_PERMISSIONS = {
     'notification.read',
   ],
 
-  /* Doc 4: all jobs, all field engineers, plus a read-only view of CS SLA. */
+  /* Doc 4: all jobs, all field engineers, plus a read-only view of CS SLA.
+     Staffs their own field team — see production_head above. */
   install_head: [
-    'user.read', 'directory.read', 'catalog.read',
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
     'customer.read',
     'activity.read', 'activity.read_team', 'task.read', 'task.write',
     'approval.decide',
@@ -198,9 +203,10 @@ const ROLE_PERMISSIONS = {
     'notification.read', 'finance.read',
   ],
 
-  /* Doc 4: the only role that sees agent-to-agent comparison data. */
+  /* Doc 4: the only role that sees agent-to-agent comparison data.
+     Staffs their own agents — see production_head above. */
   cs_manager: [
-    'user.read', 'directory.read', 'catalog.read',
+    'user.read', 'user.write', 'user.assign_reports', 'directory.read', 'catalog.read',
     'customer.read', 'customer.write',
     'activity.read', 'activity.write', 'activity.read_team',
     'task.read', 'task.write', 'coaching.read', 'coaching.write',
@@ -322,10 +328,22 @@ const ROLE_ABBR = {
  *   SD ─┬─ ISM ── ISE
  *       └─ ZSM ── ASM ── SE
  *
- * A role absent here has no constraint on its manager (the non-Sales modules keep the
- * free-form chart Phase 0 gave them). `null` in the list means "may report to nobody".
- * orgService.setManager enforces it; the transfer matrix and every 'team' scope assume
- * the chart has this shape, so a chart that violates it would make those rules lie.
+ * `null` in the list means "may report to nobody". orgService.setManager enforces it;
+ * the transfer matrix and every 'team' scope assume the chart has this shape, so a
+ * chart that violates it would make those rules lie.
+ *
+ * THE NON-SALES MODULES ARE LISTED TOO, and that is a fix rather than tidiness. A role
+ * absent here had NO constraint on its manager — `mayReportTo` returned true for any
+ * pair — so an Area Sales Manager could create, or promote one of their executives
+ * into, a Production Head / Installation Head / CS Manager: three roles whose read
+ * scope is 'all'. A manager minting a company-wide reader inside their own team was one
+ * PUT away, and the only reason it was not reachable for `superadmin` is that
+ * userController names that role explicitly. Every business role now has a declared
+ * place, so the chart rule is total and that escalation path closes with it.
+ *
+ *   SA ─┬─ PH ── PE        (production)
+ *       ├─ IH ── FE        (installation)
+ *       └─ CSM ── CSA      (customer support)
  */
 const REPORTS_TO_ROLES = {
   sales_director:         [null, 'superadmin'],
@@ -334,7 +352,39 @@ const REPORTS_TO_ROLES = {
   zonal_sales_manager:    ['sales_director'],
   area_sales_manager:     ['zonal_sales_manager'],
   sales_executive:        ['area_sales_manager'],
+  production_head:        [null, 'superadmin'],
+  production_engineer:    ['production_head'],
+  install_head:           [null, 'superadmin'],
+  field_engineer:         ['install_head'],
+  cs_manager:             [null, 'superadmin'],
+  cs_agent:               ['cs_manager'],
 };
+
+/**
+ * Who may administer staff ANYWHERE in the org chart.
+ *
+ * Staff writes are a SECOND axis, deliberately independent of `ROLE_SCOPE`. Read scope
+ * answers "whose rows may you see"; this answers "whose records may you change". They
+ * are not the same question, and conflating them broke in both directions:
+ *
+ *   - a Production Head reads every order and every engineer (doc 3), so their read
+ *     scope is 'all' — which would have handed them edit rights over the Sales Director
+ *     the moment they were given `user.write`;
+ *   - a Sales Director's 'all' read scope let them deactivate or demote `superadmin`.
+ *     On a greenfield deployment that is the ONLY platform account, so one click locked
+ *     every administrator out of the system with no route back through the app.
+ *
+ * So: the superadmin and the Director — the two roles whose job is building the chart —
+ * write anywhere. EVERY other holder of `user.write` is confined to their own reporting
+ * subtree whatever their read scope, which is the SPENCO CRM brief's rule ("manages
+ * their team") applied to all four modules instead of just Sales.
+ */
+const STAFF_WRITE_ALL_ROLES = ['superadmin', 'sales_director'];
+
+/** 'all' when the role administers staff company-wide, 'team' for their own subtree. */
+function staffWriteMode(role) {
+  return STAFF_WRITE_ALL_ROLES.includes(role) ? 'all' : 'team';
+}
 
 /**
  * Who may transfer a lead to whom — SPENCO CRM brief §5, as data.
@@ -385,5 +435,6 @@ function scopeModeFor(role) {
 module.exports = {
   PERMISSIONS, ROLE_PERMISSIONS, ALL_ROLES, V3_ROLES, REGISTERABLE_ROLES,
   ROLE_SCOPE, INSIDE_SALES_ONLY_ROLES, ROLE_LABELS, ROLE_ABBR, REPORTS_TO_ROLES, TRANSFER_TARGETS,
-  permissionsFor, roleHasAny, rolesWith, scopeModeFor, mayReportTo,
+  STAFF_WRITE_ALL_ROLES,
+  permissionsFor, roleHasAny, rolesWith, scopeModeFor, mayReportTo, staffWriteMode,
 };

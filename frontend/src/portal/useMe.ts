@@ -49,6 +49,10 @@ export interface Me {
   permissions: string[];
   scope: {
     mode: 'own' | 'team' | 'all';
+    /* How far a caller's STAFF WRITES reach, which is not how far their reads do: the
+       three module heads read company-wide and administer only their own subtree.
+       The People screen keys "your team" off this, never off `mode`. */
+    staffWrite: 'team' | 'all';
     /* A rendering hint only. The server strips the values from the payload either way —
        see backend/src/utils/redact.js — so a screen that ignores this shows an empty
        column, never someone else's numbers. */
